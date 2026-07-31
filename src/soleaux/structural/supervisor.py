@@ -104,6 +104,7 @@ class StructuralWorkerSupervisor:
         self._completed_jobs = 0
         self._total_completed_jobs = 0
         self._last_rss_bytes: int | None = None
+        self._last_replace_reason: str | None = None
         self._worker_epoch = 0
         self._tasks = TaskRegistry()
         self._cache = MemoryCache(
@@ -453,6 +454,7 @@ class StructuralWorkerSupervisor:
             await self._replace("job-limit", provision=True)
 
     async def _replace(self, reason: str, *, provision: bool = False) -> None:
+        self._last_replace_reason = reason
         proc = self._proc
         process_tree = self._process_tree
         self._proc = None

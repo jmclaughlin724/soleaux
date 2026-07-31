@@ -316,7 +316,7 @@ async def test_recycle_after_completed_job_limit() -> None:
         assert supervisor.pid != first_pid
         assert supervisor.completed_jobs == 1, (
             f"jobs={supervisor.completed_jobs} total={supervisor.total_completed_jobs} "
-            f"rss={supervisor._last_rss_bytes}"
+            f"rss={supervisor._last_rss_bytes} reason={supervisor._last_replace_reason}"
         )
     finally:
         await supervisor.aclose()
