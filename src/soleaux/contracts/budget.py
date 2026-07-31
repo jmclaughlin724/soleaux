@@ -50,7 +50,7 @@ class StructuralWorkerBudget(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True, extra="forbid")
 
     max_completed_jobs: int = pydantic.Field(default=64, ge=1)
-    max_rss_bytes: int = pydantic.Field(default=256 * 1024 * 1024, ge=1)
+    max_rss_bytes: int = pydantic.Field(default=512 * 1024 * 1024, ge=1)
     lru_entries: int = pydantic.Field(default=2048, ge=1)
     lru_bytes: int = pydantic.Field(default=128 * 1024 * 1024, ge=1)
     shutdown_grace_seconds: float = pydantic.Field(default=5.0, gt=0)

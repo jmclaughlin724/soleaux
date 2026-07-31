@@ -4,7 +4,7 @@ Startup, initialize, tools/list, and describe start no child. The first
 structural request lazily starts exactly one supervised Python worker. The
 parent owns bounded IPC, deadlines, output caps, cancellation,
 terminate/kill escalation, job and RSS accounting, and replacement after 64
-completed jobs, 256 MiB RSS, hard cancellation, or protocol failure.
+completed jobs, 512 MiB RSS, hard cancellation, or protocol failure.
 """
 
 from __future__ import annotations
