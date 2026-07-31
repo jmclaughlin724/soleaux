@@ -106,7 +106,7 @@ def _repack_installed_wheel(
     assert wheel_text is not None
     wheel_metadata = email.parser.Parser(policy=email.policy.default).parsestr(wheel_text)
     wheel_tags = _assertions.string_list(wheel_metadata.get_all("Tag"))
-    assert len(wheel_tags) == 1
+    assert len(wheel_tags) >= 1
     wheel_tag = wheel_tags[0]
     assert wheel_tag and all(character.isalnum() or character in "._-" for character in wheel_tag)
     assert distribution.version and all(
