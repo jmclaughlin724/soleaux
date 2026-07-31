@@ -17,11 +17,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Sync the locked environment
         run: uv sync --locked
+      - name: Provision the conformance runtimes and language servers
+        run: |
+          uv run --locked soleaux install postgresql-parser
+          npm install -g typescript-language-server typescript@6 yaml-language-server
+          go install golang.org/x/tools/gopls@v0.23.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+        env:
+          GOTOOLCHAIN: auto
       - name: Ruff
         run: |
           uv run --locked ruff check .
@@ -57,7 +69,9 @@ jobs:
       - name: Verify the Git-hook delivery
         run: pnpm run check:hooks
       - name: Typecheck and unit-test telemetry packages
-        run: pnpm exec turbo run typecheck test:unit
+        run: pnpm exec turbo run typecheck test:unit --filter=!@soleaux/core
+      - name: Test the service controller
+        run: pnpm exec vitest run scripts/soleaux/
       - name: Audit the docs site
         run: pnpm exec turbo run audit --filter=@soleaux/docs
       - name: Verify upstream claim registry hygiene
