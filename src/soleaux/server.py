@@ -23,6 +23,7 @@ import hashlib
 import importlib.resources
 import json
 import pathlib
+import signal
 import typing
 
 import fastmcp
@@ -972,6 +973,28 @@ def create_server(
     if active_service_factory is None:
         active_service_factory = build_service
 
+    @contextlib.contextmanager
+    def _sigterm_as_sigint() -> collections.abc.Generator[None]:
+        """Route SIGTERM through the SIGINT handler for graceful shutdown.
+
+        ``fastmcp run`` does not exit on stdin EOF, so launch wrappers
+        terminate the server with SIGTERM. Python's default SIGTERM action
+        kills the process without unwinding the lifespan, orphaning backend
+        subprocesses stuck in ``initialize``. Borrowing the SIGINT handler
+        raises ``KeyboardInterrupt`` instead, which unwinds the runner
+        through its shielded cleanup. Only installable on the main thread.
+        """
+        try:
+            previous_term = signal.getsignal(signal.SIGTERM)
+            signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
+        except OSError, ValueError:
+            yield
+            return
+        try:
+            yield
+        finally:
+            signal.signal(signal.SIGTERM, previous_term)
+
     @contextlib.asynccontextmanager
     async def lifespan(
         _server: fastmcp.FastMCP[dict[str, typing.Any]],
@@ -979,15 +1002,16 @@ def create_server(
         service = active_service_factory()
         try:
             await service.start()
-            yield {
-                _LIFESPAN_STATE_KEY: LifespanState(
-                    service=service,
-                    root=resolved_root,
-                    config=resolved_config,
-                    config_digest=resolved_config_digest,
-                    deployment_transport=deployment_transport,
-                )
-            }
+            with _sigterm_as_sigint():
+                yield {
+                    _LIFESPAN_STATE_KEY: LifespanState(
+                        service=service,
+                        root=resolved_root,
+                        config=resolved_config,
+                        config_digest=resolved_config_digest,
+                        deployment_transport=deployment_transport,
+                    )
+                }
         finally:
             await service.aclose()
 

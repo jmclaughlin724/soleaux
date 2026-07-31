@@ -73,6 +73,7 @@ def _only(directory: pathlib.Path, pattern: str) -> pathlib.Path:
 def _runtime_dependency_names() -> tuple[str, ...]:
     """Installed distributions in soleaux's runtime dependency closure."""
     seen: dict[str, importlib.metadata.Distribution] = {}
+    extras_by_name: dict[str, frozenset[str]] = {}
     pending: list[tuple[importlib.metadata.Distribution, frozenset[str]]] = [
         (importlib.metadata.distribution("soleaux"), frozenset())
     ]
@@ -81,7 +82,7 @@ def _runtime_dependency_names() -> tuple[str, ...]:
         for requirement_text in distribution.requires or []:
             requirement = Requirement(requirement_text)
             name = requirement.name.lower().replace("_", "-")
-            if name in seen or name == "soleaux":
+            if name == "soleaux":
                 continue
             try:
                 dependency = importlib.metadata.distribution(name)
@@ -91,9 +92,31 @@ def _runtime_dependency_names() -> tuple[str, ...]:
                 contexts = requested_extras or frozenset({""})
                 if not any(requirement.marker.evaluate({"extra": extra}) for extra in contexts):
                     continue
-            seen[name] = dependency
-            pending.append((dependency, frozenset(requirement.extras)))
+            new_extras = frozenset(requirement.extras) - extras_by_name.get(name, frozenset())
+            if name in seen and not new_extras:
+                continue
+            extras_by_name[name] = extras_by_name.get(name, frozenset()) | frozenset(
+                requirement.extras
+            )
+            if name not in seen:
+                seen[name] = dependency
+            pending.append((dependency, extras_by_name[name]))
     return tuple(sorted(seen))
+
+
+def _compressed_wheel_tag(tags: list[str]) -> str:
+    interpreters: list[str] = []
+    abis: list[str] = []
+    platforms: list[str] = []
+    for tag in tags:
+        interpreter, abi, platform = tag.split("-", 2)
+        if interpreter not in interpreters:
+            interpreters.append(interpreter)
+        if abi not in abis:
+            abis.append(abi)
+        if platform not in platforms:
+            platforms.append(platform)
+    return ".".join(interpreters) + "-" + ".".join(abis) + "-" + ".".join(platforms)
 
 
 def _repack_installed_wheel(
@@ -107,7 +130,7 @@ def _repack_installed_wheel(
     wheel_metadata = email.parser.Parser(policy=email.policy.default).parsestr(wheel_text)
     wheel_tags = _assertions.string_list(wheel_metadata.get_all("Tag"))
     assert len(wheel_tags) >= 1
-    wheel_tag = wheel_tags[0]
+    wheel_tag = _compressed_wheel_tag(wheel_tags)
     assert wheel_tag and all(character.isalnum() or character in "._-" for character in wheel_tag)
     assert distribution.version and all(
         character.isalnum() or character in ".+_" for character in distribution.version

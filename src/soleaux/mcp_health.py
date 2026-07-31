@@ -29,7 +29,11 @@ logger = logging.getLogger(__name__)
 
 MCP_HEALTH_SCHEMA_VERSION = "soleaux.mcp-health/v1"
 DEFAULT_PROBE_INTERVAL_SECONDS = 300.0
-_CLOSE_JOIN_TIMEOUT_SECONDS = 5.0
+# Shutdown joins must outlive a worst-case probe reap: a hanging backend's
+# client only fails after its init timeout (5s default), and the shielded
+# transport termination adds up to ~6s more (mcp stdio bounds).
+_CLOSE_JOIN_TIMEOUT_SECONDS = 15.0
+_REAP_TIMEOUT_SECONDS = 12.0
 _MAX_ERROR_LENGTH = 200
 
 type BackendHealthState = typing.Literal["ok", "degraded", "unauthenticated", "down", "unknown"]
@@ -217,10 +221,13 @@ class McpHealthTracker:
             # Tracker shutdown cancelled the probe while the backend was still
             # connecting (e.g. a hanging command backend). `Client.__aenter__`
             # never completed, so `__aexit__` never runs and the spawned child
-            # would be orphaned; force the disconnect before propagating.
+            # would be orphaned; force the disconnect before propagating. The
+            # shield keeps the reap alive if the tracker task is cancelled a
+            # second time while this runs.
             if client is not None:
+                reap = asyncio.ensure_future(client.close())
                 with contextlib.suppress(Exception):
-                    await asyncio.wait_for(client.close(), timeout=_CLOSE_JOIN_TIMEOUT_SECONDS)
+                    await asyncio.wait_for(asyncio.shield(reap), timeout=_REAP_TIMEOUT_SECONDS)
             raise
         except Exception as exc:
             self._record_failure(name, error=str(exc)[:_MAX_ERROR_LENGTH])

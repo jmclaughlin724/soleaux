@@ -19,10 +19,19 @@ import _processes
 import fastmcp
 import fastmcp.client.client
 import fastmcp.client.transports
+import mcp.client.stdio
 import mcp_types
 import pydantic
 
 import soleaux.surface
+
+# The mcp stdio default (2s) is shorter than a graceful soleaux shutdown with
+# a hanging backend: the server must detect stdin EOF, disconnect the stuck
+# proxy session, and let the health tracker reap its probe child (each step
+# bounded by protocol timeouts of 2s+). Escalating to SIGTERM at 2s aborts
+# that cleanup mid-flight and orphans the fixture. Give launched servers
+# enough grace to finish reaping before the transport escalates.
+mcp.client.stdio.PROCESS_TERMINATION_TIMEOUT = 10.0
 
 type Catalog = dict[str, tuple[dict[str, object], ...]]
 type ConfigKind = typing.Literal["missing", "empty", "configured"]
@@ -35,7 +44,10 @@ FASTMCP_MANIFEST = SOLEAUX_ROOT / "fastmcp.json"
 FAKE_MCP = pathlib.Path(__file__).parent / "fixtures" / "mcp" / "fake_mcp.py"
 CONSOLE_COMMAND = pathlib.Path(sys.executable).with_name("soleaux")
 FASTMCP_COMMAND = REPOSITORY_ROOT / ".venv" / "bin" / "fastmcp"
-PROCESS_EXIT_TIMEOUT_SECONDS = 5.0
+# A hanging backend's child is reaped only after the proxy client's
+# init-timeout (FAILURE_INIT_TIMEOUT_SECONDS) fires and the shielded
+# transport termination completes; under load that exceeds 5s.
+PROCESS_EXIT_TIMEOUT_SECONDS = 15.0
 PROTOCOL_TIMEOUT_SECONDS = 15.0
 FAILURE_BOUND_SECONDS = 15.0
 FAILURE_INIT_TIMEOUT_SECONDS = 5.0
