@@ -312,7 +312,7 @@ async def run_cli(
     if args.command == "mcp":
         return await _run_mcp(args, root, stdout=output)
     if args.command == "bridge":
-        return _run_bridge(args, stdout=output)
+        return await _run_bridge(args, stdout=output)
 
     owns_service = service is None
     active = service or soleaux.analysis.service.SoleauxService.from_directory(
@@ -839,14 +839,20 @@ async def _run_mcp(args: argparse.Namespace, root: pathlib.Path, *, stdout: typi
     )
 
 
-def _run_bridge(args: argparse.Namespace, *, stdout: typing.TextIO) -> int:
+async def _run_bridge(args: argparse.Namespace, *, stdout: typing.TextIO) -> int:
     """Serve the stdio host bridge or emit one host context payload."""
-    from soleaux.bridge.client import run_bridge, run_context
+    from soleaux.bridge.client import request_context, run_bridge
     from soleaux.bridge.deployment import DeploymentError
+    from soleaux.bridge.rendering import _OUTPUT_TERMINATOR
 
     try:
         if getattr(args, "context", False):
-            return run_context(args.client, stdout=stdout)
+            prompt = sys.stdin.read()
+            if not prompt:
+                raise DeploymentError("a nonempty task objective is required on stdin")
+            rendered = await request_context(prompt, args.client)
+            stdout.write(f"{rendered}{_OUTPUT_TERMINATOR}")
+            return 0
         run_bridge(args.client)
     except DeploymentError as error:
         sys.stderr.write(f"soleaux bridge: {error}\n")

@@ -32,6 +32,20 @@ _MAX_CONTEXT_PAYLOAD_BYTES = _MAX_CONTEXT_BYTES - len(_OUTPUT_TERMINATOR.encode(
 _OBJECTIVE_TRUNCATION_MARKER = "\n[objective truncated]"
 _HOST_CONTEXT_LIMIT_GAP = HOST_CONTEXT_LIMIT
 
+__all__ = [
+    "_HOST_CONTEXT_LIMIT_GAP",
+    "_MAX_CONTEXT_BYTES",
+    "_MAX_CONTEXT_PAYLOAD_BYTES",
+    "_OUTPUT_TERMINATOR",
+    "_bounded_objective",
+    "_human_context",
+    "_render_required_context",
+    "_required_sections",
+    "_required_sections_present",
+    "_server_text",
+    "_task_context_packet",
+]
+
 
 def _bounded_objective(prompt: str) -> str:
     if len(prompt) <= _MAX_OBJECTIVE_CHARACTERS:

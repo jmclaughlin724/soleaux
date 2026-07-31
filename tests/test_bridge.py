@@ -448,7 +448,7 @@ def test_bridge_uses_public_stateful_proxy_with_private_socket_transport(
 
     assert isinstance(proxy, FastMCPProxy)
     assert proxy.provider_error_strategy == "raise"
-    factory_owner = typing.cast(typing.Any, proxy.client_factory).__self__
+    factory_owner = typing.cast(typing.Any, proxy).client_factory.__self__
     assert isinstance(factory_owner, StatefulProxyClient)
     assert factory_owner.mode == "legacy"
     assert factory_owner.name == f"soleaux-{host}-bridge"
