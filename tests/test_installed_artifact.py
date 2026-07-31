@@ -21,8 +21,11 @@ import _processes
 import pytest
 from packaging.requirements import Requirement
 
+import soleaux.surface
+
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE_ROOT = pathlib.Path(__file__).resolve().parents[1] / "src"
+EXPECTED_RESOURCE_URIS = tuple(soleaux.surface.resource_uris())
 EXPECTED_DOCS = {
     "agent-workflow.md",
     "adopt-guide.md",
@@ -888,12 +891,12 @@ def test_installed_artifact_acceptance(
     stdio = _json_output(stdio_probe)
     assert stdio == {
         "zero_tools": 10,
-        "zero_resources": 7,
+        "zero_resources": len(EXPECTED_RESOURCE_URIS),
         "zero_guide": True,
         "zero_search_rows": ["answer"],
         "configured_tools": 11,
         "mcp_tools": ["artifact_echo"],
-        "configured_resources": 7,
+        "configured_resources": len(EXPECTED_RESOURCE_URIS),
         "configured_guide": True,
         "mcp_payload": {"echo": "installed"},
         "children": [],
