@@ -1,0 +1,6 @@
+interface:
+  display_name: Blume
+  short_description: Blume dependencies, docs setup, configuration, and CLI
+  default_prompt: Use $blume for dependency checks or to build and maintain the current Blume documentation site.
+policy:
+  allow_implicit_invocation: true

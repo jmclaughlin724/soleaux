@@ -1,0 +1,18 @@
+interface:
+  display_name: "Next.js"
+  short_description: "Build and verify Next.js with live DevTools"
+  default_prompt: "Use $next-js to implement and verify this Next.js change with live DevTools."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "next-devtools"
+      description: "Version-matched Next.js docs, runtime diagnostics, and browser setup"
+      transport: "stdio"
+      command: "npx"
+      args:
+        - "-y"
+        - "next-devtools-mcp@0.4.0"
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,183 @@
+{
+  "officialDomains": [
+    "platform.openai.com",
+    "help.openai.com",
+    "api.openai.com",
+    "developers.openai.com",
+    "docs.anthropic.com",
+    "support.claude.com",
+    "code.claude.com",
+    "api.anthropic.com",
+    "github.com",
+    "nodejs.org",
+    "nextjs.org",
+    "react.dev",
+    "typescriptlang.org",
+    "docs.rs",
+    "crates.io",
+    "doc.rust-lang.org",
+    "redis.io",
+    "postgresql.org",
+    "docs.timescale.com",
+    "min.io",
+    "docs.docker.com",
+    "modelcontextprotocol.io"
+  ],
+  "endpointUrls": [
+    "https://api.openai.com/v1/organization/usage/completions",
+    "https://api.anthropic.com/v1/organizations/usage_report/messages"
+  ],
+  "claims": [
+    {
+      "id": "codex-exec-json-events",
+      "evidenceClass": "canonical-fact",
+      "owner": "OpenAI",
+      "url": "https://github.com/openai/codex/blob/main/sdk/typescript/README.md",
+      "statement": "The Codex SDK documents streamed item events and turn-completed usage events used by the Soleaux Codex adapter.",
+      "affectedPaths": [
+        "telemetry/scan/src/providers.mjs",
+        "telemetry/docs/FREE_SCAN.md",
+        "telemetry/docs/DEFINITIVE_MEASUREMENT_PLAN.md"
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-upstream-source-review"
+    },
+    {
+      "id": "codex-app-server-protocol",
+      "evidenceClass": "canonical-fact",
+      "owner": "OpenAI",
+      "url": "https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md",
+      "statement": "The Codex app-server protocol documents turn and item lifecycles and separate token-usage notifications required for definitive correlation.",
+      "affectedPaths": [
+        "telemetry/docs/FREE_SCAN.md",
+        "telemetry/docs/DEFINITIVE_MEASUREMENT_PLAN.md"
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-upstream-source-review"
+    },
+    {
+      "id": "anthropic-messages-usage-report",
+      "evidenceClass": "canonical-fact",
+      "owner": "Anthropic",
+      "url": "https://docs.anthropic.com/en/api/admin-api/usage-cost/get-messages-usage-report",
+      "statement": "The Anthropic Messages usage report endpoint requires an admin key, accepts starting_at/ending_at/bucket_width/limit/page parameters with group_by[] over api_key_id, workspace_id, model, service_tier, and context_window, and reports uncached input, cache-read, cache-creation, and output tokens per bucket.",
+      "affectedPaths": [
+        "telemetry/sync/src/sync.mjs",
+        "telemetry/docs/USAGE_LIMITS_AND_LLM_TELEMETRY.md"
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-upstream-source-review"
+    },
+    {
+      "id": "openai-organization-usage-api",
+      "evidenceClass": "canonical-fact",
+      "owner": "OpenAI",
+      "url": "https://platform.openai.com/docs/api-reference/usage",
+      "statement": "OpenAI documents organization usage endpoints, pagination, bucket widths, and token fields; group_by supports model, project_id, user_id, api_key_id, and batch only.",
+      "affectedPaths": [
+        "telemetry/sync/src/sync.mjs",
+        "telemetry/sdk/src/index.ts",
+        "telemetry/docs/USAGE_LIMITS_AND_LLM_TELEMETRY.md"
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-30",
+      "verificationMethod": "official-upstream-source-review"
+    },
+    {
+      "id": "openai-response-usage-object",
+      "evidenceClass": "canonical-fact",
+      "owner": "OpenAI",
+      "url": "https://platform.openai.com/docs/api-reference/batch/object?api-mode=responses",
+      "statement": "OpenAI response usage objects document input, output, cached-input, reasoning-detail, and total token fields used by the normalizer.",
+      "affectedPaths": [
+        "telemetry/sdk/src/index.ts",
+        "telemetry/scan/src/providers.mjs",
+        "telemetry/docs/USAGE_LIMITS_AND_LLM_TELEMETRY.md"
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-api-reference-review"
+    },
+    {
+      "id": "anthropic-claude-code-cli-output",
+      "evidenceClass": "canonical-fact",
+      "owner": "Anthropic",
+      "url": "https://code.claude.com/docs/en/cli-usage",
+      "statement": "Claude Code documents print mode with text, json, and stream-json output formats; only documented final result metadata is imported by the Soleaux Claude adapter.",
+      "affectedPaths": [
+        "telemetry/scan/src/providers.mjs",
+        "telemetry/docs/FREE_SCAN.md",
+        "telemetry/docs/USAGE_LIMITS_AND_LLM_TELEMETRY.md"
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-upstream-source-review"
+    },
+    {
+      "id": "anthropic-claude-code-gateway",
+      "evidenceClass": "canonical-fact",
+      "owner": "Anthropic",
+      "url": "https://docs.anthropic.com/en/docs/claude-code/llm-gateway",
+      "statement": "Anthropic documents LLM gateway configuration for centralized authentication, usage tracking, cost controls, and audit logging.",
+      "affectedPaths": ["telemetry/docs/FREE_SCAN.md"],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-documentation-review"
+    },
+    {
+      "id": "anthropic-pricing-and-usage-fields",
+      "evidenceClass": "canonical-fact",
+      "owner": "Anthropic",
+      "url": "https://docs.anthropic.com/en/docs/about-claude/pricing",
+      "statement": "Anthropic pricing documentation defines API token categories, cache fields, and provider pricing behavior used for cost provenance.",
+      "affectedPaths": [
+        "telemetry/sdk/src/index.ts",
+        "telemetry/scan/src/providers.mjs",
+        "telemetry/docs/USAGE_LIMITS_AND_LLM_TELEMETRY.md"
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-documentation-review"
+    },
+    {
+      "id": "sysinfo-process-metrics",
+      "evidenceClass": "canonical-fact",
+      "owner": "sysinfo maintainers",
+      "url": "https://docs.rs/sysinfo/latest/sysinfo/struct.Process.html",
+      "statement": "The sysinfo Process API defines the process CPU, memory, command, parent, runtime, and start-time fields used by the collector.",
+      "affectedPaths": [
+        "telemetry/daemon/src/main.rs",
+        "telemetry/daemon/Cargo.toml",
+        "telemetry/docs/LOCAL_IMPLEMENTATION.md"
+      ],
+      "volatility": "medium",
+      "lastVerifiedAt": "2026-07-26",
+      "verificationMethod": "official-crate-documentation-review"
+    }
+  ],
+  "productPolicies": [
+    {
+      "id": "soleaux-measurement-methodology-v1",
+      "evidenceClass": "product-policy",
+      "affectedPaths": [
+        "telemetry/scan/src/analyzer.mjs",
+        "telemetry/scan/test/analyzer.test.mjs",
+        "telemetry/protocol/src/index.ts",
+        "telemetry/docs/FREE_SCAN.md",
+        "telemetry/docs/DEFINITIVE_MEASUREMENT_PLAN.md"
+      ],
+      "parameters": [
+        "matched-task-completion-assertion",
+        "baseline-intervention-comparison",
+        "cumulative-cpu-counter-delta",
+        "memory-byte-seconds-integration",
+        "provider-window-before-after-delta",
+        "uncertainty-reporting"
+      ],
+      "methodologyVersion": "definitive-measurement-v1"
+    }
+  ]
+}

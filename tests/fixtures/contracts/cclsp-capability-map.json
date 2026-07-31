@@ -1,0 +1,78 @@
+{
+  "schema_version": "soleaux.cclsp-capability-map/v2",
+  "capabilities": [
+    {
+      "legacy_tool": "find_definition",
+      "soleaux_targets": [{ "tool": "navigate", "operation": "definition" }]
+    },
+    {
+      "legacy_tool": "find_implementation",
+      "soleaux_targets": [{ "tool": "navigate", "operation": "implementation" }]
+    },
+    {
+      "legacy_tool": "find_references",
+      "soleaux_targets": [{ "tool": "navigate", "operation": "references" }]
+    },
+    {
+      "legacy_tool": "find_workspace_symbols",
+      "soleaux_targets": [{ "tool": "search" }]
+    },
+    {
+      "legacy_tool": "format_document",
+      "soleaux_targets": [{ "tool": "preview", "operation": "format_document" }]
+    },
+    {
+      "legacy_tool": "format_range",
+      "soleaux_targets": [{ "tool": "preview", "operation": "format_range" }]
+    },
+    {
+      "legacy_tool": "get_code_actions",
+      "soleaux_targets": [
+        { "tool": "inspect", "operation": "code_actions" },
+        { "tool": "preview", "operation": "code_action" }
+      ]
+    },
+    {
+      "legacy_tool": "get_completions",
+      "soleaux_targets": [{ "tool": "inspect", "operation": "completion" }]
+    },
+    {
+      "legacy_tool": "get_diagnostics",
+      "soleaux_targets": [{ "tool": "inspect", "operation": "diagnostics" }]
+    },
+    {
+      "legacy_tool": "get_hover",
+      "soleaux_targets": [{ "tool": "navigate", "operation": "hover" }]
+    },
+    {
+      "legacy_tool": "get_incoming_calls",
+      "soleaux_targets": [{ "tool": "navigate", "operation": "incoming_calls" }]
+    },
+    {
+      "legacy_tool": "get_outgoing_calls",
+      "soleaux_targets": [{ "tool": "navigate", "operation": "outgoing_calls" }]
+    },
+    {
+      "legacy_tool": "get_signature_help",
+      "soleaux_targets": [{ "tool": "inspect", "operation": "signature_help" }]
+    },
+    {
+      "legacy_tool": "prepare_call_hierarchy",
+      "soleaux_targets": [{ "tool": "navigate", "operation": "call_hierarchy" }]
+    },
+    {
+      "legacy_tool": "rename_symbol",
+      "soleaux_targets": [{ "tool": "preview", "operation": "rename" }]
+    },
+    {
+      "legacy_tool": "rename_symbol_strict",
+      "soleaux_targets": [
+        { "tool": "preview", "operation": "rename", "strict": true }
+      ]
+    },
+    {
+      "legacy_tool": "restart_server",
+      "soleaux_targets": [{ "tool": "restart_lsp" }]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@soleaux/scan",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "soleaux-scan": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/analyzer.mjs"
+  },
+  "scripts": {
+    "check:ci": "npm run typecheck && npm run test:unit",
+    "typecheck": "node --check src/analyzer.mjs && node --check src/providers.mjs && node --check src/cli.mjs",
+    "test:unit": "node --test test/analyzer.test.mjs test/providers.test.mjs",
+    "check": "npm run typecheck",
+    "test": "npm run test:unit"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "license": "Apache-2.0"
+}

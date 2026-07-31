@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "lastReviewedAt": "2026-07-26",
+  "sources": [
+    {
+      "id": "openai-codex-plan-usage",
+      "owner": "OpenAI",
+      "url": "https://help.openai.com/en/articles/11369540/",
+      "claims": [
+        "Codex task consumption varies with task size, complexity, execution surface, and retained context.",
+        "Users should inspect the Codex usage page or limit banner for plan-capacity information.",
+        "Eligible product surfaces can share an agentic usage pool."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "openai-codex-rate-card",
+      "owner": "OpenAI",
+      "url": "https://help.openai.com/en/articles/20001106-codex-rate-card",
+      "claims": [
+        "Current Codex credit accounting is token based for covered plans.",
+        "Credit consumption depends on input, cached-input, and output token mix.",
+        "The Codex Usage panel is the official surface for usage-limit and credit information."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "openai-flexible-usage-credits",
+      "owner": "OpenAI",
+      "url": "https://help.openai.com/en/articles/12642688",
+      "claims": [
+        "Included plan usage is consumed before purchased credits.",
+        "The usage dashboard shows supported credit balances and recent usage.",
+        "Shared credits may apply across supported agentic features."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "anthropic-pro-plan-limits",
+      "owner": "Anthropic",
+      "url": "https://support.claude.com/en/articles/8325606-what-is-the-pro-plan",
+      "claims": [
+        "Claude Pro session-based usage resets every five hours.",
+        "Claude Pro has an all-model weekly usage limit.",
+        "The next weekly reset is shown in Settings > Usage."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "anthropic-max-plan-limits",
+      "owner": "Anthropic",
+      "url": "https://support.claude.com/en/articles/11049741-what-is-the-max-plan",
+      "claims": [
+        "Claude Max has higher session usage than Pro.",
+        "Claude Max has weekly all-model and model-specific limits.",
+        "Weekly reset timing is account assigned and visible in Settings > Usage."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "anthropic-usage-length-limits",
+      "owner": "Anthropic",
+      "url": "https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work",
+      "claims": [
+        "Claude usage limits and context-length limits are distinct.",
+        "Usage depends on conversation length and complexity, features, model, and effort level.",
+        "Usage across Claude product surfaces can count toward the same plan limit."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "anthropic-usage-settings",
+      "owner": "Anthropic",
+      "url": "https://support.claude.com/en/articles/9797557-usage-limit-best-practices",
+      "claims": [
+        "Settings > Usage displays progress toward five-hour and weekly usage limits for applicable plans.",
+        "The usage surface displays time remaining and weekly reset information."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "anthropic-usage-credits",
+      "owner": "Anthropic",
+      "url": "https://support.claude.com/en/articles/12429409-manage-usage-credits-for-paid-claude-plans",
+      "claims": [
+        "Usage credits are separate from included subscription usage.",
+        "Usage credits do not change the regular five-hour reset timing.",
+        "The usage dashboard distinguishes included-plan usage from usage-credit consumption."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "anthropic-pricing",
+      "owner": "Anthropic",
+      "url": "https://docs.anthropic.com/en/docs/about-claude/pricing",
+      "claims": [
+        "Anthropic publishes per-model API pricing used for cost interpretation."
+      ],
+      "volatility": "medium",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "claude-code-models-usage-limits",
+      "owner": "Anthropic",
+      "url": "https://support.claude.com/en/articles/14552983-models-usage-and-limits-in-claude-code",
+      "claims": [
+        "Claude Code model choice affects plan usage consumption.",
+        "Usage and limits surfaces in Claude Code show remaining capacity."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "openai-models",
+      "owner": "OpenAI",
+      "url": "https://platform.openai.com/docs/models",
+      "claims": [
+        "OpenAI documents model identities and context-window sizes referenced by quota and context telemetry."
+      ],
+      "volatility": "high",
+      "lastVerifiedAt": "2026-07-26"
+    }
+  ]
+}

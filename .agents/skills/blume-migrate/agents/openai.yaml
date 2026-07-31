@@ -1,0 +1,6 @@
+interface:
+  display_name: Migrate to Blume
+  short_description: Migrate existing documentation sites to Blume
+  default_prompt: Use $blume-migrate to migrate the current documentation site to Blume.
+policy:
+  allow_implicit_invocation: true

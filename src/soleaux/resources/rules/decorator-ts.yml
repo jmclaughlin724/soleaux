@@ -1,0 +1,7 @@
+id: decorator-ts
+language: TypeScript
+severity: info
+message: TypeScript decorator candidate
+note: Registered framework decoration candidate (decorations class).
+rule:
+  kind: decorator

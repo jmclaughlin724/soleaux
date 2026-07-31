@@ -1,0 +1,267 @@
+{
+  "tasks": [
+    {
+      "args": ["dev"],
+      "command": "pnpm",
+      "label": "Root: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["build"],
+      "command": "pnpm",
+      "group": "build",
+      "label": "Root: Build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["check"],
+      "command": "pnpm",
+      "group": "test",
+      "label": "Root: Check",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["fix"],
+      "command": "pnpm",
+      "group": "test",
+      "label": "Root: Fix",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": [
+        "exec",
+        "turbo",
+        "run",
+        "typecheck",
+        "--output-logs=errors-only",
+        "--log-order=grouped",
+        "--log-prefix=none"
+      ],
+      "command": "pnpm",
+      "group": "test",
+      "label": "Root: Typecheck",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "FORCE_COLOR": "0",
+          "NO_COLOR": "1"
+        }
+      },
+      "problemMatcher": "$tsc",
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["test"],
+      "command": "pnpm",
+      "group": "test",
+      "label": "Root: Unit Tests",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["test:e2e"],
+      "command": "pnpm",
+      "group": "test",
+      "label": "Root: E2E Tests",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": [
+        ".codex/hooks/PostToolUse/workspace-diagnostics.mjs",
+        "--workspace"
+      ],
+      "command": "node",
+      "group": "test",
+      "label": "Diagnostics: Workspace Linters",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "FORCE_COLOR": "0",
+          "NO_COLOR": "1"
+        }
+      },
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "silent",
+        "revealProblems": "onProblem"
+      },
+      "problemMatcher": {
+        "applyTo": "allDocuments",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "owner": "workspace-diagnostics",
+        "pattern": {
+          "code": 5,
+          "column": 3,
+          "file": 1,
+          "line": 2,
+          "message": 6,
+          "regexp": "^::workspace-diagnostic::(.+):(\\d+):(\\d+):\\s+(error|warning|info)\\s+\\[([^\\]]+)\\]\\s+(.+)$",
+          "severity": 4
+        },
+        "source": "Workspace diagnostics"
+      },
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "dependsOn": ["Root: Typecheck", "Diagnostics: Workspace Linters"],
+      "label": "Diagnostics: Refresh Workspace",
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      }
+    },
+    {
+      "args": ["--filter", "@anilize/corporate-web", "dev"],
+      "command": "pnpm",
+      "label": "Corporate Web: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["--filter", "@anilize/identity", "dev"],
+      "command": "pnpm",
+      "label": "Identity: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["--filter", "@anilize/corporate-admin", "dev"],
+      "command": "pnpm",
+      "label": "Corporate Admin: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["--filter", "@anilize/realtor-sites", "dev"],
+      "command": "pnpm",
+      "label": "Realtor Sites: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["--filter", "@anilize/realtor-portal", "dev"],
+      "command": "pnpm",
+      "label": "Realtor Portal: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["--filter", "@anilize/loan-officer-sites", "dev"],
+      "command": "pnpm",
+      "label": "Loan Officer Sites: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["--filter", "@anilize/loan-officer-portal", "dev"],
+      "command": "pnpm",
+      "label": "Loan Officer Portal: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    },
+    {
+      "args": ["--filter", "@anilize/contact-portal", "dev"],
+      "command": "pnpm",
+      "label": "Contact Portal: Dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "type": "process"
+    }
+  ],
+  "version": "2.0.0"
+}

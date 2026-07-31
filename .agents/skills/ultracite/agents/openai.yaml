@@ -1,0 +1,6 @@
+interface:
+  display_name: "Ultracite"
+  short_description: "Configure and use Ultracite linting and formatting"
+  default_prompt: "Use $ultracite to configure, run, or troubleshoot linting and formatting for this JavaScript or TypeScript project."
+policy:
+  allow_implicit_invocation: true

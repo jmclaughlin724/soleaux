@@ -1,0 +1,6 @@
+interface:
+  display_name: "Upstream"
+  short_description: "Compare scoped targets with authoritative sources"
+  default_prompt: "Use $upstream to audit the current scoped target against authoritative upstream sources."
+policy:
+  allow_implicit_invocation: true

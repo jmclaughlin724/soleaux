@@ -1,0 +1,1 @@
+"""Packaged TypeScript worker resources."""

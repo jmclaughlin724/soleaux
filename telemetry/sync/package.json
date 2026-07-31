@@ -1,0 +1,20 @@
+{
+  "name": "@soleaux/provider-sync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "soleaux-provider-sync": "./src/sync.mjs"
+  },
+  "scripts": {
+    "check:ci": "node --check src/sync.mjs",
+    "typecheck": "node --check src/sync.mjs",
+    "sync": "node src/sync.mjs"
+  },
+  "engines": {
+    "node": ">=23.6.0"
+  },
+  "dependencies": {
+    "@soleaux/protocol": "workspace:*"
+  }
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Schema Contract Change"
+  short_description: "Migrate and validate domain-owned schema contracts"
+  default_prompt: "Use $schema-contract-change to classify, implement, migrate, and validate a schema contract change in this repository."
+policy:
+  allow_implicit_invocation: true

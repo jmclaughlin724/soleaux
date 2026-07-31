@@ -1,0 +1,17 @@
+interface:
+  display_name: Playwright
+  short_description: Automate browsers and author or debug Playwright tests.
+  default_prompt: Use $playwright for the current task.
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - type: mcp
+      value: playwright
+      description: Interactive browser automation and rendered-page inspection
+      transport: stdio
+      command: npx
+      args:
+        - -y
+        - "@playwright/mcp@0.0.78"
+        - --headless

@@ -1,0 +1,6 @@
+{
+  "endpoint": "http://soleaux.local/mcp",
+  "schema_version": "soleaux.local-deployment/v2",
+  "service_label": "dev.soleaux.soleaux",
+  "socket_relative_path": "Library/Caches/Soleaux/soleaux.sock"
+}

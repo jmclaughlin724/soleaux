@@ -1,0 +1,145 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/PermissionRequest/PermissionRequest.mjs\"",
+            "statusMessage": "Running PermissionRequest hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(Bash|apply_patch|Edit|Write)$"
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/PostCompact/PostCompact.mjs\"",
+            "statusMessage": "Running PostCompact hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(manual|auto)$"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/PostToolUse/PostToolUse.mjs\"",
+            "statusMessage": "Running PostToolUse hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(Bash|apply_patch|Edit|Write)$"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/PreCompact/PreCompact.mjs\"",
+            "statusMessage": "Running PreCompact hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(manual|auto)$"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/PreToolUse/PreToolUse.mjs\"",
+            "statusMessage": "Running PreToolUse hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(Bash|apply_patch|Edit|Write)$"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/SessionEnd/SessionEnd.mjs\"",
+            "statusMessage": "Running SessionEnd hook",
+            "timeout": 3,
+            "type": "command"
+          }
+        ],
+        "matcher": "^other$"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/SessionStart/SessionStart.mjs\"",
+            "statusMessage": "Running SessionStart hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(startup|resume|clear|compact)$"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/Stop/Stop.mjs\"",
+            "statusMessage": "Running Stop hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/SubagentStart/SubagentStart.mjs\"",
+            "statusMessage": "Running SubagentStart hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/SubagentStop/SubagentStop.mjs\"",
+            "statusMessage": "Running SubagentStop hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/UserPromptSubmit/UserPromptSubmit.mjs\"",
+            "statusMessage": "Running UserPromptSubmit hook",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

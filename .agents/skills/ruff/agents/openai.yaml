@@ -1,0 +1,6 @@
+interface:
+  display_name: "Ruff"
+  short_description: "Run ruff and uv for Python lint, format, and deps"
+  default_prompt: "Use $ruff to lint, format, or manage this Python project's uv environment and dependencies."
+policy:
+  allow_implicit_invocation: true

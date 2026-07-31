@@ -1,0 +1,13 @@
+interface:
+  display_name: "Zod"
+  short_description: "Design, test, and debug Zod v4 schemas."
+  default_prompt: "Use $zod to design or test the current schema boundary."
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "zod"
+      description: "Zod MCP server"
+      transport: "streamable_http"
+      url: "https://mcp.inkeep.com/zod/mcp"

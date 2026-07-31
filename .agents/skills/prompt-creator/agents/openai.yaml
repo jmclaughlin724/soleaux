@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prompt Creator"
+  short_description: "Create production prompts and session handoffs"
+  default_prompt: "Use $prompt-creator to create or rewrite the production prompt for this task."
+policy:
+  allow_implicit_invocation: true

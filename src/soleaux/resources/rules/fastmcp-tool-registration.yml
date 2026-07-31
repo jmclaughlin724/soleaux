@@ -1,0 +1,19 @@
+id: fastmcp-tool-registration
+language: Python
+severity: info
+message: FastMCP tool registration candidate
+note: Registered capability declaration candidate (registrations class).
+rule:
+  all:
+    - kind: function_definition
+    - inside:
+        all:
+          - kind: decorated_definition
+          - has:
+              kind: decorator
+              any:
+                - pattern: "@tool"
+                - pattern: "@tool()"
+                - pattern: "@$OWNER.tool"
+                - pattern: "@$OWNER.tool()"
+              stopBy: neighbor

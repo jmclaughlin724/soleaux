@@ -1,0 +1,211 @@
+# Generators and direct task bypasses.
+
+SHADCN_MUTATING_COMMANDS = ["add", "apply", "init", "create", "migrate", "eject", "build"]
+
+prefix_rule(
+    pattern = ["pnpm", "dlx", ["shadcn", "shadcn@latest", "shadcn@canary"], SHADCN_MUTATING_COMMANDS],
+    decision = "forbidden",
+    justification = "Do not run an ephemeral shadcn mutator. Use `pnpm --filter @anilize/ui exec shadcn <command> --cwd packages/ui ...` so the pinned CLI and canonical components.json owner are used.",
+    match = [
+        "pnpm dlx shadcn add button",
+        "pnpm dlx shadcn@latest add button",
+        "pnpm dlx shadcn@canary add button",
+    ],
+    not_match = [
+        "pnpm --filter @anilize/ui exec shadcn add --cwd packages/ui button",
+        "pnpm dlx cowsay hello",
+    ],
+)
+
+prefix_rule(
+    pattern = ["pnpm", "exec", "shadcn", SHADCN_MUTATING_COMMANDS],
+    decision = "forbidden",
+    justification = "Use `pnpm --filter @anilize/ui exec shadcn <command> --cwd packages/ui ...` so the pinned CLI resolves from @anilize/ui and writes through its canonical components.json.",
+    match = [
+        "pnpm exec shadcn add button",
+    ],
+    not_match = [
+        "pnpm --filter @anilize/ui exec shadcn add --cwd packages/ui button",
+    ],
+)
+
+prefix_rule(
+    pattern = ["pnpm", ["-C", "--dir"], ["packages/ui", "packages/ui/"], "exec", "shadcn", SHADCN_MUTATING_COMMANDS],
+    decision = "forbidden",
+    justification = "Use `pnpm --filter @anilize/ui exec shadcn <command> --cwd packages/ui ...`; the filter selects the pinned dependency and --cwd selects the canonical components.json owner.",
+    match = [
+        "pnpm -C packages/ui exec shadcn add button",
+        "pnpm --dir packages/ui/ exec shadcn add button",
+    ],
+    not_match = [
+        "pnpm --filter @anilize/ui exec shadcn add --cwd packages/ui button",
+        "pnpm -C packages/ui test",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npx", ["shadcn", "shadcn@latest", "shadcn@canary"], SHADCN_MUTATING_COMMANDS],
+    decision = "forbidden",
+    justification = "Do not run an ephemeral shadcn mutator. Use `pnpm --filter @anilize/ui exec shadcn <command> --cwd packages/ui ...` so the pinned CLI and canonical components.json owner are used.",
+    match = [
+        "npx shadcn add button",
+        "npx shadcn@latest init",
+        "npx shadcn@canary init",
+    ],
+    not_match = [
+        "npx lighthouse https://example.com",
+        "pnpm --filter @anilize/ui exec shadcn add --cwd packages/ui button",
+    ],
+)
+
+prefix_rule(
+    pattern = ["yarn", "dlx", "shadcn", SHADCN_MUTATING_COMMANDS],
+    decision = "forbidden",
+    justification = "Yarn is not the repository package manager. Use `pnpm --filter @anilize/ui exec shadcn <command> --cwd packages/ui ...`.",
+    match = [
+        "yarn dlx shadcn add button",
+    ],
+    not_match = [
+        "pnpm --filter @anilize/ui exec shadcn add --cwd packages/ui button",
+        "yarn info shadcn",
+    ],
+)
+
+prefix_rule(
+    pattern = ["bunx", "shadcn", SHADCN_MUTATING_COMMANDS],
+    decision = "forbidden",
+    justification = "Bun is not the repository package manager. Use `pnpm --filter @anilize/ui exec shadcn <command> --cwd packages/ui ...`.",
+    match = [
+        "bunx shadcn add button",
+    ],
+    not_match = [
+        "pnpm --filter @anilize/ui exec shadcn add --cwd packages/ui button",
+        "bun --version",
+    ],
+)
+
+prefix_rule(
+    pattern = ["shadcn", SHADCN_MUTATING_COMMANDS],
+    decision = "forbidden",
+    justification = "Do not run a globally resolved shadcn mutator. Use `pnpm --filter @anilize/ui exec shadcn <command> --cwd packages/ui ...`.",
+    match = [
+        "shadcn add button",
+    ],
+    not_match = [
+        "pnpm --filter @anilize/ui exec shadcn add --cwd packages/ui button",
+        "pnpm exec shadcn --help",
+    ],
+)
+
+_CREATE_NEXT_APP_VARIANTS = [
+    {
+        "pattern": ["npx", "create-next-app"],
+        "match": ["npx create-next-app new-app"],
+        "not_match": ["npx next typegen", "pnpm dev"],
+    },
+    {
+        "pattern": ["pnpm", "dlx", "create-next-app"],
+        "match": ["pnpm dlx create-next-app new-app"],
+        "not_match": ["pnpm dev", "pnpm dlx cowsay hello"],
+    },
+    {
+        "pattern": ["bunx", "create-next-app"],
+        "match": ["bunx create-next-app new-app"],
+        "not_match": ["bun --version", "pnpm dev"],
+    },
+    {
+        "pattern": ["yarn", "create", "next-app"],
+        "match": ["yarn create next-app new-app"],
+        "not_match": ["yarn info next", "pnpm dev"],
+    },
+]
+
+_CREATE_NEXT_APP_RULES = [
+    prefix_rule(
+        pattern = variant["pattern"],
+        decision = "forbidden",
+        justification = "Do not scaffold an application with create-next-app. Add the workspace through a reviewed change that follows an existing app's package, Turbo, TypeScript, and ownership topology.",
+        match = variant["match"],
+        not_match = variant["not_match"],
+    )
+    for variant in _CREATE_NEXT_APP_VARIANTS
+]
+
+_BARREL_GENERATOR_VARIANTS = [
+    {
+        "pattern": ["npx", "barrelsby"],
+        "match": ["npx barrelsby"],
+        "not_match": ["npx lighthouse https://example.com", "pnpm check"],
+    },
+    {
+        "pattern": ["pnpm", ["dlx", "exec"], "barrelsby"],
+        "match": ["pnpm dlx barrelsby", "pnpm exec barrelsby"],
+        "not_match": ["pnpm check"],
+    },
+]
+
+_BARREL_GENERATOR_RULES = [
+    prefix_rule(
+        pattern = variant["pattern"],
+        decision = "forbidden",
+        justification = "Do not generate barrel files. Keep granular exports and direct module imports.",
+        match = variant["match"],
+        not_match = variant["not_match"],
+    )
+    for variant in _BARREL_GENERATOR_VARIANTS
+]
+
+_DIRECT_TASK_BYPASS_GATES = [
+    {
+        "justification": "Run end-to-end tests through the root `pnpm test:e2e` owner so its Playwright environment and configuration are applied.",
+        "variants": [
+            {
+                "pattern": ["npx", "playwright", "test"],
+                "match": ["npx playwright test"],
+                "not_match": ["npx playwright --version", "pnpm test:e2e"],
+            },
+            {
+                "pattern": ["pnpm", "exec", "playwright", "test"],
+                "match": ["pnpm exec playwright test"],
+                "not_match": ["pnpm exec playwright --version", "pnpm test:e2e"],
+            },
+            {
+                "pattern": ["playwright", "test"],
+                "match": ["playwright test"],
+                "not_match": ["playwright --version", "pnpm test:e2e"],
+            },
+        ],
+    },
+    {
+        "justification": "Run `pnpm build`; the root script executes `turbo run build` so the repository task graph, dependency ordering, cache, and validation gates are applied. Do not invoke Next.js builds directly.",
+        "variants": [
+            {
+                "pattern": ["npx", "next", "build"],
+                "match": ["npx next build"],
+                "not_match": ["npx next typegen", "pnpm build"],
+            },
+            {
+                "pattern": ["pnpm", "exec", "next", "build"],
+                "match": ["pnpm exec next build"],
+                "not_match": ["pnpm exec next typegen", "pnpm build"],
+            },
+            {
+                "pattern": ["next", "build"],
+                "match": ["next build"],
+                "not_match": ["next typegen", "pnpm build"],
+            },
+        ],
+    },
+]
+
+_DIRECT_TASK_BYPASS_RULES = [
+    prefix_rule(
+        pattern = variant["pattern"],
+        decision = "forbidden",
+        justification = gate["justification"],
+        match = variant["match"],
+        not_match = variant["not_match"],
+    )
+    for gate in _DIRECT_TASK_BYPASS_GATES
+    for variant in gate["variants"]
+]

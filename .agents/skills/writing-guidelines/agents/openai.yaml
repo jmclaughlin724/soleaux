@@ -1,0 +1,6 @@
+interface:
+  display_name: "Writing Guidelines"
+  short_description: "Structure and revise durable guidance"
+  default_prompt: "Use $writing-guidelines to revise documentation or agent guidance for clarity, structure, and technical accuracy."
+policy:
+  allow_implicit_invocation: true

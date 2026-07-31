@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/PreToolUse/bash-policy.mjs\"",
+            "statusMessage": "Checking repository Bash policy",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "^Bash$"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "\"$(git rev-parse --show-toplevel)/.venv/bin/python\" \"$(git rev-parse --show-toplevel)/.codex/hooks/UserPromptSubmit/soleaux_context.py\"",
+            "statusMessage": "Gathering Soleaux task context",
+            "timeout": 75,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

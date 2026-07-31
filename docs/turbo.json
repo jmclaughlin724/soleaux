@@ -1,0 +1,35 @@
+{
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "audit": {
+      "dependsOn": [
+        "build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/src/soleaux/resources/docs/**"
+      ],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_ROOT$/src/soleaux/resources/docs/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "check:ci": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/src/soleaux/resources/docs/**"
+      ]
+    }
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "compounds": [
+    {
+      "configurations": ["Corporate Web: Full Stack", "Identity: Full Stack"],
+      "name": "Core",
+      "stopAll": true
+    },
+    {
+      "configurations": [
+        "Corporate Web: Full Stack",
+        "Identity: Full Stack",
+        "Corporate Admin: Full Stack",
+        "Realtor Sites: Full Stack",
+        "Realtor Portal: Full Stack",
+        "Loan Officer Sites: Full Stack",
+        "Loan Officer Portal: Full Stack",
+        "Contact Portal: Full Stack"
+      ],
+      "name": "All Applications",
+      "stopAll": true
+    }
+  ],
+  "configurations": [
+    {
+      "args": ["dev", "--port", "3000"],
+      "cwd": "${workspaceFolder}/apps/corporate-web",
+      "name": "Corporate Web: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9229"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/corporate-web"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "args": ["dev", "--port", "3001"],
+      "cwd": "${workspaceFolder}/apps/identity",
+      "name": "Identity: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9230"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/identity"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "args": ["dev", "--port", "3002"],
+      "cwd": "${workspaceFolder}/apps/corporate-admin",
+      "name": "Corporate Admin: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9231"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/corporate-admin"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "args": ["dev", "--port", "3003"],
+      "cwd": "${workspaceFolder}/apps/realtor-sites",
+      "name": "Realtor Sites: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9232"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/realtor-sites"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "args": ["dev", "--port", "3004"],
+      "cwd": "${workspaceFolder}/apps/realtor-portal",
+      "name": "Realtor Portal: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9233"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/realtor-portal"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "args": ["dev", "--port", "3005"],
+      "cwd": "${workspaceFolder}/apps/loan-officer-sites",
+      "name": "Loan Officer Sites: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9234"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/loan-officer-sites"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "args": ["dev", "--port", "3006"],
+      "cwd": "${workspaceFolder}/apps/loan-officer-portal",
+      "name": "Loan Officer Portal: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9235"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/loan-officer-portal"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "args": ["dev", "--port", "3007"],
+      "cwd": "${workspaceFolder}/apps/contact-portal",
+      "name": "Contact Portal: Full Stack",
+      "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
+      "request": "launch",
+      "runtimeArgs": ["--inspect=9236"],
+      "serverReadyAction": {
+        "action": "debugWithChrome",
+        "killOnServerStop": true,
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "webRoot": "${workspaceFolder}/apps/contact-portal"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    }
+  ],
+  "version": "0.2.0"
+}

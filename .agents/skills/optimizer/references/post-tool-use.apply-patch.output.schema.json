@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": ["decision"]
+      },
+      "then": {
+        "required": ["reason"]
+      }
+    },
+    {
+      "if": {
+        "required": ["reason"]
+      },
+      "then": {
+        "required": ["decision"]
+      }
+    }
+  ],
+  "anyOf": [
+    {
+      "required": ["decision", "reason"]
+    },
+    {
+      "required": ["hookSpecificOutput"]
+    }
+  ],
+  "definitions": {
+    "BlockDecisionWire": {
+      "description": "PostToolUse supports only the block decision; a completed side effect cannot be undone.",
+      "enum": ["block"]
+    },
+    "PostToolUseContextWire": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalContext": {
+          "description": "Developer context added after the completed tool call.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hookEventName": {
+          "const": "PostToolUse"
+        }
+      },
+      "required": ["hookEventName", "additionalContext"],
+      "type": "object"
+    }
+  },
+  "description": "Repository-local wire contract for the single JSON object a Codex PostToolUse apply-patch maintenance hook may write to stdout. This is the local owner subset, not a generic PostToolUse schema. A neutral success is silent; a decision object surfaces bounded feedback, and hookSpecificOutput adds refreshed model context.",
+  "properties": {
+    "decision": {
+      "$ref": "#/definitions/BlockDecisionWire"
+    },
+    "hookSpecificOutput": {
+      "$ref": "#/definitions/PostToolUseContextWire"
+    },
+    "reason": {
+      "description": "Model-visible explanation of the block; the emitting hook bounds its length and strips control characters.",
+      "type": "string"
+    },
+    "systemMessage": {
+      "description": "Bounded user-visible diagnostic that does not alter the completed tool result.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "title": "Codex PostToolUse apply-patch maintenance output",
+  "type": "object"
+}

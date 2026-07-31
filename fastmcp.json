@@ -1,0 +1,18 @@
+{
+  "$schema": "https://gofastmcp.com/public/schemas/fastmcp.json/v1.json",
+  "deployment": {
+    "cwd": ".",
+    "log_level": "INFO",
+    "transport": "stdio"
+  },
+  "environment": {
+    "project": ".",
+    "python": "3.14",
+    "type": "uv"
+  },
+  "source": {
+    "entrypoint": "create_server",
+    "path": "src/soleaux/server.py",
+    "type": "filesystem"
+  }
+}

@@ -1,0 +1,7 @@
+id: call-ts
+language: TypeScript
+severity: info
+message: TypeScript call-site candidate
+note: Call-site candidate (calls class); never a resolved edge.
+rule:
+  kind: call_expression

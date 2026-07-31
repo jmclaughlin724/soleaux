@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {},
+  "fastMode": false,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guards/bash-policy-checks.mjs"
+            ],
+            "command": "node",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "input": {
+              "request": {
+                "limit": 120,
+                "max_bytes": 65536,
+                "objective": "${prompt}"
+              }
+            },
+            "server": "soleaux",
+            "statusMessage": "Gathering Soleaux task context",
+            "timeout": 60,
+            "tool": "context",
+            "type": "mcp_tool"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [],
+    "ask": [],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  },
+  "plansDirectory": "/plans",
+  "sandbox": {
+    "autoAllowBashIfSandboxed": true,
+    "enabled": false,
+    "excludedCommands": [
+      "docker *",
+      "gh *",
+      "gcloud *",
+      "terraform *"
+    ],
+    "filesystem": {
+      "allowRead": [
+        "./.env.example"
+      ],
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.config/gcloud"
+      ]
+    }
+  }
+}

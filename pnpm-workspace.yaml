@@ -1,0 +1,55 @@
+packages:
+  - "."
+  - "docs"
+  - "telemetry/*"
+
+allowBuilds:
+  "@ast-grep/lang-json": true
+  "@ast-grep/lang-python": true
+  "@ast-grep/napi": true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+
+autoInstallPeers: false
+
+catalog:
+  "@ast-grep/lang-json": 0.0.7
+  "@ast-grep/lang-python": 0.0.6
+  "@ast-grep/napi": 0.44.1
+  "astro": "7.1.1"
+  "blume": "1.1.4"
+  "@tailwindcss/postcss": "^4"
+  "@types/node": "26.1.1"
+  "@types/react": "^19.2.17"
+  "@types/react-dom": "^19"
+  "husky": "9.1.7"
+  "lucide-react": "1.24.0"
+  "next": "16.3.0-preview.6"
+  "next-themes": "^0.4.6"
+  "react": "19.2.8"
+  "react-dom": "19.2.8"
+  "tailwindcss": "^4.3.3"
+  "turbo": "2.10.5"
+  "typescript": "7.0.2"
+  "vitest": "4.1.10"
+  "yaml": "2.9.0"
+catalogMode: strict
+overrides:
+  "enhanced-resolve": "5.24.2"
+  "@vercel/routing-utils>path-to-regexp": "6.3.0"
+  "brace-expansion@5": "5.0.8"
+  "next>postcss": "8.5.18"
+  "sharp": "0.35.3"
+  "undici": "6.27.0"
+auditConfig:
+  ignoreGhsas:
+    # brace-expansion OOM DoS: fixed only in 5.0.8, which breaks require()
+    # call-compatibility with the remaining minimatch 3.x/5.x consumers; no
+    # 1.x/2.x backport exists. Those consumers are dev-time tools whose glob
+    # patterns are author-controlled, the advisory's own stated mitigation.
+    - GHSA-mh99-v99m-4gvg
+    # @ai-sdk/provider-utils (low): the ai@^5 family exact-pins the 3.0.x
+    # line, which tops at 3.0.31; the fix exists only in the 4.x/5.x lines
+    # consumed by ai@6. Docs-site chain via blume; no in-line patch exists.
+    - GHSA-866g-f22w-33x8

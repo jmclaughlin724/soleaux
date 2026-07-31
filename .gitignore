@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+*.egg-info/
+
+# Rust
+target/
+
+# Node
+node_modules/
+.turbo/
+.next/
+.pnpm-store/
+
+# Machine-local tool output
+.playwright-mcp/
+
+# Blume docs build output
+.blume/
+.blume-verify/
+docs/dist/
+dist/
+
+# Generated build identity
+src/soleaux/resources/build_identity.json
+
+# Local environment
+.env
+.env.*
+!.env.example
+.envrc
+.DS_Store

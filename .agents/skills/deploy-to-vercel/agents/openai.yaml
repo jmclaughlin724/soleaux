@@ -1,0 +1,6 @@
+interface:
+  display_name: Deploy to Vercel
+  short_description: Deploy an authorized preview or production release to Vercel.
+  default_prompt: Use $deploy-to-vercel to deploy the current project through a safe Vercel flow.
+policy:
+  allow_implicit_invocation: true

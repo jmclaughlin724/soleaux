@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Wire contract for a Codex PermissionRequest command-hook decision. This repository requires every denial to include an actionable message that explains the approved alternative. A neutral hook emits no output and therefore does not use this schema.",
+  "properties": {
+    "hookSpecificOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "behavior": {
+                    "const": "deny"
+                  }
+                },
+                "required": ["behavior"]
+              },
+              "then": {
+                "required": ["message"]
+              }
+            }
+          ],
+          "properties": {
+            "behavior": {
+              "enum": ["allow", "deny"]
+            },
+            "message": {
+              "description": "Required for denial: bounded corrective guidance that states the policy reason and directs the agent to an approved alternative.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": ["behavior"],
+          "type": "object"
+        },
+        "hookEventName": {
+          "const": "PermissionRequest"
+        }
+      },
+      "required": ["hookEventName", "decision"],
+      "type": "object"
+    },
+    "systemMessage": {
+      "description": "Optional warning surfaced in the UI or event stream.",
+      "type": "string"
+    }
+  },
+  "required": ["hookSpecificOutput"],
+  "title": "Codex PermissionRequest command-hook output",
+  "type": "object"
+}

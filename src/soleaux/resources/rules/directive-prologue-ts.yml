@@ -1,0 +1,11 @@
+id: directive-prologue-ts
+language: TypeScript
+severity: info
+message: Directive prologue candidate ("use client" / "use server")
+note: Module directive candidate (directives class).
+rule:
+  all:
+    - kind: expression_statement
+    - any:
+        - pattern: '"use client";'
+        - pattern: '"use server";'
