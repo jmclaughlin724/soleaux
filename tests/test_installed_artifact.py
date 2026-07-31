@@ -300,6 +300,7 @@ def _runtime_environment(tmp_path: pathlib.Path) -> tuple[dict[str, str], pathli
     providerless_bin = tmp_path / "providerless-bin"
     providerless_bin.mkdir()
     providerless_bin.joinpath("git").symlink_to(git)
+    environment["FASTMCP_CHECK_FOR_UPDATES"] = "off"
     environment["PYTHONPATH"] = str(audit_directory)
     environment["SOLEAUX_NETWORK_AUDIT_LOG"] = str(audit_log)
     environment["SOLEAUX_TEST_PROVIDERLESS_BIN"] = str(providerless_bin)
