@@ -35,6 +35,7 @@ EXPECTED_PACKAGED_GUIDANCE = {
     "soleaux/resources/docs/agent-workflow.md",
     "soleaux/resources/docs/editor-safety.md",
     "soleaux/resources/docs/evidence-and-coverage.md",
+    "soleaux/resources/docs/mcp-gateway.md",
     "soleaux/resources/docs/provider-configuration.md",
     "soleaux/resources/docs/quickstart.md",
     "soleaux/resources/docs/server-instructions.md",

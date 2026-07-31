@@ -40,6 +40,9 @@ class _BackupManifest(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
 
     backups: tuple[BackupRecord, ...]
+    # Workspace-relative paths an apply created from nothing; revert deletes
+    # them because there is no earlier content to restore.
+    created: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -314,6 +317,27 @@ class WorkspaceIo:
         except FileNotFoundError:
             return None
 
+    def delete_file(self, path: AdmittedPath) -> bool:
+        """Unlink one regular file; absent targets are a no-op."""
+        parent_fd = self._open_parent(path, create=False, missing_ok=True)
+        if parent_fd is None:
+            return False
+        try:
+            leaf_stat = self._leaf_stat(parent_fd, path.relative.name)
+            if leaf_stat is None:
+                return False
+            if stat.S_ISLNK(leaf_stat.st_mode):
+                raise ProvisioningPathError(
+                    f"{path.role} must not traverse a symlink: {self.absolute(path)}"
+                )
+            if not stat.S_ISREG(leaf_stat.st_mode):
+                raise ProvisioningPathError(f"{path.role} is not a regular file")
+            os.unlink(path.relative.name, dir_fd=parent_fd)
+            os.fsync(parent_fd)
+            return True
+        finally:
+            os.close(parent_fd)
+
     @staticmethod
     def _staging_name() -> str:
         return f".soleaux-write-{secrets.token_hex(12)}"
@@ -575,10 +599,35 @@ def backup_file(workspace_root: Path, target: Path) -> BackupRecord:
         return _backup_files(workspace_io, [source])[0]
 
 
+def record_created(workspace_io: WorkspaceIo, created: list[AdmittedPath]) -> None:
+    """Record apply-created paths in the manifest so revert can remove them."""
+    if not created:
+        return
+    manifest = _read_manifest(workspace_io)
+    known = set(manifest.created)
+    additions = tuple(path.as_posix for path in created if path.as_posix not in known)
+    if not additions:
+        return
+    _write_manifest(
+        workspace_io,
+        _BackupManifest(backups=manifest.backups, created=(*manifest.created, *additions)),
+    )
+
+
 def restore(workspace_root: Path) -> list[str]:
-    """Strictly validate the entire manifest, then restore it in reverse order."""
+    """Strictly validate the entire manifest, then restore it in reverse order.
+
+    Created paths are removed after backups are restored: a path created by an
+    early apply and backed up by a later one must end absent, matching the
+    pre-adoption state.
+    """
     with WorkspaceIo(workspace_root) as workspace_io:
-        prepared = _validated_restores(workspace_io, _read_manifest(workspace_io))
+        manifest = _read_manifest(workspace_io)
+        prepared = _validated_restores(workspace_io, manifest)
+        created_targets = [
+            workspace_io.admit_relative_target(relative, role="manifest created path")
+            for relative in manifest.created
+        ]
         snapshots = [(item, workspace_io.read_file(item.source)) for item in prepared]
         for item, snapshot in snapshots:
             workspace_io.write_bytes_atomic(
@@ -586,4 +635,8 @@ def restore(workspace_root: Path) -> list[str]:
                 snapshot.data,
                 mode=snapshot.mode,
             )
-        return [item.original_path for item, _snapshot in snapshots]
+        restored = [item.original_path for item, _snapshot in snapshots]
+        for target in reversed(created_targets):
+            if workspace_io.delete_file(target):
+                restored.append(target.as_posix)
+        return restored

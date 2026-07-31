@@ -115,13 +115,59 @@ def test_apply_plan_writes_files_and_backs_up_changed_targets(tmp_path: pathlib.
 
     result = soleaux.provisioning.adopt.apply_plan(plan)
 
-    # Editor disable + 3 host registrations = 4 writes
-    assert len(result.written) == 4
+    # Editor disable + 3 host registrations + guidance block = 5 writes
+    assert len(result.written) == 5
     assert not result.skipped
     # Backups for original settings.json and .mcp.json
     backed_up_paths = {b.original_path for b in result.backups}
     assert ".vscode/settings.json" in backed_up_paths
     assert ".mcp.json" in backed_up_paths
+
+
+def test_apply_plan_writes_the_gateway_guidance_block(tmp_path: pathlib.Path) -> None:
+    _seed_workspace(tmp_path)
+    plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+
+    soleaux.provisioning.adopt.apply_plan(plan)
+
+    guidance = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert guidance.count("<!-- soleaux-gateway:start -->") == 1
+    assert "soleaux mcp login" in guidance
+    assert "soleaux.toml" in guidance
+
+
+def test_guidance_block_prefers_an_existing_claude_md(tmp_path: pathlib.Path) -> None:
+    _seed_workspace(tmp_path)
+    (tmp_path / "CLAUDE.md").write_text("# Workspace\n", encoding="utf-8")
+    plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+
+    soleaux.provisioning.adopt.apply_plan(plan)
+
+    guidance = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert guidance.startswith("# Workspace\n")
+    assert "<!-- soleaux-gateway:start -->" in guidance
+    assert not (tmp_path / "AGENTS.md").exists()
+
+
+def test_guidance_block_is_idempotent_and_replaces_between_markers(
+    tmp_path: pathlib.Path,
+) -> None:
+    _seed_workspace(tmp_path)
+    (tmp_path / "AGENTS.md").write_text(
+        "# Notes\n\n<!-- soleaux-gateway:start -->\nstale\n<!-- soleaux-gateway:end -->\n",
+        encoding="utf-8",
+    )
+    plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+    soleaux.provisioning.adopt.apply_plan(plan)
+
+    first = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "stale" not in first
+    assert first.count("<!-- soleaux-gateway:start -->") == 1
+
+    second_plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+    result = soleaux.provisioning.adopt.apply_plan(second_plan)
+    assert not any(w.startswith("write_guidance:") for w in result.written)
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == first
 
 
 def test_apply_plan_actually_disables_language_server(tmp_path: pathlib.Path) -> None:
@@ -174,6 +220,42 @@ def test_revert_restores_files_to_pre_apply_state(tmp_path: pathlib.Path) -> Non
     assert ".vscode/settings.json" in restored
     assert ".mcp.json" in restored
     assert (tmp_path / ".vscode" / "settings.json").read_text() == original_settings
+
+
+def test_revert_removes_guidance_created_in_a_workspace_without_agents_md(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Adoption creates AGENTS.md from nothing; revert must remove it again."""
+    _seed_workspace(tmp_path)
+    assert not (tmp_path / "AGENTS.md").exists()
+    plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+    result = soleaux.provisioning.adopt.apply_plan(plan)
+
+    assert (tmp_path / "AGENTS.md").is_file()
+    assert "AGENTS.md" in result.created
+
+    restored = soleaux.provisioning.adopt.revert(tmp_path)
+
+    assert "AGENTS.md" in restored
+    assert not (tmp_path / "AGENTS.md").exists()
+
+
+def test_revert_removes_created_host_configs_and_restores_modified_ones(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Files adoption created are deleted; files it modified are restored."""
+    _seed_workspace(tmp_path)
+    original_mcp = (tmp_path / ".mcp.json").read_text()
+    assert not (tmp_path / "opencode.json").exists()
+    plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+    soleaux.provisioning.adopt.apply_plan(plan)
+
+    soleaux.provisioning.adopt.revert(tmp_path)
+
+    assert (tmp_path / ".mcp.json").read_text() == original_mcp
+    assert not (tmp_path / "opencode.json").exists()
+    assert not (tmp_path / ".codex" / "config.toml").exists()
+    assert not (tmp_path / "AGENTS.md").exists()
 
 
 def _provider_action(target: pathlib.Path) -> soleaux.provisioning.adopt.AdoptionAction:

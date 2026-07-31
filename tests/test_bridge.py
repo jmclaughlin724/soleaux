@@ -1,14 +1,20 @@
+"""Bridge client, deployment discovery, and host-envelope rendering contract."""
+
 from __future__ import annotations
 
 import asyncio
-import importlib.util
+import contextlib
 import io
 import json
+import shutil
+import socket as unix_socket
 import sys
-from collections.abc import AsyncGenerator
+import tempfile
+import typing
+from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from types import ModuleType
+from types import SimpleNamespace
 
 import httpx2
 import pytest
@@ -20,6 +26,9 @@ from fastmcp.server.providers.proxy import FastMCPProxy, StatefulProxyClient
 from mcp_types import Root, TextContent
 from pydantic import FileUrl
 
+from soleaux.bridge import client as bridge_client
+from soleaux.bridge import deployment as bridge_deployment
+from soleaux.bridge import rendering
 from soleaux.contracts.context import (
     ContextGap,
     ContextSection,
@@ -28,24 +37,17 @@ from soleaux.contracts.context import (
 )
 from soleaux.contracts.results import ResultStatus, TaskContextEnvelope
 
-_REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-_CLIENT_PATH = _REPOSITORY_ROOT / "scripts" / "soleaux" / "client.py"
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _load_client() -> ModuleType:
-    specification = importlib.util.spec_from_file_location(
-        "soleaux_local_client",
-        _CLIENT_PATH,
-    )
-    if specification is None or specification.loader is None:
-        raise RuntimeError("could not load the local Soleaux client")
-    module = importlib.util.module_from_spec(specification)
-    sys.modules[specification.name] = module
-    specification.loader.exec_module(module)
-    return module
-
-
-client = _load_client()
+@pytest.fixture
+def short_socket_dir() -> Iterator[Path]:
+    # AF_UNIX sun_path is limited to 104 bytes on macOS; pytest's tmp_path exceeds it.
+    directory = Path(tempfile.mkdtemp(dir="/tmp", prefix="slx-"))
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 def _task_item(
@@ -111,37 +113,15 @@ def _context_result(packet: TaskContextPacket, text: str) -> CallToolResult:
 
 def _complete_server_text(packet: TaskContextPacket) -> str:
     lines = ["# Soleaux task context", "", "## Section index"]
-    for title, items in client._required_sections(packet):
+    for title, items in rendering._required_sections(packet):
         lines.append(f"- {title}: {len(items)}")
-    for title, items in client._required_sections(packet):
+    for title, items in rendering._required_sections(packet):
         if items:
             lines.extend(("", f"## {title} ({len(items)})"))
     if packet.gaps:
         lines.extend(("", f"## Coverage gaps ({len(packet.gaps)})"))
         lines.extend(f"- `{gap.code}`" for gap in packet.gaps)
     return "\n".join(lines)
-
-
-def test_deployment_config_owns_the_private_socket_endpoint() -> None:
-    deployment = client.load_deployment_config()
-
-    assert deployment.endpoint == "http://soleaux.local/mcp"
-    assert deployment.service_label == "dev.soleaux.soleaux"
-    assert deployment.socket_relative_path == "Library/Caches/Soleaux/soleaux.sock"
-    assert deployment.socket_path == Path.home() / deployment.socket_relative_path
-    assert len(str(deployment.socket_path)) <= 100
-    assert deployment.workspace_root is None
-
-
-def _write_deployment(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    payload: dict[str, object],
-) -> None:
-    config_path = tmp_path / "deployment.json"
-    config_path.write_text(json.dumps(payload), encoding="utf-8")
-    monkeypatch.setenv("SOLEAUX_DEPLOYMENT_CONFIG", str(config_path))
-    client.load_deployment_config.cache_clear()
 
 
 def _valid_deployment_payload() -> dict[str, object]:
@@ -153,13 +133,112 @@ def _valid_deployment_payload() -> dict[str, object]:
     }
 
 
+def _write_deployment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: dict[str, object],
+) -> None:
+    config_path = tmp_path / "deployment.json"
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("SOLEAUX_DEPLOYMENT", str(config_path))
+
+
+def test_deployment_config_owns_the_private_socket_endpoint() -> None:
+    deployment = bridge_deployment.load_deployment_config(start=_REPOSITORY_ROOT)
+
+    assert deployment.endpoint == "http://soleaux.local/mcp"
+    assert deployment.service_label == "dev.soleaux.soleaux"
+    assert deployment.socket_relative_path == "Library/Caches/Soleaux/soleaux.sock"
+    assert deployment.socket_path == Path.home() / deployment.socket_relative_path
+    assert len(str(deployment.socket_path)) <= 100
+    assert deployment.workspace_root is None
+
+
+def test_deployment_discovery_prefers_the_environment_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_deployment(tmp_path, monkeypatch, _valid_deployment_payload())
+
+    path = bridge_deployment.deployment_config_path(start=_REPOSITORY_ROOT)
+
+    assert path == tmp_path / "deployment.json"
+
+
+def test_deployment_discovery_accepts_the_legacy_environment_alias(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "deployment.json"
+    config_path.write_text(json.dumps(_valid_deployment_payload()), encoding="utf-8")
+    monkeypatch.setenv("SOLEAUX_DEPLOYMENT_CONFIG", str(config_path))
+
+    assert bridge_deployment.deployment_config_path(start=_REPOSITORY_ROOT) == config_path
+
+
+def test_deployment_discovery_finds_the_legacy_per_repo_document_from_a_nested_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SOLEAUX_DEPLOYMENT", raising=False)
+    monkeypatch.delenv("SOLEAUX_DEPLOYMENT_CONFIG", raising=False)
+    (tmp_path / ".git").mkdir()
+    legacy = tmp_path / "scripts" / "soleaux" / "deployment.json"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text(json.dumps(_valid_deployment_payload()), encoding="utf-8")
+    nested = tmp_path / "packages" / "app"
+    nested.mkdir(parents=True)
+
+    assert bridge_deployment.deployment_config_path(start=nested) == legacy
+
+
+def test_deployment_discovery_finds_the_root_level_per_repo_document(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SOLEAUX_DEPLOYMENT", raising=False)
+    monkeypatch.delenv("SOLEAUX_DEPLOYMENT_CONFIG", raising=False)
+    (tmp_path / ".git").mkdir()
+    per_repo = tmp_path / "soleaux.deployment.json"
+    per_repo.write_text(json.dumps(_valid_deployment_payload()), encoding="utf-8")
+
+    assert bridge_deployment.deployment_config_path(start=tmp_path) == per_repo
+
+
+def test_deployment_discovery_falls_back_to_the_machine_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SOLEAUX_DEPLOYMENT", raising=False)
+    monkeypatch.delenv("SOLEAUX_DEPLOYMENT_CONFIG", raising=False)
+    outside = tmp_path / "no-repository"
+    outside.mkdir()
+    machine = tmp_path / "home" / "Library" / "Application Support" / "Soleaux" / "deployment.json"
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    assert bridge_deployment.deployment_config_path(start=outside) == machine
+
+
+def test_deployment_schema_mismatch_names_the_attach_repair_route(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_deployment(
+        tmp_path,
+        monkeypatch,
+        _valid_deployment_payload() | {"schema_version": "soleaux.local-deployment/v1"},
+    )
+
+    with pytest.raises(bridge_deployment.DeploymentError) as excinfo:
+        bridge_deployment.load_deployment_config()
+    message = str(excinfo.value)
+    assert "unsupported schema" in message
+    assert "soleaux attach --repo" in message
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     (
-        (
-            {"schema_version": "soleaux.local-deployment/v1"},
-            "unsupported schema",
-        ),
         (
             {"endpoint": "http://127.0.0.1:8765/mcp"},
             "soleaux.local",
@@ -187,8 +266,8 @@ def test_deployment_config_rejects_unsafe_socket_deployments(
     payload = _valid_deployment_payload() | mutation
     _write_deployment(tmp_path, monkeypatch, payload)
 
-    with pytest.raises(client.DeploymentError) as excinfo:
-        client.load_deployment_config()
+    with pytest.raises(bridge_deployment.DeploymentError) as excinfo:
+        bridge_deployment.load_deployment_config()
     assert message in str(excinfo.value)
 
 
@@ -202,7 +281,7 @@ def test_context_uses_one_legacy_fastmcp_call(
         def __init__(self, transport: object, **options: object) -> None:
             constructions.append({"transport": transport, **options})
 
-        async def __aenter__(self):
+        async def __aenter__(self) -> FakeClient:
             return self
 
         async def __aexit__(
@@ -219,14 +298,14 @@ def test_context_uses_one_legacy_fastmcp_call(
             arguments: dict[str, object],
             *,
             timeout: float,
-        ):
+        ) -> CallToolResult:
             calls.append((name, arguments, timeout))
             packet = _task_packet()
             return _context_result(packet, _complete_server_text(packet))
 
-    monkeypatch.setattr(client, "Client", FakeClient)
+    monkeypatch.setattr(bridge_client, "Client", FakeClient)
 
-    result = asyncio.run(client.request_context("Find the owner", "codex"))
+    result = asyncio.run(bridge_client.request_context("Find the owner", "codex"))
 
     assert result == _complete_server_text(_task_packet())
     assert len(constructions) == 1
@@ -234,11 +313,12 @@ def test_context_uses_one_legacy_fastmcp_call(
     assert constructions[0]["name"] == "soleaux-codex-context"
     transport = constructions[0]["transport"]
     assert isinstance(transport, StreamableHttpTransport)
-    assert str(transport.url) == client.load_deployment_config().endpoint
+    assert str(transport.url) == bridge_deployment.load_deployment_config().endpoint
     assert transport.auth is None
 
-    deployment = client.load_deployment_config()
-    upstream_http = transport.httpx_client_factory(
+    deployment = bridge_deployment.load_deployment_config()
+    factory = typing.cast(typing.Any, transport.httpx_client_factory)
+    upstream_http = factory(
         headers={
             "Authorization": "Bearer ambient-secret",
             "Cookie": "ambient=credential",
@@ -259,7 +339,7 @@ def test_context_uses_one_legacy_fastmcp_call(
     assert "authorization" not in upstream_http.headers
     assert "cookie" not in upstream_http.headers
     assert "x-request-id" not in upstream_http.headers
-    closure = transport.httpx_client_factory.__closure__
+    closure = factory.__closure__
     assert closure is not None
     assert any(cell.cell_contents == deployment.socket_path for cell in closure)
     assert calls == [
@@ -290,11 +370,11 @@ def test_context_rebuilds_oversized_text_with_required_sections_and_explicit_gap
             ),
         ),
     )
-    result = _context_result(packet, "é" * client._MAX_CONTEXT_BYTES)
+    result = _context_result(packet, "é" * rendering._MAX_CONTEXT_BYTES)
 
-    context = client._human_context(result)
+    context = rendering._human_context(result)
 
-    assert len(context.encode()) <= client._MAX_CONTEXT_PAYLOAD_BYTES
+    assert len(context.encode()) <= rendering._MAX_CONTEXT_PAYLOAD_BYTES
     assert "## Canonical owners (1)" in context
     assert '"identity":"canonical-owner"' in context
     assert "## Consumers (1)" in context
@@ -304,7 +384,7 @@ def test_context_rebuilds_oversized_text_with_required_sections_and_explicit_gap
     assert "## Validation routes (1)" in context
     assert '"identity":"validation-route"' in context
     assert '"code":"repository_gap"' in context
-    assert f'"code":"{client._HOST_CONTEXT_LIMIT_GAP}"' in context
+    assert f'"code":"{rendering._HOST_CONTEXT_LIMIT_GAP}"' in context
     assert "é" not in context
 
 
@@ -319,12 +399,12 @@ def test_context_uses_a_minimal_explicit_gap_when_required_detail_exceeds_the_li
     )
     packet = _task_packet(canonical_owners=items)
 
-    context = client._human_context(_context_result(packet, "é" * client._MAX_CONTEXT_BYTES))
+    context = rendering._human_context(_context_result(packet, "é" * rendering._MAX_CONTEXT_BYTES))
 
-    assert len(context.encode()) <= client._MAX_CONTEXT_PAYLOAD_BYTES
+    assert len(context.encode()) <= rendering._MAX_CONTEXT_PAYLOAD_BYTES
     assert "## Canonical owners (120)" in context
     assert "Required identities preserved; summaries omitted at the host boundary." in context
-    assert f'"code":"{client._HOST_CONTEXT_LIMIT_GAP}"' in context
+    assert f'"code":"{rendering._HOST_CONTEXT_LIMIT_GAP}"' in context
     assert '"identity":"owner-0"' in context
     assert '"identity":"owner-119"' in context
     assert '"summary"' not in context
@@ -333,10 +413,10 @@ def test_context_uses_a_minimal_explicit_gap_when_required_detail_exceeds_the_li
 def test_context_fails_with_an_explicit_gap_if_required_sections_cannot_fit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(client, "_MAX_CONTEXT_PAYLOAD_BYTES", 64)
+    monkeypatch.setattr(rendering, "_MAX_CONTEXT_PAYLOAD_BYTES", 64)
 
-    with pytest.raises(client.DeploymentError) as excinfo:
-        client._human_context(_context_result(_task_packet(), "context"))
+    with pytest.raises(bridge_deployment.DeploymentError) as excinfo:
+        rendering._human_context(_context_result(_task_packet(), "context"))
     assert "[host_context_limit]" in str(excinfo.value)
 
 
@@ -345,41 +425,41 @@ def test_context_command_writes_terminated_response_within_host_byte_limit(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     async def fake_request_context(_prompt: str, _client: str) -> str:
-        return "x" * client._MAX_CONTEXT_PAYLOAD_BYTES
+        return "x" * rendering._MAX_CONTEXT_PAYLOAD_BYTES
 
-    monkeypatch.setattr(client, "request_context", fake_request_context)
-    monkeypatch.setattr(client.sys, "stdin", io.StringIO("Find the owner"))
+    monkeypatch.setattr(bridge_client, "request_context", fake_request_context)
+    monkeypatch.setattr(bridge_client.sys, "stdin", io.StringIO("Find the owner"))
 
-    result = client.main(["context", "opencode"])
+    result = bridge_client.main(["context", "opencode"])
 
     captured = capsys.readouterr()
     assert result == 0
     assert captured.err == ""
-    assert captured.out.endswith(client._OUTPUT_TERMINATOR)
-    assert len(captured.out.encode()) <= client._MAX_CONTEXT_BYTES
+    assert captured.out.endswith(rendering._OUTPUT_TERMINATOR)
+    assert len(captured.out.encode()) <= rendering._MAX_CONTEXT_BYTES
 
 
 @pytest.mark.parametrize("host", ("claude", "codex", "opencode"))
 def test_bridge_uses_public_stateful_proxy_with_private_socket_transport(
     host: str,
 ) -> None:
-    deployment = client.load_deployment_config()
-    proxy = client._create_bridge_proxy(deployment, host)
+    deployment = bridge_deployment.load_deployment_config(start=_REPOSITORY_ROOT)
+    proxy = bridge_client._create_bridge_proxy(deployment, host)
 
     assert isinstance(proxy, FastMCPProxy)
     assert proxy.provider_error_strategy == "raise"
-    factory_owner = proxy.client_factory.__self__
+    factory_owner = typing.cast(typing.Any, proxy).client_factory.__self__
     assert isinstance(factory_owner, StatefulProxyClient)
     assert factory_owner.mode == "legacy"
     assert factory_owner.name == f"soleaux-{host}-bridge"
 
-    transport = factory_owner.transport
+    transport = typing.cast(typing.Any, factory_owner).transport
     assert isinstance(transport, StreamableHttpTransport)
     assert str(transport.url) == deployment.endpoint
     assert transport.auth is None
     assert transport.httpx_client_factory is not None
 
-    upstream_http = transport.httpx_client_factory(
+    upstream_http = typing.cast(typing.Any, transport.httpx_client_factory)(
         headers={
             "Authorization": "Bearer front-connection-secret",
             "Cookie": "front-session=credential",
@@ -419,21 +499,26 @@ def test_stateful_proxy_isolates_callbacks_and_session_lifecycle() -> None:
 
     @upstream.tool
     def client_capabilities(context: Context) -> dict[str, bool]:
-        capabilities = context.session.client_params.capabilities
+        params = context.session.client_params
+        assert params is not None
+        capabilities = params.capabilities
         return {
             "elicitation": capabilities.elicitation is not None,
             "roots": capabilities.roots is not None,
             "sampling": capabilities.sampling is not None,
         }
 
-    owner = StatefulProxyClient(
+    assert callable(identity)
+    assert callable(client_capabilities)
+
+    owner: StatefulProxyClient[typing.Any] = StatefulProxyClient(
         upstream,
         mode="legacy",
         roots=None,
         sampling_handler=None,
         elicitation_handler=None,
-        log_handler=client._discard_upstream_log,
-        progress_handler=client._discard_upstream_progress,
+        log_handler=bridge_client._discard_upstream_log,
+        progress_handler=bridge_client._discard_upstream_progress,
     )
     proxy = FastMCPProxy(
         client_factory=owner.new_stateful,
@@ -492,13 +577,16 @@ def test_bridge_runs_stdio_without_banner(
         def run(self, **options: object) -> None:
             runs.append(options)
 
+    def fake_proxy_factory(_config: object, _client: str) -> FakeProxy:
+        return FakeProxy()
+
     monkeypatch.setattr(
-        client,
+        bridge_client,
         "_create_bridge_proxy",
-        lambda _config, _client: FakeProxy(),
+        fake_proxy_factory,
     )
 
-    client.run_bridge("claude")
+    bridge_client.run_bridge("claude")
 
     assert runs == [{"show_banner": False, "transport": "stdio"}]
 
@@ -507,26 +595,29 @@ def test_stateless_upstream_serves_context_and_bridge_clients(
     short_socket_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import contextlib
-    import socket as unix_socket
-    from types import SimpleNamespace
-
     monkeypatch.setattr(sys, "path", [str(_REPOSITORY_ROOT), *sys.path])
     from scripts.soleaux import http_service as composition
 
     socket_path = short_socket_dir / "s.sock"
     listener = composition._prebind_socket(socket_path)
+
+    def fake_composition_deployment(**kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(workspace_root=_REPOSITORY_ROOT)
+
     monkeypatch.setattr(
         composition,
         "load_deployment_config",
-        lambda: SimpleNamespace(workspace_root=_REPOSITORY_ROOT),
+        fake_composition_deployment,
     )
     server = composition.create_workspace_server()
-    deployment = SimpleNamespace(
-        endpoint="http://soleaux.local/mcp",
-        socket_path=socket_path,
+    deployment = typing.cast(
+        bridge_deployment.DeploymentConfig,
+        SimpleNamespace(
+            endpoint="http://soleaux.local/mcp",
+            socket_path=socket_path,
+        ),
     )
-    monkeypatch.setattr(client, "load_deployment_config", lambda: deployment)
+    monkeypatch.setattr(bridge_client, "load_deployment_config", lambda: deployment)
 
     async def exercise() -> tuple[str, bool]:
         serve_task = asyncio.create_task(
@@ -552,11 +643,11 @@ def test_stateless_upstream_serves_context_and_bridge_clients(
             serve_task.cancel()
             raise AssertionError("the stateless test server did not start")
         try:
-            rendered = await client.request_context(
+            rendered = await bridge_client.request_context(
                 "Find the Soleaux context owner",
                 "codex",
             )
-            proxy = client._create_bridge_proxy(deployment, "codex")
+            proxy = bridge_client._create_bridge_proxy(deployment, "codex")
             async with FastMCPClient(
                 proxy,
                 name="test-downstream",
@@ -578,7 +669,7 @@ def test_stateless_upstream_serves_context_and_bridge_clients(
     assert bridge_ok is True
     assert rendered.startswith("# Soleaux task context")
     assert "## Section index" in rendered
-    assert len(rendered.encode("utf-8")) <= client._MAX_CONTEXT_PAYLOAD_BYTES
+    assert len(rendered.encode("utf-8")) <= rendering._MAX_CONTEXT_PAYLOAD_BYTES
 
 
 def test_context_survives_high_cardinality_generation_gaps_within_host_envelope() -> None:
@@ -602,18 +693,18 @@ def test_context_survives_high_cardinality_generation_gaps_within_host_envelope(
         validation_routes=(_task_item(ContextSection.VALIDATION_ROUTE, "validation-route"),),
         gaps=gaps,
     )
-    result = _context_result(packet, "é" * client._MAX_CONTEXT_BYTES)
+    result = _context_result(packet, "é" * rendering._MAX_CONTEXT_BYTES)
 
-    context = client._human_context(result)
+    context = rendering._human_context(result)
 
-    assert len(context.encode()) <= client._MAX_CONTEXT_PAYLOAD_BYTES
+    assert len(context.encode()) <= rendering._MAX_CONTEXT_PAYLOAD_BYTES
     assert "## Canonical owners (1)" in context
     assert "## Consumers (1)" in context
     assert "## Conflicts (1)" in context
     assert "## Validation routes (1)" in context
     assert "## Coverage gaps (65)" in context
     assert context.count('"code":"coverage_omission"') == 1
-    assert f'"code":"{client._HOST_CONTEXT_LIMIT_GAP}"' in context
+    assert f'"code":"{rendering._HOST_CONTEXT_LIMIT_GAP}"' in context
 
 
 def test_context_admits_item_detail_within_budget_with_explicit_omissions() -> None:
@@ -626,15 +717,15 @@ def test_context_admits_item_detail_within_budget_with_explicit_omissions() -> N
         for index in range(600)
     )
     packet = _task_packet(canonical_owners=items)
-    result = _context_result(packet, "é" * client._MAX_CONTEXT_BYTES)
+    result = _context_result(packet, "é" * rendering._MAX_CONTEXT_BYTES)
 
-    context = client._human_context(result)
+    context = rendering._human_context(result)
 
-    assert len(context.encode()) <= client._MAX_CONTEXT_PAYLOAD_BYTES
+    assert len(context.encode()) <= rendering._MAX_CONTEXT_PAYLOAD_BYTES
     assert "## Canonical owners (600)" in context
     assert "## Consumers (0)" in context
     assert "## Conflicts (0)" in context
     assert "## Validation routes (0)" in context
     assert '"identity":"owner-0-' in context
     assert "canonical owners item(s) omitted at the host boundary" in context
-    assert f'"code":"{client._HOST_CONTEXT_LIMIT_GAP}"' in context
+    assert f'"code":"{rendering._HOST_CONTEXT_LIMIT_GAP}"' in context

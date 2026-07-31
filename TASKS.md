@@ -21,123 +21,121 @@ at its canonical owner.
   `/Users/johnmclaughlin/projects/anilize-temp`.
 - Commits are made by the user unless they explicitly delegate delivery.
 
-## Current state (verified 2026-07-30)
+## Current state (verified 2026-07-31)
 
-- Product tree extracted; `~/projects/soleaux` is a git repo (initial commit
-  `90fe924`) with its own `uv.lock`, `.venv`, `pnpm-workspace.yaml`, lockfile,
-  and self-hosted ast-grep engines (`node_modules/@ast-grep/*`).
-- Standalone gates green: 801 passed/18 skipped pytest; ruff/pyright clean;
-  telemetry turbo 7/7; cargo check clean; sdist/wheel build clean.
-- Through the symlink, host-side gates green: 968 passed/2 skipped pytest;
-  service `dev.soleaux.anilize-temp` healthy; self-dogfood deployment
-  `dev.soleaux.soleaux` exists (`scripts/soleaux/deployment.json`).
-- Bridge/service layer is ported in **script form** at `scripts/soleaux/`
-  (client.py, service.mjs, http_service.py, deployment.json, RUNBOOK.md); a
-  concurrent workstream is mid-migration on it — coordinate before editing
-  those files.
-- Known red gate: `uv run --locked pyright` reports ~51 errors confined to
-  `scripts/soleaux/client.py` and `scripts/soleaux/__tests__/` (the concurrent
-  bridge migration). Not a blocker for Stages 1–2 below but must be closed
-  before any release.
+- `github.com/jmclaughlin724/soleaux` exists; `main` is published (PRs #1/#2
+  plus follow-up CI fixes). History was squashed on merge; the local baseline
+  is no longer `90fe924`.
+- The concurrent MCP-gateway program (GW-1–30: OAuth backends, credentials,
+  health tracking, metrics, canonical policy rendering, `soleaux mcp
+  login/logout/status/doctor`, daemon + dashboard registry) has landed and is
+  committed on both sides.
+- Gates green at `8b18c34`: 1136 passed/2 skipped pytest (with
+  `SOLEAUX_HOST_ROOT`), ruff/pyright clean, turbo 11/11, cargo clean,
+  verify-upstream clean, sdist/wheel build clean (deterministic
+  `build_identity.json` via committer-date stamping).
+- Process-teardown hardening landed: health-probe cancelled-mid-connect reap
+  (`src/soleaux/mcp_health.py`), SIGTERM→SIGINT graceful shutdown in the
+  server lifespan (`src/soleaux/server.py`), and load-margin bounds in the
+  process-inventory/topology tests.
+- Known upstream (fastmcp 4.0.0b1, latest available): proxy `_disconnect`
+  re-raises the session task's `MCPError` through connection cleanup, and
+  `fastmcp run` ignores stdin EOF. Worth filing; no newer release exists.
+- Stage 1 (B) and Stage 2 repo-internal work (C1–C5) are complete; the
+  vendored bridge remains as a shim until the host cutover (C6).
 
 ---
 
 ## A. Loose ends from the extraction (small, mechanical)
 
-### A1. Repair the `@soleaux/docs` workspace membership
-`tools/soleaux/docs` (now `docs/`) was dropped from the anilize-temp pnpm
-workspace and is not yet in this repo's. anilize-temp `ci.yml:81` still runs
-`turbo run audit --filter=@soleaux/docs` and fails.
-- [ ] Add `"docs"` to `packages` in `pnpm-workspace.yaml`.
-- [ ] Add the catalog entries `docs/package.json` needs (blume, astro, and any
-      other existing deps) to this repo's `catalog:` with the exact versions
-      from `anilize-temp/pnpm-workspace.yaml`.
-- [ ] Run `pnpm install --no-frozen-lockfile` in `~/projects/soleaux` and
-      `pnpm --filter @soleaux/docs audit` (or the package's own check task).
-- [ ] Move the docs-audit step out of anilize-temp CI into this repo's
-      `.github/workflows/ci.yml` (or delete it there once moved).
-Acceptance: `pnpm --filter @soleaux/docs <its tasks>` passes from this repo;
-anilize-temp CI no longer references `@soleaux/docs`.
+### A1. Repair the `@soleaux/docs` workspace membership ✅ (2026-07-31)
+- [x] `pnpm-workspace.yaml` lists `"docs"` with catalog entries; lockfile
+      reconciled (`pnpm install --frozen-lockfile` passes).
+- [x] `pnpm --filter @soleaux/docs check:ci` and `audit` pass; docs audit
+      step runs in this repo's `.github/workflows/ci.yml`.
+- [x] anilize-temp CI no longer references `@soleaux/docs`.
+- [x] Regenerated `tests/fixtures/contracts/d019-zero-mcp.json` after
+      extraction drift.
+Note: anilize-temp CI still runs duplicated product lanes
+(`soleaux:lint/typecheck/test`, telemetry verify-upstream) through the
+dangling symlink — that is A2/EX-9 territory, not A1.
 
-### A2. Create the GitHub remote and wire host CI (requires user authorization)
-- [ ] User creates `github.com/jmclaughlin724/soleaux` and this repo is pushed
-      (`git push --set-upstream origin main`).
+### A2. Create the GitHub remote and wire host CI (partially done)
+- [x] Remote created and `main` published by the user.
 - [ ] anilize-temp workflows gain a checkout of soleaux adjacent to the repo
-      (`../soleaux` relative to the workspace) so the `tools/soleaux` symlink
-      resolves, or soleaux-dependent lanes are gated on that checkout existing.
+      (`../soleaux` relative to the workspace) so the committed
+      `tools/soleaux -> ../../soleaux` symlink resolves, or the duplicated
+      product lanes are deleted in favour of this repo's own CI (the
+      consumption-model decision, anilize-temp EX-1, is user-gated).
 Acceptance: anilize-temp CI passes on a fresh checkout.
 
-### A3. Close the pyright gate on the bridge migration
-Owner: the bridge workstream. Track, don't absorb.
-- [ ] Resolve the ~51 pyright errors in `scripts/soleaux/client.py` and
-      `scripts/soleaux/__tests__/` (fastmcp 4.0.0b1 API surface:
-      `httpx_client_factory` signature, `StreamableHttpTransport`, unknown
-      member/variable types).
-Acceptance: `uv run --locked pyright` reports 0 errors.
+### A3. Close the pyright gate on the bridge migration ✅ (moot)
+- [x] `uv run --locked pyright` reports 0 errors; `scripts/soleaux/client.py`
+      and `__tests__/` are committed and clean (the ~51-error state was
+      resolved by the bridge workstream; C5 later migrated those tests into
+      `tests/test_bridge.py`).
 
-### A4. Commit both sides (user-directed)
-- [ ] anilize-temp: symlink swap, `pnpm-workspace.yaml`, `package.json`,
-      `eslint.config.mjs`, ast-grep rule exemptions (r080, r094), `ci.yml`,
-      removal of `.github/workflows/soleaux-release.yml`, `soleaux.toml`
-      `[telemetry]`, deleted `scripts/soleaux/`.
-- [ ] this repo: everything since `90fe924`.
+### A4. Commit both sides (mostly done)
+- [x] anilize-temp: extraction + gateway host-side commits landed.
+- [x] this repo: PRs #1/#2 + gateway + CI fix commits landed.
+- [ ] this repo: Stage C working tree (bridge package, CLI subcommand,
+      migrated tests, skill-copy repair, TASKS/HANDOFF refresh) — pending
+      user-directed commit.
 
 ---
 
-## B. Stage 1 — build/install identity
+## B. Stage 1 — build/install identity ✅ (2026-07-31)
 
 Goal: "which soleaux is running?" is answerable from any session.
 
-- [ ] B1. Add a hatch build hook `scripts/build_identity_hook.py` that writes
-      `src/soleaux/resources/build_identity.json`
-      (`{version, git_sha, build_time_utc, source: "wheel"}`) at `uv build`;
-      register it in `pyproject.toml` under `[tool.hatch.build]`.
-- [ ] B2. New `src/soleaux/_identity.py`: resolve identity at runtime —
-      build_identity.json when present (wheel/sdist/uvx); otherwise
-      best-effort `git rev-parse HEAD` + `install_source = "editable"`; never
-      raises; falls back to version-only.
-- [ ] B3. Surface under `identity.build` in `describe`
-      (`src/soleaux/analysis/service.py`) and in the `soleaux://about` product
-      block (`src/soleaux/server.py`): `{version, git_sha, install_source,
-      python}`.
-- [ ] B4. Extend `scripts/soleaux/service.mjs` identity parity
-      (`compareServiceIdentity`) to compare `gitSha` desired-vs-live so
-      `service.mjs status` flags editable-tree drift the static version hides.
-- [ ] B5. Tests: `tests/test_identity.py` (wheel contains identity; editable
-      resolution; describe/about payloads), plus service.test.mjs parity case.
-Acceptance: `uv build` produces a wheel containing build_identity.json with
-the current git sha; `describe` returns it; `service.mjs status` shows gitSha
-parity/drift. All gates from Ground rules pass.
+- [x] B1. `scripts/build_identity_hook.py` (hatch `custom` hook) stamps
+      `build_identity.json` (`{version, git_sha, build_time_utc, source:
+      "wheel"}`); registered under `[tool.hatch.build.hooks.custom]`; sdist
+      `force-include`s the hook; deterministic timestamp (SOURCE_DATE_EPOCH →
+      existing artifact → committer date of HEAD) keeps direct and
+      sdist-rebuilt wheels byte-identical.
+- [x] B2. `src/soleaux/_identity.py`: wheel artifact → runtime git fallback;
+      never raises; version chain metadata → pyproject → "unknown".
+- [x] B3. `identity.build` in `describe` and `soleaux://about`.
+- [x] B4. `service.mjs` `compareServiceIdentity` has `gitSha`/`installSource`
+      parity bits (null-tolerant for pre-B payloads).
+- [x] B5. `tests/test_identity.py` covers wheel contents, editable
+      resolution, describe/about payloads; service.test.mjs parity shape
+      updated.
 
-## C. Stage 2 — productized bridge
+## C. Stage 2 — productized bridge (C1–C5 ✅ 2026-07-31; C6 open)
 
 Goal: consumer repos contain only config, never vendored bridge code.
-Coordinate with the in-flight bridge workstream before editing
-`scripts/soleaux/**`.
 
-- [ ] C1. Move `scripts/soleaux/client.py` into the package as
-      `src/soleaux/bridge/client.py` (+ `rendering.py` for the host-envelope
-      contract — that contract's canonical owner moves with it).
-- [ ] C2. Add CLI subcommands in `src/soleaux/cli.py`: `soleaux bridge
-      <claude|codex|opencode>` and `soleaux context <client>`.
-- [ ] C3. Deployment discovery order replaces path-relative lookup:
-      (1) `SOLEAUX_DEPLOYMENT` env var, (2) `<repo>/scripts/soleaux/deployment.json`
-      (v2, legacy per-repo), (3) machine-level
+- [x] C1. Bridge moved into the package: `src/soleaux/bridge/client.py`,
+      `src/soleaux/bridge/rendering.py` (host-envelope contract owner),
+      `src/soleaux/bridge/deployment.py` (discovery + validation),
+      `src/soleaux/contracts/deployment.py` (schema constants).
+      `scripts/soleaux/client.py` is now a back-compat shim;
+      `scripts/soleaux/http_service.py` imports from the package.
+- [x] C2. `soleaux bridge <claude|codex|opencode>` serves stdio;
+      `soleaux bridge --context <client>` emits the host context payload.
+      Deviation from the plan: `soleaux context <client>` was not used
+      because `soleaux context <objective>` already exists; the mode lives
+      under the bridge namespace instead.
+- [x] C3. Discovery order: `SOLEAUX_DEPLOYMENT` (legacy alias
+      `SOLEAUX_DEPLOYMENT_CONFIG`) → repo walk-up
+      (`scripts/soleaux/deployment.json`, then `soleaux.deployment.json`) →
       `~/Library/Application Support/Soleaux/deployment.json`.
-- [ ] C4. Bridge validates envelope/schema versions against
-      `soleaux/contracts/` constants at startup; mismatches raise a typed
-      error naming the repair command.
-- [ ] C5. Migrate `scripts/soleaux/__tests__/test_client.py` into
-      `tests/test_bridge.py`; add discovery-order and version-mismatch tests.
-- [ ] C6. Cut anilize-temp over: `.mcp.json`, `.codex/config.toml`, and
-      `.codex/hooks/UserPromptSubmit/soleaux_context.py` invoke
-      `.venv/bin/soleaux bridge|context`; delete the vendored script copies;
-      update `scripts/soleaux/RUNBOOK.md` owner table and the host root
-      `package.json` (`soleaux:workspace:test` paths).
-Acceptance: `soleaux bridge codex|claude` works from the package; host agents
-connect through it end-to-end (`pnpm soleaux:service:verify` drives the real
-hook path); vendored copies gone; `uv run --locked pytest` green including
-migrated bridge tests.
+- [x] C4. Schema validation against `contracts/deployment.py`; unsupported
+      schemas raise a typed error naming `soleaux attach --repo <path>`.
+- [x] C5. `tests/test_bridge.py` (migrated, pyright-strict) plus
+      discovery-order and schema-mismatch tests; old
+      `scripts/soleaux/__tests__/test_client.py` deleted.
+- [ ] C6. Cut anilize-temp over (user-directed, host repo): `.mcp.json`,
+      `.codex/config.toml`, `opencode.json`, and
+      `.codex/hooks/UserPromptSubmit/soleaux_context.py` invoke the installed
+      CLI; delete the vendored script copies; update
+      `scripts/soleaux/RUNBOOK.md` owner table and host `package.json`.
+Acceptance so far: `soleaux bridge --context codex` works from the package
+against the live anilize-temp deployment (env-override and repo-walk-up
+discovery both verified); all gates green (1141 passed/2 skipped).
+
 
 ## D. Stage 3 — `soleaux attach` onboarding
 

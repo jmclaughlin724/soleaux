@@ -20,6 +20,7 @@ from soleaux.provisioning.contracts import (
     DetectionReport,
 )
 from soleaux.provisioning.editor_writer import render_disabled_editor_setting
+from soleaux.provisioning.guidance_writer import render_guidance
 from soleaux.provisioning.mcp_writer import render_registration
 
 Target = Literal["editor", "mcp", "providers"]
@@ -117,6 +118,20 @@ def build_plan(
                     language="host",
                 )
             )
+        guidance_rel = (
+            "CLAUDE.md"
+            if not (workspace_root / "AGENTS.md").is_file()
+            and (workspace_root / "CLAUDE.md").is_file()
+            else "AGENTS.md"
+        )
+        actions.append(
+            AdoptionAction(
+                kind="write_guidance",
+                description=f"Write the soleaux gateway guidance block in {guidance_rel}",
+                target_path=str(workspace_root / guidance_rel),
+                language="host",
+            )
+        )
 
     if "providers" in target_set:
         seen: set[str] = set()
@@ -161,9 +176,10 @@ def apply_plan(
 
     written: list[str] = []
     skipped: list[str] = []
+    created: list[backup.AdmittedPath] = []
     backed_up: set[Path] = set()
     with backup.WorkspaceIo(requested_root) as workspace_io:
-        prepared: list[tuple[AdoptionAction, backup.AdmittedPath, _Applier]] = []
+        prepared: list[tuple[AdoptionAction, backup.AdmittedPath, _Applier, bool]] = []
         backup_targets: list[backup.AdmittedPath] = []
         for action in actions:
             applier = _APPLIERS.get(action.kind)
@@ -173,22 +189,28 @@ def apply_plan(
                 Path(action.target_path),
                 role="adoption target path",
             )
-            if workspace_io.is_file(target) and target.relative not in backed_up:
+            existed_before = workspace_io.is_file(target)
+            if existed_before and target.relative not in backed_up:
                 backup_targets.append(target)
                 backed_up.add(target.relative)
-            prepared.append((action, target, applier))
+            prepared.append((action, target, applier, existed_before))
 
         backups: list[BackupRecord] = backup._backup_files(workspace_io, backup_targets)
-        for action, target, applier in prepared:
+        for action, target, applier, existed_before in prepared:
             if applier(workspace_io, target, action, force=force):
                 written.append(f"{action.kind}:{target.as_posix}")
+                if not existed_before:
+                    # No earlier content exists to restore; revert must delete.
+                    created.append(target)
             else:
                 skipped.append(f"{action.kind}:{target.as_posix}")
+        backup.record_created(workspace_io, created)
         workspace_root = workspace_io.root
 
     return AdoptionResult(
         workspace_root=str(workspace_root),
         backups=tuple(backups),
+        created=tuple(path.as_posix for path in created),
         written=tuple(written),
         skipped=tuple(skipped),
     )
@@ -262,10 +284,27 @@ def _register(
     return True
 
 
+def _write_guidance(
+    workspace_io: backup.WorkspaceIo,
+    target: backup.AdmittedPath,
+    action: AdoptionAction,
+    *,
+    force: bool,
+) -> bool:
+    _ = action, force
+    snapshot = workspace_io.read_optional(target)
+    rendered = render_guidance(snapshot.data if snapshot is not None else None)
+    if rendered is None:
+        return False
+    workspace_io.write_bytes_atomic(target, rendered)
+    return True
+
+
 _APPLIERS: dict[str, _Applier] = {
     "disable_editor": _disable_editor,
     "register_mcp": _register,
     "emit_provider": _emit_provider_block,
+    "write_guidance": _write_guidance,
 }
 
 

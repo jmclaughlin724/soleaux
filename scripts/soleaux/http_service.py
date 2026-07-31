@@ -22,7 +22,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from scripts.soleaux.client import DeploymentError, load_deployment_config
+from soleaux.bridge.deployment import DeploymentError, load_deployment_config
 from soleaux.contracts.config import ResolvedConfig
 from soleaux.server import create_server
 

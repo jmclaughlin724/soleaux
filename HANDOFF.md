@@ -20,54 +20,51 @@ asking.
 - `telemetry/docs/UPSTREAM_VERIFICATION_POLICY.md` — claim-registry rules for
   the telemetry surface.
 
-## Verified baseline (observed, not inferred)
+## Verified baseline (observed, not inferred, 2026-07-31)
 
-- `~/projects/soleaux` is a git repo (initial commit `90fe924`) with its own
-  `uv.lock`, `.venv`, `pnpm-workspace.yaml`, lockfile, and self-hosted
-  `@ast-grep` engines. `~/projects/anilize-temp/tools/soleaux` is a symlink
-  to it.
-- Standalone gates green (2026-07-30): `uv run --locked pytest` 801
-  passed/18 skipped; ruff and pyright clean; `pnpm exec turbo run typecheck
-  test:unit` 7/7; `cargo check --locked` clean; `uv build` sdist/wheel clean.
-- Host side through the symlink: `SOLEAUX_HOST_ROOT=$PWD uv --directory
-  tools/soleaux run --locked --package soleaux pytest` → 968 passed/2 skipped;
-  service `dev.soleaux.anilize-temp` healthy after restart+verify.
-- Known red: `uv run --locked pyright` → ~51 errors, all in
-  `scripts/soleaux/client.py` and `scripts/soleaux/__tests__/` (a concurrent
-  bridge-migration workstream's files — tracked as TASKS A3, do not absorb).
-- Bridge/service exists in script form at `scripts/soleaux/` (client.py,
-  service.mjs, http_service.py, deployment.json, RUNBOOK.md); self-dogfood
-  deployment `dev.soleaux.soleaux` is registered.
+- `github.com/jmclaughlin724/soleaux` exists; `main` is published (PRs #1/#2
+  plus follow-up commits). The concurrent MCP-gateway program (OAuth
+  backends, credentials, health tracking, metrics, policy rendering, `soleaux
+  mcp login/logout/status/doctor`, daemon + dashboard registry) has landed
+  and is committed on both sides.
+- Gates green at `8b18c34` plus the Stage C working tree: `uv run --locked
+  pytest` 1141 passed/2 skipped (with `SOLEAUX_HOST_ROOT`); ruff and pyright
+  clean; `pnpm exec turbo run typecheck test:unit` 11/11; `cargo check
+  --locked` clean; `node telemetry/scripts/verify-upstream.mjs` clean; `uv
+  build` sdist/wheel clean (deterministic `build_identity.json`).
+- Stages A1, A3, B, and C1–C5 are complete (see TASKS.md for per-item
+  state). The vendored bridge at `scripts/soleaux/` is now a shim over
+  `src/soleaux/bridge/`; deletion happens at C6.
+- Process-teardown hardening landed (health-probe reap, SIGTERM→SIGINT
+  graceful shutdown, load-margin bounds in the process tests). Two upstream
+  fastmcp 4.0.0b1 issues remain worth filing: proxy `_disconnect` re-raises
+  the session task's `MCPError` through connection cleanup; `fastmcp run`
+  ignores stdin EOF.
 
 ## Scope and exclusions
 
-- In scope: TASKS.md items A1–A4, B–G, H, I, in order unless a dependency
-  forces otherwise.
-- Excluded: `scripts/soleaux/client.py` and `scripts/soleaux/__tests__/` while
-  the concurrent bridge workstream is mid-migration (A3 is theirs); anilize-temp
-  app code outside the soleaux surface; the 13 copied environment dirs
-  (`.agents`, `.claude`, `.codex`, `.github`, `.husky`, `.kimi-code`, caches)
-  beyond what TASKS.md names.
+- In scope: TASKS.md items A2 (host CI wiring), C6 (host cutover,
+  user-directed), D–G, H, I, in order unless a dependency forces otherwise.
+- Excluded: anilize-temp app code outside the soleaux surface; the 13 copied
+  environment dirs (`.agents`, `.claude`, `.codex`, `.github`, `.husky`,
+  `.kimi-code`, caches) beyond what TASKS.md names.
 - Commits are the user's unless they explicitly delegate delivery.
 
 ## Assumptions and blockers
 
-- A GitHub remote for `~/projects/soleaux` does NOT exist yet — A2 requires
-  the user to create `github.com/jmclaughlin724/soleaux` before host CI can be
-  wired. Do not push anywhere without explicit authorization.
-- anilize-temp CI currently dangles on the `tools/soleaux` symlink in fresh
-  checkouts until A2 lands.
+- anilize-temp CI dangles on the committed `tools/soleaux -> ../../soleaux`
+  symlink in fresh checkouts; the fix (adjacent checkout vs deleting
+  duplicated product lanes) rides on the user-gated consumption-model
+  decision (anilize-temp EX-1), which also shapes Stage H.
+- C6 and Stage H touch the host repo and require user direction.
 - `SOLEAUX_HOST_ROOT=/Users/johnmclaughlin/projects/anilize-temp` is required
   for host-dependent tests; standalone they skip by design.
 
 ## Next executable action
 
-Start with **A1**: add `"docs"` to `packages` in
-`/Users/johnmclaughlin/projects/soleaux/pnpm-workspace.yaml`, add the catalog
-entries `docs/package.json` needs (exact versions from
-`anilize-temp/pnpm-workspace.yaml`), run `pnpm install --no-frozen-lockfile`
-in `~/projects/soleaux`, then `pnpm --filter @soleaux/docs audit`. Then
-proceed to Stage B (build/install identity) per TASKS.md.
+Stage D (`soleaux attach`): new `src/soleaux/provisioning/attach.py` sibling
+to `adopt.py` — see TASKS.md D1–D4. Before that, the Stage C working tree
+needs its user-directed commit.
 
 ## Validation (run after each task, through these owners)
 
@@ -84,7 +81,7 @@ proceed to Stage B (build/install identity) per TASKS.md.
 
 - Investigate any unexpected failure until explained, reproduced, or shown
   unrelated; do not bypass a gate to get green.
-- If a task collides with the concurrent bridge workstream's files, stop and
+- If a task collides with another workstream's uncommitted files, stop and
   surface it rather than racing the edit.
 - Ask the user before: external writes (remotes, pushes, PRs), deleting
   another session's in-flight work, or materially expanding scope.

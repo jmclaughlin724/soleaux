@@ -19,14 +19,19 @@ import zipfile
 import _assertions
 import _processes
 import pytest
+from packaging.requirements import Requirement
+
+import soleaux.surface
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE_ROOT = pathlib.Path(__file__).resolve().parents[1] / "src"
+EXPECTED_RESOURCE_URIS = tuple(soleaux.surface.resource_uris())
 EXPECTED_DOCS = {
     "agent-workflow.md",
     "adopt-guide.md",
     "editor-safety.md",
     "evidence-and-coverage.md",
+    "mcp-gateway.md",
     "postgresql-security.md",
     "provider-configuration.md",
     "quickstart.md",
@@ -68,6 +73,55 @@ def _only(directory: pathlib.Path, pattern: str) -> pathlib.Path:
     return matches[0]
 
 
+def _runtime_dependency_names() -> tuple[str, ...]:
+    """Installed distributions in soleaux's runtime dependency closure."""
+    seen: dict[str, importlib.metadata.Distribution] = {}
+    extras_by_name: dict[str, frozenset[str]] = {}
+    pending: list[tuple[importlib.metadata.Distribution, frozenset[str]]] = [
+        (importlib.metadata.distribution("soleaux"), frozenset())
+    ]
+    while pending:
+        distribution, requested_extras = pending.pop()
+        for requirement_text in distribution.requires or []:
+            requirement = Requirement(requirement_text)
+            name = requirement.name.lower().replace("_", "-")
+            if name == "soleaux":
+                continue
+            try:
+                dependency = importlib.metadata.distribution(name)
+            except importlib.metadata.PackageNotFoundError:
+                continue
+            if requirement.marker is not None:
+                contexts = requested_extras or frozenset({""})
+                if not any(requirement.marker.evaluate({"extra": extra}) for extra in contexts):
+                    continue
+            new_extras = frozenset(requirement.extras) - extras_by_name.get(name, frozenset())
+            if name in seen and not new_extras:
+                continue
+            extras_by_name[name] = extras_by_name.get(name, frozenset()) | frozenset(
+                requirement.extras
+            )
+            if name not in seen:
+                seen[name] = dependency
+            pending.append((dependency, extras_by_name[name]))
+    return tuple(sorted(seen))
+
+
+def _compressed_wheel_tag(tags: list[str]) -> str:
+    interpreters: list[str] = []
+    abis: list[str] = []
+    platforms: list[str] = []
+    for tag in tags:
+        interpreter, abi, platform = tag.split("-", 2)
+        if interpreter not in interpreters:
+            interpreters.append(interpreter)
+        if abi not in abis:
+            abis.append(abi)
+        if platform not in platforms:
+            platforms.append(platform)
+    return ".".join(interpreters) + "-" + ".".join(abis) + "-" + ".".join(platforms)
+
+
 def _repack_installed_wheel(
     distribution_name: str,
     output_directory: pathlib.Path,
@@ -78,8 +132,8 @@ def _repack_installed_wheel(
     assert wheel_text is not None
     wheel_metadata = email.parser.Parser(policy=email.policy.default).parsestr(wheel_text)
     wheel_tags = _assertions.string_list(wheel_metadata.get_all("Tag"))
-    assert len(wheel_tags) == 1
-    wheel_tag = wheel_tags[0]
+    assert len(wheel_tags) >= 1
+    wheel_tag = _compressed_wheel_tag(wheel_tags)
     assert wheel_tag and all(character.isalnum() or character in "._-" for character in wheel_tag)
     assert distribution.version and all(
         character.isalnum() or character in ".+_" for character in distribution.version
@@ -88,11 +142,17 @@ def _repack_installed_wheel(
     files = distribution.files
     assert files is not None
     distribution_root = pathlib.Path(str(distribution.locate_file(""))).resolve()
-    wheel_path = output_directory / f"{distribution_name}-{distribution.version}-{wheel_tag}.whl"
+    # PEP 503 wheel-name escaping without `re` (no-regex maintained surface).
+    normalized_name = "".join(
+        character if character == "_" or character == "." or character.isalnum() else "_"
+        for character in distribution_name
+    )
+    wheel_path = output_directory / f"{normalized_name}-{distribution.version}-{wheel_tag}.whl"
     with zipfile.ZipFile(wheel_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         for relative_path in sorted(files, key=lambda path: path.as_posix()):
             source_path = pathlib.Path(str(distribution.locate_file(relative_path))).resolve()
-            assert source_path.is_relative_to(distribution_root)
+            if not source_path.is_relative_to(distribution_root):
+                continue
             assert source_path.is_file()
             archive.write(source_path, arcname=relative_path.as_posix())
     return wheel_path
@@ -134,11 +194,16 @@ def artifacts(tmp_path_factory: pytest.TempPathFactory) -> ArtifactSet:
         cwd=root,
         environment=environment,
     )
+    dependency_directory = root / "dependencies"
+    dependency_directory.mkdir()
     return ArtifactSet(
         direct_wheel=_only(direct, "soleaux-*.whl"),
         sdist=sdist,
         sdist_wheel=_only(rebuilt, "soleaux-*.whl"),
-        offline_dependency_wheels=(_repack_installed_wheel("libcst", root),),
+        offline_dependency_wheels=tuple(
+            _repack_installed_wheel(name, dependency_directory)
+            for name in _runtime_dependency_names()
+        ),
     )
 
 
@@ -238,6 +303,7 @@ def _runtime_environment(tmp_path: pathlib.Path) -> tuple[dict[str, str], pathli
     providerless_bin = tmp_path / "providerless-bin"
     providerless_bin.mkdir()
     providerless_bin.joinpath("git").symlink_to(git)
+    environment["FASTMCP_CHECK_FOR_UPDATES"] = "off"
     environment["PYTHONPATH"] = str(audit_directory)
     environment["SOLEAUX_NETWORK_AUDIT_LOG"] = str(audit_log)
     environment["SOLEAUX_TEST_PROVIDERLESS_BIN"] = str(providerless_bin)
@@ -322,7 +388,8 @@ def _write_mcp_fixture(
                 f"command = [{json.dumps(str(python))}, {json.dumps(str(backend))}]",
                 "cache_ttl_seconds = 0",
                 "env = { "
-                f'PYTHONDONTWRITEBYTECODE = "1", PYTHONPATH = {json.dumps(audit_pythonpath)}, '
+                'FASTMCP_CHECK_FOR_UPDATES = "off", PYTHONDONTWRITEBYTECODE = "1", '
+                f"PYTHONPATH = {json.dumps(audit_pythonpath)}, "
                 f"SOLEAUX_ARTIFACT_PID_LOG = {json.dumps(str(pid_log))} }}",
                 "",
             )
@@ -780,6 +847,7 @@ def test_installed_artifact_acceptance(
                         SAFE_BASELINE_ENVIRONMENT_NAMES
                     )
                     selected_environment["FASTMCP_MCP_CAMELCASE_COMPAT"] = "false"
+                    selected_environment["FASTMCP_CHECK_FOR_UPDATES"] = "off"
                     selected_environment["PYTHONDONTWRITEBYTECODE"] = "1"
                     selected_environment["PYTHONPATH"] = os.environ["PYTHONPATH"]
                     selected_environment["SOLEAUX_NETWORK_AUDIT_LOG"] = os.environ[
@@ -823,12 +891,12 @@ def test_installed_artifact_acceptance(
     stdio = _json_output(stdio_probe)
     assert stdio == {
         "zero_tools": 10,
-        "zero_resources": 7,
+        "zero_resources": len(EXPECTED_RESOURCE_URIS),
         "zero_guide": True,
         "zero_search_rows": ["answer"],
         "configured_tools": 11,
         "mcp_tools": ["artifact_echo"],
-        "configured_resources": 7,
+        "configured_resources": len(EXPECTED_RESOURCE_URIS),
         "configured_guide": True,
         "mcp_payload": {"echo": "installed"},
         "children": [],

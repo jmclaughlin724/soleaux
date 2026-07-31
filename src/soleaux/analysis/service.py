@@ -111,6 +111,7 @@ from soleaux.lsp.resolvers import (
     SemanticResolver,
     resolve_named_symbols,
 )
+from soleaux.mcp_health import McpHealthTracker
 from soleaux.structural.engines import StructuralEngineError, StructuralEngines
 from soleaux.structural.snapshot import SnapshotBundle
 from soleaux.structural.standards import WorkspaceStandardsAnalyzer
@@ -364,6 +365,7 @@ class SoleauxService:
         deployment_transport: DeploymentTransport = "stdio",
         config_content_digest: str | None = None,
         publication_profile: CatalogPublicationProfile = CatalogPublicationProfile.FULL,
+        configuration_root: Path | None = None,
     ) -> None:
         self._workspaces = workspaces
         self._config = config or ResolvedConfig.default()
@@ -407,6 +409,12 @@ class SoleauxService:
         )
         self._editor_lock = asyncio.Lock()
         self._deployment_transport = deployment_transport
+        self._mcp_health = McpHealthTracker(
+            configuration_root
+            if configuration_root is not None
+            else self._workspaces.get(self._workspaces.workspace_ids[0]).root,
+            self._config,
+        )
         self._started = False
         self._closed = False
 
@@ -445,6 +453,7 @@ class SoleauxService:
             deployment_transport=deployment_transport,
             config_content_digest=config_digest(raw_config),
             publication_profile=publication_profile,
+            configuration_root=resolved,
         )
 
     @classmethod
@@ -1618,6 +1627,7 @@ class SoleauxService:
                     "active_language_server_count": self.active_language_server_count,
                     "structural_worker_started": self.structural_worker_started,
                 },
+                "mcp_backends": self._mcp_health.payload(),
             }
             return self._ok(
                 data=data,
@@ -2026,6 +2036,7 @@ class SoleauxService:
             return
         self._closed = True
         self._previews.clear()
+        await self._mcp_health.aclose()
         await self._catalog_indexer.aclose()
         await self._frames.aclose()
 
@@ -2035,6 +2046,7 @@ class SoleauxService:
         if self._started:
             return
         await self._catalog_indexer.start()
+        await self._mcp_health.start()
         self._started = True
 
     async def ensure_full_catalog(self) -> None:

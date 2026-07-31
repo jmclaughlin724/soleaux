@@ -7,10 +7,10 @@ Writes a portable ``uvx soleaux`` entry to:
 - ``.codex/config.toml`` (Codex; comments preserved via tomlkit)
 - ``opencode.json`` (OpenCode)
 
-Registrations declare only how to launch the server. MCP host approval is
-configured independently by the client; no approval-mode key is ever written.
-Idempotent: refuses to clobber a healthy existing soleaux registration unless
-``force=True``.
+Registrations declare only how to launch the server. Approval-mode keys are
+owned by ``policy_writer``; this writer never creates them, but a registration
+rewrite preserves any that already exist. Idempotent: refuses to clobber a
+healthy existing soleaux registration unless ``force=True``.
 """
 
 from __future__ import annotations
@@ -112,17 +112,19 @@ def render_codex_config(current: bytes | None, *, force: bool = False) -> bytes 
     existing = servers.get(NAME)  # type: ignore[union-attr]
     if isinstance(existing, dict) and existing.get("command") == COMMAND and not force:
         existing_args = existing.get("args")
-        if (
-            isinstance(existing_args, list)
-            and list(existing_args)[:1] == ARGS
-            and "default_tools_approval_mode" not in existing
-        ):
+        if isinstance(existing_args, list) and list(existing_args)[:1] == ARGS:
             return None
 
     table = tomlkit.table()
     table["command"] = COMMAND
     table["args"] = list(ARGS)
     table["enabled"] = True
+    # Policy-owned keys belong to provisioning.policy_writer; a registration
+    # rewrite carries them forward instead of silently dropping policy.
+    if isinstance(existing, dict):
+        for policy_key in ("default_tools_approval_mode", "tools", "disabled_tools"):
+            if policy_key in existing:
+                table[policy_key] = existing[policy_key]
     servers[NAME] = table  # type: ignore[index]
 
     rendered = tomlkit.dumps(doc).encode("utf-8")

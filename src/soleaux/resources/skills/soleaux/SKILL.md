@@ -17,7 +17,7 @@ If a host reports `host_context_limit`, its required owners, consumers, conflict
 4. Run `soleaux lint` for configured workspace standards; `quality.standards` remains available through `query` when that exact table is needed.
 5. Request `preview` (including `structural_rewrite` previews), review the diff and hashes, then call `edit` only with explicit user confirmation.
 
-`describe` returns capability, schema, provider, storage, and runtime identity for discovery. Never treat zero rows as proof unless coverage is `complete`. Never treat a structural candidate as a resolved semantic edge. MCP host approval is configured independently by the client.
+`describe` returns capability, schema, provider, storage, and runtime identity for discovery. Never treat zero rows as proof unless coverage is `complete`. Never treat a structural candidate as a resolved semantic edge. External MCP servers are reached through the Soleaux gateway, covered below.
 
 ## Use the fixed tool catalog
 
@@ -91,3 +91,11 @@ Configured MCP components are additive and namespaced; they never replace the lo
 ## Preserve editor safety
 
 `preview` never writes. Before `edit`, show the user the affected paths and diff, retain the exact preview ID and digest, and obtain explicit confirmation. Do not retry a conflicted, expired, consumed, or process-mismatched preview.
+
+## Work through the MCP gateway
+
+Every configured MCP server reaches the host through Soleaux as the gateway. Backend tools arrive namespaced as `<backend>_<tool>` — a `github` backend's `create_issue` tool appears as `github_create_issue`. Read the `soleaux://about` resource to discover registered backends with their lifecycle, auth mode, and live health before calling a backend tool.
+
+When a backend call fails because the backend is not authenticated, do not retry it and do not loop. Tell the user to run `soleaux mcp login <backend>` in their shell — the daemon never launches a browser — then retry the call only after they confirm the login completed. `soleaux mcp status` shows each backend's transport, lifecycle, and auth state; `soleaux mcp doctor` probes liveness and never triggers interactive auth.
+
+Backend registration and tool policy are owned by `soleaux.toml`: `[mcp.<name>]` declares each backend and `[policy]` owns per-backend approval effects. Host MCP configurations hold only the Soleaux bridge registration; they are rendered output (`soleaux generate host-policy`), never independent sources of truth. Never edit host MCP configurations and never propose per-host registrations. When a backend is missing or a policy effect should change, propose the `soleaux.toml` block to the user and let a human apply it.

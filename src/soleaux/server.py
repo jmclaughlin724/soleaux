@@ -23,6 +23,7 @@ import hashlib
 import importlib.resources
 import json
 import pathlib
+import signal
 import typing
 
 import fastmcp
@@ -42,6 +43,7 @@ import soleaux.contracts.results
 import soleaux.contracts.structural
 import soleaux.editor.contracts
 import soleaux.gateway
+import soleaux.metrics
 import soleaux.skills
 import soleaux.surface
 import soleaux.telemetry
@@ -79,7 +81,14 @@ SERVER_INSTRUCTIONS = (
     "followed by edit. "
     "restart_lsp restarts selected "
     "provider sessions. The soleaux://about resource lists the full catalog. Zero rows "
-    "means none found only under complete coverage; every result names its evidence."
+    "means none found only under complete coverage; every result names its evidence. "
+    "Soleaux is also the MCP gateway: every configured MCP server reaches this host "
+    "through soleaux, its tools namespaced as <backend>_<tool>. The soleaux://about "
+    "resource lists backends with their lifecycle, auth mode, and live health. Backend "
+    "registration and tool policy are owned by soleaux.toml; never edit host MCP configs "
+    "or propose per-host registrations. If a backend call fails because it is not "
+    "authenticated, do not retry it: tell the user to run `soleaux mcp login <backend>` "
+    "in their shell, then retry only after they confirm."
 )
 
 
@@ -677,6 +686,7 @@ async def about(context: fastmcp.Context = _CURRENT_CONTEXT) -> str:
             "workspace_ids": list(state.service.workspace_ids),
         },
         "storage": storage,
+        "mcp_backends": described_data.get("mcp_backends", {}),
         "transport": state.deployment_transport,
         "tools": catalog["tools"],
         "resources": catalog["resources"],
@@ -886,6 +896,33 @@ def create_server(
     if active_service_factory is None:
         active_service_factory = build_service
 
+    @contextlib.contextmanager
+    def _sigterm_as_sigint() -> collections.abc.Generator[None]:
+        """Route SIGTERM through the SIGINT handler for graceful shutdown.
+
+        ``fastmcp run`` does not exit on stdin EOF, so launch wrappers
+        terminate the server with SIGTERM. Python's default SIGTERM action
+        kills the process without unwinding the lifespan, orphaning backend
+        subprocesses stuck in ``initialize``. Borrowing the SIGINT handler
+        raises ``KeyboardInterrupt`` instead, which unwinds the runner
+        through its shielded cleanup. Only installable on the main thread.
+        """
+        try:
+            previous_term = signal.getsignal(signal.SIGTERM)
+            signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
+        except OSError, ValueError:
+            yield
+            return
+        try:
+            yield
+        finally:
+            signal.signal(signal.SIGTERM, previous_term)
+
+    metrics_middleware = soleaux.metrics.MetricsMiddleware.from_config(
+        resolved_config,
+        local_tools=soleaux.surface.tool_names(),
+    )
+
     @contextlib.asynccontextmanager
     async def lifespan(
         _server: fastmcp.FastMCP[dict[str, typing.Any]],
@@ -893,15 +930,17 @@ def create_server(
         service = active_service_factory()
         try:
             await service.start()
-            yield {
-                _LIFESPAN_STATE_KEY: LifespanState(
-                    service=service,
-                    root=resolved_root,
-                    config=resolved_config,
-                    config_digest=resolved_config_digest,
-                    deployment_transport=deployment_transport,
-                )
-            }
+            await metrics_middleware.register_backends()
+            with _sigterm_as_sigint():
+                yield {
+                    _LIFESPAN_STATE_KEY: LifespanState(
+                        service=service,
+                        root=resolved_root,
+                        config=resolved_config,
+                        config_digest=resolved_config_digest,
+                        deployment_transport=deployment_transport,
+                    )
+                }
         finally:
             await service.aclose()
 
@@ -919,6 +958,7 @@ def create_server(
     soleaux.gateway.attach_mcp_proxies(server, resolved_config, resolved_root)
     soleaux.skills.attach_skills_provider(server, resolved_config, resolved_root)
     soleaux.telemetry.attach_telemetry_tools(server, resolved_config)
+    server.add_middleware(metrics_middleware)
     return server
 
 

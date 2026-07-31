@@ -99,7 +99,7 @@ When any enabled provider row is present with a `command`, config augments the b
 
 ### `[mcp.<name>]` — MCP proxy backends
 
-Each enabled entry attaches one lazy, namespaced `ProxyProvider`. Three lifecycle modes: `on_demand` (fresh client per uncached upstream operation), `session` (one client per legacy downstream connection; rejected on the sessionless modern protocol), and `shared` (one client across requests in one protocol era). `cache_ttl_seconds` bounds reuse of discovered tool catalogs, including the `tools/list` request that MCP clients issue before a tool call. Backends set exactly one of `command` (stdio) or `url` (HTTPS).
+Each enabled entry attaches one lazy, namespaced `ProxyProvider`. Three lifecycle modes: `on_demand` (fresh client per uncached upstream operation), `session` (one client per legacy downstream connection; rejected on the sessionless modern protocol), and `shared` (one client across requests in one protocol era). `cache_ttl_seconds` bounds reuse of discovered tool catalogs, including the `tools/list` request that MCP clients issue before a tool call. Backends set exactly one of `command` (stdio) or `url` (HTTPS). Names are lowercase namespace labels; `soleaux`, `local`, and `telemetry` are reserved because the product already occupies those tool and metrics namespaces.
 
 ### `[structural]` — Structural engine selection
 
@@ -158,9 +158,9 @@ Bounded PostgreSQL source extraction, repository resolution, diagnostics, and pr
 
 ## CLI Subcommands
 
-`describe`, `search`, `context`, `query`, `navigate`, `inspect`, `doctor`, `benchmark`, `lint`, `check` (mcp/health), `suggest`, `generate` (soleaux-toml), `adopt`, and `install` (built-in providers, `typescript-runtime`, `postgresql-parser`, `ast-grep-rust`) are the supported CLI adapters. Invoking `soleaux` with no subcommand runs the stdio server; the FastMCP CLI owns generic run/list/call/inspect orchestration.
+`describe`, `search`, `context`, `query`, `navigate`, `inspect`, `doctor`, `benchmark`, `lint`, `check` (mcp/health), `mcp` (login/logout/status/doctor), `suggest`, `generate` (soleaux-toml, host-policy), `adopt`, and `install` (built-in providers, `typescript-runtime`, `postgresql-parser`, `ast-grep-rust`) are the supported CLI adapters. Invoking `soleaux` with no subcommand runs the stdio server; the FastMCP CLI owns generic run/list/call/inspect orchestration.
 
-`lint` runs the configured workspace structural rules and exits `0` (clean), `1` (findings), or `2` (request error) — the CI delivery surface. `check mcp --probe` connects to each enabled `[mcp.*]` backend via `Client.ping()` + `Client.list_tools()`. `suggest` scans package.json/pyproject.toml deps and config files against a packaged catalog of 15 known MCP servers.
+`lint` runs the configured workspace structural rules and exits `0` (clean), `1` (findings), or `2` (request error) — the CI delivery surface. `check mcp --probe` connects to each enabled `[mcp.*]` backend via `Client.ping()` + `Client.list_tools()`. `suggest` scans package.json/pyproject.toml deps and config files against a packaged catalog of 15 known MCP servers. `mcp login <name>` runs one backend's OAuth flow in the foreground shell against the shared token store; `mcp logout` clears it; `mcp status` reports auth state without probing; `mcp doctor` probes liveness and never triggers interactive auth. `generate host-policy` prints the rendered host policy bundle; `--apply` merges it into the registered host configurations through the provisioning writers (with backups).
 
 ### `adopt` — consolidate competing language servers under soleaux
 

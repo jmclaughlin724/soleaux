@@ -338,7 +338,7 @@ def test_budget_defaults_match_the_contract() -> None:
     assert (request.default_timeout_seconds, request.max_timeout_seconds) == (10.0, 55.0)
     worker = soleaux.contracts.budget.StructuralWorkerBudget()
     assert worker.max_completed_jobs == 64
-    assert worker.max_rss_bytes == 96 * 1024 * 1024
+    assert worker.max_rss_bytes == 256 * 1024 * 1024
     session = soleaux.contracts.budget.LspSessionBudget()
     assert session.max_open_documents == 64
     assert session.max_open_bytes == 32 * 1024 * 1024

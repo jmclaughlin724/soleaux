@@ -87,6 +87,12 @@ def _is_mcp_namespace(value: str) -> bool:
     return not previous_was_separator
 
 
+# Names the product already occupies: ``soleaux`` is the server identity,
+# ``local`` is the metrics attribution sentinel for built-in operations, and
+# ``telemetry_`` prefixes the conditionally attached local telemetry tools.
+RESERVED_MCP_NAMESPACES: tuple[str, ...] = ("soleaux", "local", "telemetry")
+
+
 def _is_http_token(value: str) -> bool:
     return bool(value) and all(character in _HTTP_TOKEN_CHARACTERS for character in value)
 
@@ -174,7 +180,7 @@ class ProviderConfig(pydantic.BaseModel):
 
 
 class McpBackendConfig(pydantic.BaseModel):
-    """One explicitly trusted proxied MCP backend (D034)."""
+    """One explicitly trusted proxied MCP backend (D034, D035)."""
 
     model_config = pydantic.ConfigDict(extra="forbid")
 
@@ -190,10 +196,20 @@ class McpBackendConfig(pydantic.BaseModel):
         default=300.0, gt=0, le=300, allow_inf_nan=False
     )
     init_timeout_seconds: float = pydantic.Field(default=30.0, gt=0, le=60, allow_inf_nan=False)
+    auth: typing.Literal["none", "bearer_env", "oauth"] = "none"
     auth_token_env: str | None = None
     headers_from_env: dict[str, str] = pydantic.Field(default_factory=dict)
     tls_verify: bool = True
     tls_ca_file_env: str | None = None
+    oauth_scopes: tuple[str, ...] = ()
+    oauth_client_name: str = "Soleaux"
+    oauth_client_metadata_url: str | None = None
+    oauth_token_endpoint_auth_method: (
+        typing.Literal["client_secret_basic", "client_secret_post", "none"] | None
+    ) = None
+    client_id_env: str | None = None
+    client_secret_env: str | None = None
+    token_store: typing.Literal["disk", "keyring"] = "disk"
     forward_incoming_headers: typing.Literal[False] = False
     forward_roots: typing.Literal[False] = False
     forward_sampling: typing.Literal[False] = False
@@ -201,6 +217,19 @@ class McpBackendConfig(pydantic.BaseModel):
     forward_logs: typing.Literal[False] = False
     forward_progress: typing.Literal[False] = False
     fail_open: typing.Literal[True] = True
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _infer_legacy_bearer_auth(cls, data: object) -> object:
+        # The pre-D035 schema had no auth field; a bare auth_token_env meant
+        # bearer auth. Keep those configs loading by inferring bearer_env only
+        # when auth is absent, so an explicit conflicting auth still fails.
+        if not isinstance(data, dict):
+            return data
+        mapping = typing.cast("dict[str, typing.Any]", data)
+        if mapping.get("auth_token_env") is not None and "auth" not in mapping:
+            return {**mapping, "auth": "bearer_env"}
+        return mapping
 
     @pydantic.model_validator(mode="after")
     def _validate_backend(self) -> McpBackendConfig:
@@ -216,6 +245,7 @@ class McpBackendConfig(pydantic.BaseModel):
             )
         if self.lifecycle == "session" and has_url:
             raise ValueError("MCP lifecycle 'session' requires a command backend")
+        self._validate_auth_fields(has_url=has_url)
 
         if has_command:
             assert self.command is not None
@@ -226,6 +256,59 @@ class McpBackendConfig(pydantic.BaseModel):
             assert self.url is not None
             self._validate_url_fields()
         return self
+
+    def _validate_auth_fields(self, *, has_url: bool) -> None:
+        if self.auth == "oauth" and self.auth_token_env is not None:
+            raise ValueError("MCP auth 'oauth' is mutually exclusive with auth_token_env")
+        if self.auth == "bearer_env":
+            if self.auth_token_env is None:
+                raise ValueError("MCP auth 'bearer_env' requires auth_token_env")
+        elif self.auth_token_env is not None:
+            raise ValueError('MCP auth_token_env requires auth = "bearer_env"')
+        if self.auth == "oauth":
+            if not has_url:
+                raise ValueError("MCP auth 'oauth' requires a URL backend")
+            self._validate_oauth_fields()
+            return
+        oauth_fields_set = (
+            bool(self.oauth_scopes)
+            or "oauth_client_name" in self.model_fields_set
+            or self.oauth_client_metadata_url is not None
+            or self.oauth_token_endpoint_auth_method is not None
+            or self.client_id_env is not None
+            or self.client_secret_env is not None
+            or self.token_store != "disk"
+        )
+        if oauth_fields_set:
+            raise ValueError('MCP OAuth fields require auth = "oauth"')
+
+    def _validate_oauth_fields(self) -> None:
+        for scope in self.oauth_scopes:
+            if not scope or any(character.isspace() for character in scope) or "\x00" in scope:
+                raise ValueError("MCP oauth_scopes require nonempty, whitespace-free elements")
+        if not self.oauth_client_name or "\x00" in self.oauth_client_name:
+            raise ValueError("MCP oauth_client_name must be a nonempty, NUL-free string")
+        if self.oauth_client_metadata_url is not None:
+            try:
+                parsed = urllib.parse.urlsplit(self.oauth_client_metadata_url)
+            except ValueError as exc:
+                raise ValueError("MCP oauth_client_metadata_url is invalid") from exc
+            if (
+                parsed.scheme != "https"
+                or parsed.hostname is None
+                or parsed.path in {"", "/"}
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    "MCP oauth_client_metadata_url must be an HTTPS URL with a non-root path"
+                )
+        for env_name in (self.client_id_env, self.client_secret_env):
+            if env_name is not None and not _is_environment_variable_name(env_name):
+                raise ValueError("MCP OAuth client references must be environment variable names")
+        if self.client_secret_env is not None and self.client_id_env is None:
+            raise ValueError("MCP client_secret_env requires client_id_env")
 
     def _validate_command_fields(self) -> None:
         for name, value in self.env.items():
@@ -284,6 +367,49 @@ class McpBackendConfig(pydantic.BaseModel):
             if not _is_environment_variable_name(env_name):
                 raise ValueError("MCP header values must reference environment variables")
             normalized_headers.add(normalized)
+
+
+class PolicyEffect(enum.StrEnum):
+    """Canonical host-neutral MCP tool-policy effect."""
+
+    ALLOW = "allow"
+    ASK = "ask"
+    DENY = "deny"
+
+
+class PolicyBackendConfig(pydantic.BaseModel):
+    """One backend's default effect and per-tool overrides.
+
+    Tool keys are unprefixed backend tool names as the backend exposes them.
+    Live backend membership is unknowable at config-load time, so only shape
+    is validated. Wildcards are not supported: ``default`` is the only
+    per-backend fallback.
+    """
+
+    model_config = pydantic.ConfigDict(extra="forbid")
+
+    default: PolicyEffect = PolicyEffect.ASK
+    tools: dict[str, PolicyEffect] = pydantic.Field(default_factory=dict)
+
+    @pydantic.model_validator(mode="after")
+    def _validate_tool_names(self) -> PolicyBackendConfig:
+        for name in self.tools:
+            if not name or "\x00" in name or "*" in name:
+                raise ValueError("policy tool names must be nonempty, NUL-free, and non-wildcard")
+        return self
+
+
+class PolicyConfig(pydantic.BaseModel):
+    """Canonical per-backend MCP tool policy (``[policy]``) (D036).
+
+    ``soleaux.toml`` owns policy effects; host approval surfaces are rendered
+    output. Policy backends must be declared under ``[mcp]``; an absent
+    section resolves to an empty policy.
+    """
+
+    model_config = pydantic.ConfigDict(extra="forbid")
+
+    backends: dict[str, PolicyBackendConfig] = pydantic.Field(default_factory=dict)
 
 
 class HealthConfig(pydantic.BaseModel):
@@ -558,17 +684,25 @@ class ResolvedConfig(pydantic.BaseModel):
     skills: SkillsConfig = pydantic.Field(default_factory=SkillsConfig)
     telemetry: TelemetryConfig = pydantic.Field(default_factory=TelemetryConfig)
     mcp: dict[str, McpBackendConfig] = pydantic.Field(default_factory=dict)
+    policy: PolicyConfig = pydantic.Field(default_factory=PolicyConfig)
 
     @pydantic.model_validator(mode="after")
     def _validate_mcp_namespaces(self) -> ResolvedConfig:
         names = sorted(self.mcp)
         for name in names:
-            if name == "soleaux" or not _is_mcp_namespace(name):
+            if name in RESERVED_MCP_NAMESPACES or not _is_mcp_namespace(name):
                 raise ValueError(f"invalid or reserved MCP namespace: {name!r}")
         for index, name in enumerate(names):
             for other in names[index + 1 :]:
                 if other.startswith(f"{name}_"):
                     raise ValueError(f"prefix-ambiguous MCP namespaces: {name!r} and {other!r}")
+        return self
+
+    @pydantic.model_validator(mode="after")
+    def _validate_policy_backends(self) -> ResolvedConfig:
+        for name in self.policy.backends:
+            if name not in self.mcp:
+                raise ValueError(f"policy references an undeclared MCP backend: {name!r}")
         return self
 
     @classmethod
@@ -577,7 +711,7 @@ class ResolvedConfig(pydantic.BaseModel):
         return cls()
 
     def public_payload(self) -> dict[str, object]:
-        """Serialize public config without an empty additive MCP extension."""
+        """Serialize public config without empty additive extensions."""
         payload: dict[str, object] = self.model_dump(mode="json")
         if not self.mcp:
             payload.pop("mcp")
@@ -585,6 +719,8 @@ class ResolvedConfig(pydantic.BaseModel):
             payload.pop("coverage")
         if not self.telemetry.enabled:
             payload.pop("telemetry")
+        if not self.policy.backends:
+            payload.pop("policy")
         return payload
 
 

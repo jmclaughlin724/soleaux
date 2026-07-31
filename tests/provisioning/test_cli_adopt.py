@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import collections.abc
 import io
+import json
 import pathlib
 import sys
+import tomllib
 import typing
 
 import soleaux.cli
@@ -126,3 +128,73 @@ def test_run_cli_revert_with_no_backups_returns_failure(tmp_path: pathlib.Path) 
 
     assert exit_code == 1
     assert "No backups found" in err.getvalue()
+
+
+def test_run_cli_adopt_applies_configured_policy_to_registered_hosts(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The documented adoption workflow leaves hosts enforcing `[policy]`."""
+    _seed_workspace(tmp_path)
+    (tmp_path / "soleaux.toml").write_text(
+        (
+            'schema_version = "soleaux.config/v1"\n'
+            "[mcp.github]\n"
+            'url = "https://mcp.github.example/mcp"\n'
+            "[policy.backends.github]\n"
+            'default = "allow"\n'
+            "[policy.backends.github.tools]\n"
+            'delete_repository = "deny"\n'
+        ),
+        encoding="utf-8",
+    )
+    out = io.StringIO()
+
+    exit_code = _run_with_stderr(
+        soleaux.cli.run_cli(["--root", str(tmp_path), "adopt", "--yes"], stdout=out),
+        io.StringIO(),
+    )
+
+    assert exit_code == 0
+    codex = tomllib.loads((tmp_path / ".codex" / "config.toml").read_text())
+    soleaux_server = codex["mcp_servers"]["soleaux"]
+    assert soleaux_server["disabled_tools"] == ["github_delete_repository"]
+    opencode = json.loads((tmp_path / "opencode.json").read_text())
+    assert opencode["permission"]["soleaux_github_delete_repository"] == "deny"
+    claude = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+    assert claude["permissions"]["deny"] == ["mcp__soleaux__github_delete_repository"]
+
+
+def test_run_cli_generate_host_policy_apply_merges_registered_hosts(
+    tmp_path: pathlib.Path,
+) -> None:
+    (tmp_path / "soleaux.toml").write_text(
+        (
+            'schema_version = "soleaux.config/v1"\n'
+            "[mcp.github]\n"
+            'url = "https://mcp.github.example/mcp"\n'
+            "[policy.backends.github]\n"
+            'default = "allow"\n'
+            "[policy.backends.github.tools]\n"
+            'delete_repository = "deny"\n'
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".codex" / "config.toml").write_text(
+        '[mcp_servers.soleaux]\ncommand = "uvx"\nargs = ["soleaux"]\n',
+        encoding="utf-8",
+    )
+    out = io.StringIO()
+
+    exit_code = _run_with_stderr(
+        soleaux.cli.run_cli(
+            ["--root", str(tmp_path), "generate", "host-policy", "--apply"],
+            stdout=out,
+        ),
+        io.StringIO(),
+    )
+
+    assert exit_code == 0
+    assert "wrote: .codex/config.toml" in out.getvalue()
+    codex = tomllib.loads((tmp_path / ".codex" / "config.toml").read_text())
+    assert codex["mcp_servers"]["soleaux"]["disabled_tools"] == ["github_delete_repository"]

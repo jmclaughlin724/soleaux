@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import ast
 import asyncio
 import inspect
@@ -24,6 +25,7 @@ import pytest
 from _assertions import object_mapping, raises_with_message
 from fastmcp import Client, FastMCP
 from fastmcp.client.auth.bearer import BearerAuth
+from fastmcp.client.auth.oauth import OAuth
 from fastmcp.client.logging import LogMessage
 from fastmcp.client.transports import StdioTransport, StreamableHttpTransport
 from fastmcp.exceptions import ToolError
@@ -34,11 +36,13 @@ from fastmcp.server.providers.proxy import (
     StatefulProxyClient,
 )
 from fastmcp.utilities.inspect import inspect_fastmcp
+from key_value.aio.stores.disk import DiskStore
 from mcp_types import Root
 from mcp_types import Tool as McpTool
 from pydantic import FileUrl, ValidationError
 
 from soleaux import cli as cli_module
+from soleaux import credentials as credentials_module
 from soleaux import gateway as gateway_module
 from soleaux.contracts.config import (
     McpBackendConfig,
@@ -137,7 +141,7 @@ def _factory(
     backend: McpBackendConfig,
     root: Path,
 ) -> Callable[[], Client[Any]]:
-    return gateway_module._client_factory(backend, root)
+    return gateway_module._client_factory(backend, root, backend_name="test-backend")
 
 
 def _catalog_factory(client: _CatalogClient) -> Callable[[], Client[StdioTransport]]:
@@ -426,6 +430,7 @@ async def test_http_transport_resolves_external_policy_and_owns_fresh_transports
     monkeypatch.setenv("SOLEAUX_TEST_CA", str(ca_file))
     backend = McpBackendConfig(
         url="https://example.invalid/mcp",
+        auth="bearer_env",
         auth_token_env="SOLEAUX_TEST_TOKEN",
         headers_from_env={"X-Tenant": "SOLEAUX_TEST_HEADER"},
         tls_ca_file_env="SOLEAUX_TEST_CA",
@@ -546,6 +551,25 @@ async def test_shared_http_factory_reuses_one_proxy_client(tmp_path: Path) -> No
     await shared_transport.close()
 
 
+async def test_shared_http_factory_defers_secret_resolution_until_first_use(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SOLEAUX_TEST_MISSING_TOKEN", raising=False)
+    backend = McpBackendConfig(
+        url="https://example.invalid/mcp",
+        lifecycle="shared",
+        stateless=True,
+        auth="bearer_env",
+        auth_token_env="SOLEAUX_TEST_MISSING_TOKEN",
+    )
+
+    factory = _factory(backend, tmp_path)
+
+    with raises_with_message(ValueError, "SOLEAUX_TEST_MISSING_TOKEN"):
+        factory()
+
+
 async def test_cli_probe_uses_the_gateway_transport_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -555,16 +579,19 @@ async def test_cli_probe_uses_the_gateway_transport_owner(
         encoding="utf-8",
     )
     backend_server = FastMCP("probe")
-    seen: list[tuple[tuple[str, ...] | None, Path]] = []
+    seen: list[tuple[tuple[str, ...] | None, Path, str]] = []
 
     def transport_factory(
         backend: McpBackendConfig,
         root: Path,
+        *,
+        backend_name: str,
     ) -> Callable[[], FastMCP]:
         seen.append(
             (
                 tuple(backend.command) if backend.command is not None else None,
                 root,
+                backend_name,
             )
         )
         return lambda: backend_server
@@ -578,7 +605,7 @@ async def test_cli_probe_uses_the_gateway_transport_owner(
     )
 
     assert result == 0
-    assert seen == [(("unused-program",), tmp_path)]
+    assert seen == [(("unused-program",), tmp_path, "fixture")]
     assert json.loads(output.getvalue()) == [
         {
             "name": "fixture",
@@ -588,6 +615,238 @@ async def test_cli_probe_uses_the_gateway_transport_owner(
             "elapsed_ms": pytest.approx(0, abs=100),
         }
     ]
+
+
+def _oauth_backend(**overrides: object) -> McpBackendConfig:
+    payload: dict[str, object] = {"url": "https://example.invalid/mcp", "auth": "oauth"}
+    payload.update(overrides)
+    return McpBackendConfig.model_validate(payload)
+
+
+def _write_oauth_backend_config(root: Path) -> None:
+    (root / "soleaux.toml").write_text(
+        (
+            'schema_version = "soleaux.config/v1"\n'
+            "[mcp.fixture]\n"
+            'url = "https://example.invalid/mcp"\n'
+            'auth = "oauth"\n'
+        ),
+        encoding="utf-8",
+    )
+
+
+async def test_oauth_auth_threads_config_client_envs_and_the_per_backend_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: tmp_path)
+    monkeypatch.setenv("SOLEAUX_TEST_CLIENT_ID", "client-id")
+    monkeypatch.setenv("SOLEAUX_TEST_CLIENT_SECRET", "client-secret")
+    backend = _oauth_backend(
+        oauth_scopes=("read", "write"),
+        oauth_client_name="Soleaux Test",
+        oauth_client_metadata_url="https://example.invalid/oauth/client.json",
+        client_id_env="SOLEAUX_TEST_CLIENT_ID",
+        client_secret_env="SOLEAUX_TEST_CLIENT_SECRET",
+    )
+
+    oauth = gateway_module._oauth_auth(
+        backend,
+        backend_name="fixture",
+        url="https://example.invalid/mcp",
+        verify=True,
+    )
+
+    assert isinstance(oauth, OAuth)
+    assert oauth._scopes == ["read", "write"]
+    assert oauth._client_name == "Soleaux Test"
+    assert oauth._client_metadata_url == "https://example.invalid/oauth/client.json"
+    assert oauth._client_id == "client-id"
+    assert oauth._client_secret == "client-secret"
+    assert isinstance(oauth._token_storage, DiskStore)
+    assert (tmp_path / "fixture").is_dir()
+    isolated = oauth.httpx_client_factory(headers={"Authorization": "Bearer front-token"})
+    try:
+        assert "authorization" not in isolated.headers
+    finally:
+        await isolated.aclose()
+
+
+def test_oauth_auth_requires_the_configured_client_environment_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: tmp_path)
+    monkeypatch.delenv("SOLEAUX_TEST_CLIENT_ID", raising=False)
+    backend = _oauth_backend(client_id_env="SOLEAUX_TEST_CLIENT_ID")
+
+    with raises_with_message(ValueError, "OAuth client id environment variable is missing"):
+        gateway_module._oauth_auth(
+            backend,
+            backend_name="fixture",
+            url="https://example.invalid/mcp",
+            verify=True,
+        )
+
+
+async def test_oauth_transport_wires_oauth_auth_and_the_per_backend_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: tmp_path)
+    backend = _oauth_backend()
+
+    factory = gateway_module._transport_factory(backend, tmp_path, backend_name="fixture")
+    first = factory()
+    second = factory()
+
+    assert isinstance(first, StreamableHttpTransport)
+    assert isinstance(second, StreamableHttpTransport)
+    # Secrets resolve lazily per client creation: each transport builds its own
+    # auth object, but both share the same per-backend disk store directory.
+    assert isinstance(first.auth, OAuth)
+    assert isinstance(second.auth, OAuth)
+    assert first.auth is not second.auth
+    assert first.auth._scopes is None
+    assert first.auth._client_name == "Soleaux"
+    assert isinstance(first.auth._token_storage, DiskStore)
+    assert isinstance(second.auth._token_storage, DiskStore)
+    assert (tmp_path / "fixture").is_dir()
+    await first.close()
+    await second.close()
+
+
+async def test_mcp_status_reports_an_oauth_backend_without_tokens_as_not_authenticated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_oauth_backend_config(tmp_path)
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: tmp_path / "tokens")
+    output = io.StringIO()
+
+    result = await cli_module._run_mcp(
+        argparse.Namespace(mcp_target="status", json=False),
+        tmp_path,
+        stdout=output,
+    )
+
+    assert result == 0
+    assert "fixture: url/on_demand auth=oauth NOT authenticated" in output.getvalue()
+
+
+async def test_mcp_doctor_gates_unauthenticated_oauth_backends_before_connecting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_oauth_backend_config(tmp_path)
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: tmp_path / "tokens")
+
+    def forbidden_factory(
+        backend: McpBackendConfig,
+        root: Path,
+        *,
+        backend_name: str,
+    ) -> Callable[[], StreamableHttpTransport]:
+        raise AssertionError("an unauthenticated OAuth backend must not be probed")
+
+    monkeypatch.setattr(gateway_module, "_transport_factory", forbidden_factory)
+    output = io.StringIO()
+
+    result = await cli_module._run_mcp(
+        argparse.Namespace(mcp_target="doctor", json=True),
+        tmp_path,
+        stdout=output,
+    )
+
+    assert result == 1
+    assert json.loads(output.getvalue()) == [
+        {
+            "name": "fixture",
+            "alive": False,
+            "error": "not authenticated; run `soleaux mcp login fixture`",
+        }
+    ]
+
+
+async def test_mcp_logout_clears_stored_tokens(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_oauth_backend_config(tmp_path)
+    token_root = tmp_path / "tokens"
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: token_root)
+    backend = load_config(tmp_path).mcp["fixture"]
+    store = credentials_module.build_token_store(backend, backend_name="fixture")
+    assert isinstance(store, DiskStore)
+    (token_root / "fixture" / "token.json").write_text("{}", encoding="utf-8")
+    output = io.StringIO()
+
+    result = await cli_module._run_mcp(
+        argparse.Namespace(mcp_target="logout", name="fixture"),
+        tmp_path,
+        stdout=output,
+    )
+
+    assert result == 0
+    assert "[OK] fixture: stored tokens cleared" in output.getvalue()
+    assert not (token_root / "fixture" / "token.json").exists()
+
+
+async def test_mcp_login_rejects_unknown_and_non_oauth_backends(tmp_path: Path) -> None:
+    (tmp_path / "soleaux.toml").write_text(
+        'schema_version = "soleaux.config/v1"\n[mcp.fixture]\ncommand = ["unused-program"]\n',
+        encoding="utf-8",
+    )
+    unknown_output = io.StringIO()
+    non_oauth_output = io.StringIO()
+
+    unknown = await cli_module._run_mcp(
+        argparse.Namespace(mcp_target="login", name="ghost"),
+        tmp_path,
+        stdout=unknown_output,
+    )
+    non_oauth = await cli_module._run_mcp(
+        argparse.Namespace(mcp_target="login", name="fixture"),
+        tmp_path,
+        stdout=non_oauth_output,
+    )
+
+    assert unknown == 1
+    assert "[FAIL] unknown MCP backend: 'ghost'" in unknown_output.getvalue()
+    assert non_oauth == 1
+    assert "does not use OAuth" in non_oauth_output.getvalue()
+
+
+async def test_mcp_login_returns_a_controlled_failure_when_the_flow_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unreachable auth servers and denied flows are [FAIL] results, not tracebacks."""
+    _write_oauth_backend_config(tmp_path)
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: tmp_path / "tokens")
+
+    class _UnreachableClient:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> Any:
+            raise TimeoutError("authorization server unreachable")
+
+        async def __aexit__(self, *_exc: Any) -> None:
+            return None
+
+    monkeypatch.setattr("fastmcp.Client", _UnreachableClient)
+    output = io.StringIO()
+
+    result = await cli_module._run_mcp(
+        argparse.Namespace(mcp_target="login", name="fixture"),
+        tmp_path,
+        stdout=output,
+    )
+
+    assert result == 1
+    assert "[FAIL] fixture: login failed:" in output.getvalue()
+    assert "authorization server unreachable" in output.getvalue()
 
 
 def test_gateway_does_not_import_fastmcp_internal_context_or_transport_options() -> None:
