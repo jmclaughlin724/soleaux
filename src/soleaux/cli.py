@@ -206,6 +206,17 @@ def create_parser() -> argparse.ArgumentParser:
         help="Overwrite a healthy existing soleaux registration.",
     )
 
+    bridge = subparsers.add_parser(
+        "bridge",
+        help="Serve the stdio host bridge over the private socket, or emit host context.",
+    )
+    bridge.add_argument("client", choices=("claude", "codex", "opencode"))
+    bridge.add_argument(
+        "--context",
+        action="store_true",
+        help="Emit one host context payload for the objective on stdin instead of serving stdio.",
+    )
+
     return parser
 
 
@@ -300,6 +311,8 @@ async def run_cli(
         return _run_adopt(args, root, stdout=output, stderr=sys.stderr)
     if args.command == "mcp":
         return await _run_mcp(args, root, stdout=output)
+    if args.command == "bridge":
+        return _run_bridge(args, stdout=output)
 
     owns_service = service is None
     active = service or soleaux.analysis.service.SoleauxService.from_directory(
@@ -824,6 +837,26 @@ async def _run_mcp(args: argparse.Namespace, root: pathlib.Path, *, stdout: typi
     return await _probe_mcp_backends(
         root, json_output=bool(getattr(args, "json", False)), stdout=stdout
     )
+
+
+def _run_bridge(args: argparse.Namespace, *, stdout: typing.TextIO) -> int:
+    """Serve the stdio host bridge or emit one host context payload."""
+    from soleaux.bridge.client import run_bridge, run_context
+    from soleaux.bridge.deployment import DeploymentError
+
+    try:
+        if getattr(args, "context", False):
+            return run_context(args.client, stdout=stdout)
+        run_bridge(args.client)
+    except DeploymentError as error:
+        sys.stderr.write(f"soleaux bridge: {error}\n")
+        return 2
+    except Exception:
+        sys.stderr.write(
+            "soleaux bridge: the Soleaux request failed; run `soleaux service status` and retry.\n"
+        )
+        return 2
+    return 0
 
 
 def _run_adopt(
