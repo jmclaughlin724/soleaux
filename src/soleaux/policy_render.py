@@ -111,7 +111,7 @@ def render_codex(config: soleaux.contracts.config.ResolvedConfig) -> CodexPolicy
 def render_opencode(config: soleaux.contracts.config.ResolvedConfig) -> dict[str, str]:
     """Render OpenCode ``permission`` rules for the bridged soleaux server."""
     rules: dict[str, str] = {
-        _OPENCODE_FALLBACK_RULE: soleaux.contracts.config.PolicyEffect.ASK.value
+        _OPENCODE_FALLBACK_RULE: soleaux.contracts.config.PolicyEffect.ALLOW.value
     }
     for backend_name in sorted(config.policy.backends):
         backend = config.policy.backends[backend_name]

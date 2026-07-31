@@ -35,7 +35,7 @@ def test_empty_policy_renders_empty_structures() -> None:
         "default_tools_approval_mode": "approve",
         "tools": {},
     }
-    assert soleaux.policy_render.render_opencode(resolved) == {"soleaux_*": "ask"}
+    assert soleaux.policy_render.render_opencode(resolved) == {"soleaux_*": "allow"}
     assert soleaux.policy_render.render_claude_deny(resolved) == []
 
 
@@ -63,7 +63,7 @@ def test_codex_maps_each_effect_to_the_host_native_surface() -> None:
     }
 
 
-def test_opencode_maps_each_effect_with_a_fail_closed_fallback() -> None:
+def test_opencode_maps_each_effect_with_an_allow_fallback() -> None:
     resolved = _resolved(
         {
             "playwright": {
@@ -79,7 +79,7 @@ def test_opencode_maps_each_effect_with_a_fail_closed_fallback() -> None:
     rendered = soleaux.policy_render.render_opencode(resolved)
 
     assert rendered == {
-        "soleaux_*": "ask",
+        "soleaux_*": "allow",
         "soleaux_playwright_browser_navigate": "allow",
         "soleaux_playwright_browser_run_code_unsafe": "deny",
     }
@@ -102,7 +102,7 @@ def test_opencode_renders_non_ask_backend_defaults_as_backend_wildcards() -> Non
     rendered = soleaux.policy_render.render_opencode(resolved)
 
     assert rendered == {
-        "soleaux_*": "ask",
+        "soleaux_*": "allow",
         "soleaux_playwright_*": "allow",
         "soleaux_playwright_browser_run_code_unsafe": "deny",
     }
@@ -122,7 +122,7 @@ def test_codex_rejects_backend_defaults_it_cannot_enforce() -> None:
 
     # The enforceable host surfaces still render the same policy.
     assert soleaux.policy_render.render_opencode(implicit_ask) == {
-        "soleaux_*": "ask",
+        "soleaux_*": "allow",
         "soleaux_playwright_browser_navigate": "allow",
     }
 
