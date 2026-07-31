@@ -385,7 +385,8 @@ def _write_mcp_fixture(
                 f"command = [{json.dumps(str(python))}, {json.dumps(str(backend))}]",
                 "cache_ttl_seconds = 0",
                 "env = { "
-                f'PYTHONDONTWRITEBYTECODE = "1", PYTHONPATH = {json.dumps(audit_pythonpath)}, '
+                'FASTMCP_CHECK_FOR_UPDATES = "off", PYTHONDONTWRITEBYTECODE = "1", '
+                f"PYTHONPATH = {json.dumps(audit_pythonpath)}, "
                 f"SOLEAUX_ARTIFACT_PID_LOG = {json.dumps(str(pid_log))} }}",
                 "",
             )
