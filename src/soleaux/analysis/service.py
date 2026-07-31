@@ -365,6 +365,7 @@ class SoleauxService:
         deployment_transport: DeploymentTransport = "stdio",
         config_content_digest: str | None = None,
         publication_profile: CatalogPublicationProfile = CatalogPublicationProfile.FULL,
+        configuration_root: Path | None = None,
     ) -> None:
         self._workspaces = workspaces
         self._config = config or ResolvedConfig.default()
@@ -409,7 +410,9 @@ class SoleauxService:
         self._editor_lock = asyncio.Lock()
         self._deployment_transport = deployment_transport
         self._mcp_health = McpHealthTracker(
-            self._workspaces.get(self._workspaces.workspace_ids[0]).root,
+            configuration_root
+            if configuration_root is not None
+            else self._workspaces.get(self._workspaces.workspace_ids[0]).root,
             self._config,
         )
         self._started = False
@@ -450,6 +453,7 @@ class SoleauxService:
             deployment_transport=deployment_transport,
             config_content_digest=config_digest(raw_config),
             publication_profile=publication_profile,
+            configuration_root=resolved,
         )
 
     @classmethod
