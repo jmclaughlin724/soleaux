@@ -10,6 +10,7 @@ import shutil
 import socket as unix_socket
 import sys
 import tempfile
+import typing
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -316,7 +317,8 @@ def test_context_uses_one_legacy_fastmcp_call(
     assert transport.auth is None
 
     deployment = bridge_deployment.load_deployment_config()
-    upstream_http = transport.httpx_client_factory(
+    factory = typing.cast(typing.Any, transport.httpx_client_factory)
+    upstream_http = factory(
         headers={
             "Authorization": "Bearer ambient-secret",
             "Cookie": "ambient=credential",
@@ -337,7 +339,7 @@ def test_context_uses_one_legacy_fastmcp_call(
     assert "authorization" not in upstream_http.headers
     assert "cookie" not in upstream_http.headers
     assert "x-request-id" not in upstream_http.headers
-    closure = transport.httpx_client_factory.__closure__
+    closure = factory.__closure__
     assert closure is not None
     assert any(cell.cell_contents == deployment.socket_path for cell in closure)
     assert calls == [
@@ -446,18 +448,18 @@ def test_bridge_uses_public_stateful_proxy_with_private_socket_transport(
 
     assert isinstance(proxy, FastMCPProxy)
     assert proxy.provider_error_strategy == "raise"
-    factory_owner = proxy.client_factory.__self__
+    factory_owner = typing.cast(typing.Any, proxy.client_factory).__self__
     assert isinstance(factory_owner, StatefulProxyClient)
     assert factory_owner.mode == "legacy"
     assert factory_owner.name == f"soleaux-{host}-bridge"
 
-    transport = factory_owner.transport
+    transport = typing.cast(typing.Any, factory_owner).transport
     assert isinstance(transport, StreamableHttpTransport)
     assert str(transport.url) == deployment.endpoint
     assert transport.auth is None
     assert transport.httpx_client_factory is not None
 
-    upstream_http = transport.httpx_client_factory(
+    upstream_http = typing.cast(typing.Any, transport.httpx_client_factory)(
         headers={
             "Authorization": "Bearer front-connection-secret",
             "Cookie": "front-session=credential",
@@ -497,14 +499,19 @@ def test_stateful_proxy_isolates_callbacks_and_session_lifecycle() -> None:
 
     @upstream.tool
     def client_capabilities(context: Context) -> dict[str, bool]:
-        capabilities = context.session.client_params.capabilities
+        params = context.session.client_params
+        assert params is not None
+        capabilities = params.capabilities
         return {
             "elicitation": capabilities.elicitation is not None,
             "roots": capabilities.roots is not None,
             "sampling": capabilities.sampling is not None,
         }
 
-    owner = StatefulProxyClient(
+    assert callable(identity)
+    assert callable(client_capabilities)
+
+    owner: StatefulProxyClient[typing.Any] = StatefulProxyClient(
         upstream,
         mode="legacy",
         roots=None,
@@ -570,10 +577,13 @@ def test_bridge_runs_stdio_without_banner(
         def run(self, **options: object) -> None:
             runs.append(options)
 
+    def fake_proxy_factory(_config: object, _client: str) -> FakeProxy:
+        return FakeProxy()
+
     monkeypatch.setattr(
         bridge_client,
         "_create_bridge_proxy",
-        lambda _config, _client: FakeProxy(),
+        fake_proxy_factory,
     )
 
     bridge_client.run_bridge("claude")
@@ -590,15 +600,22 @@ def test_stateless_upstream_serves_context_and_bridge_clients(
 
     socket_path = short_socket_dir / "s.sock"
     listener = composition._prebind_socket(socket_path)
+
+    def fake_composition_deployment(**kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(workspace_root=_REPOSITORY_ROOT)
+
     monkeypatch.setattr(
         composition,
         "load_deployment_config",
-        lambda **kwargs: SimpleNamespace(workspace_root=_REPOSITORY_ROOT),
+        fake_composition_deployment,
     )
     server = composition.create_workspace_server()
-    deployment = SimpleNamespace(
-        endpoint="http://soleaux.local/mcp",
-        socket_path=socket_path,
+    deployment = typing.cast(
+        bridge_deployment.DeploymentConfig,
+        SimpleNamespace(
+            endpoint="http://soleaux.local/mcp",
+            socket_path=socket_path,
+        ),
     )
     monkeypatch.setattr(bridge_client, "load_deployment_config", lambda: deployment)
 
