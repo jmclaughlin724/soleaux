@@ -1,0 +1,7 @@
+interface:
+  display_name: Update
+  short_description: Reconcile context after verified changes
+  default_prompt: >-
+    Use $update after the current task or plan is complete and its checks have passed.
+policy:
+  allow_implicit_invocation: true

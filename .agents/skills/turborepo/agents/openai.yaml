@@ -1,0 +1,6 @@
+interface:
+  display_name: Turborepo
+  short_description: "Configure and debug Turborepo task graphs and caching"
+  default_prompt: Use $turborepo for the current monorepo task.
+policy:
+  allow_implicit_invocation: true

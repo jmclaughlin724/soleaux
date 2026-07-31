@@ -1,0 +1,6 @@
+interface:
+  display_name: "FastMCP"
+  short_description: "Build version-matched FastMCP systems"
+  default_prompt: "Use $fastmcp to design, implement, and verify this FastMCP task against the installed version and the owning repository constraints."
+policy:
+  allow_implicit_invocation: true

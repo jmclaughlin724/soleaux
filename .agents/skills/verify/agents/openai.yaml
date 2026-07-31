@@ -1,0 +1,6 @@
+interface:
+  display_name: "Verify"
+  short_description: "Verify changes through their real consumer."
+  default_prompt: "Use $verify to exercise the active completion claim through its configured consumer and a risk-selected probe."
+policy:
+  allow_implicit_invocation: true

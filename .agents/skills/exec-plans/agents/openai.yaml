@@ -1,0 +1,6 @@
+interface:
+  display_name: "Exec Plans"
+  short_description: "Author and run two-file execution plans"
+  default_prompt: "Use $exec-plans to author, review, execute, or resume a self-contained PLAN.md and live TASKS.md without a separate progress ledger."
+policy:
+  allow_implicit_invocation: false

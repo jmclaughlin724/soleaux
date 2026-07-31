@@ -1,0 +1,19 @@
+{
+  "name": "@soleaux/telemetry-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "soleaux-telemetry": "./src/cli.mjs"
+  },
+  "scripts": {
+    "check:ci": "node --check src/cli.mjs",
+    "typecheck": "node --check src/cli.mjs"
+  },
+  "engines": {
+    "node": ">=23.6.0"
+  },
+  "dependencies": {
+    "@soleaux/protocol": "workspace:*"
+  }
+}

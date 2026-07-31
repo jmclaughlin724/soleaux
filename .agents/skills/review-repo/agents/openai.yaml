@@ -1,0 +1,6 @@
+interface:
+  display_name: "Review"
+  short_description: "Review changes for concrete, actionable defects."
+  default_prompt: "Use $review-repo to inspect the active change and report verified findings before any summary."
+policy:
+  allow_implicit_invocation: true

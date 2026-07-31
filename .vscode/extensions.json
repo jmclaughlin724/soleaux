@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "ast-grep.ast-grep-vscode",
+    "bradlc.vscode-tailwindcss",
+    "dbaeumer.vscode-eslint",
+    "denoland.vscode-deno",
+    "esbenp.prettier-vscode",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "stylelint.vscode-stylelint",
+    "tombi-toml.tombi",
+    "typescriptteam.native-preview"
+  ]
+}

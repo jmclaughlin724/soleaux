@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Repository-local wire contract for the JSON object a Codex PostToolUse apply-patch maintenance hook reads from stdin. This is the canonical apply_patch subset used by the local owners, not a generic PostToolUse schema. Runtime validation is owned by validatePostToolUseInput in .codex/hooks/PostToolUse/skill-audit.mjs; keep the two in sync.",
+  "properties": {
+    "agent_id": {
+      "description": "Present only for tool calls made inside a subagent.",
+      "type": "string"
+    },
+    "agent_type": {
+      "description": "Present only for tool calls made inside a subagent.",
+      "type": "string"
+    },
+    "cwd": {
+      "description": "Session working directory; may be a repository subdirectory.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "PostToolUse"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": ["default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"]
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "tool_input": {
+      "properties": {
+        "command": {
+          "description": "One complete apply_patch document.",
+          "type": "string"
+        }
+      },
+      "required": ["command"],
+      "type": "object"
+    },
+    "tool_name": {
+      "const": "apply_patch"
+    },
+    "tool_response": {
+      "description": "Raw tool response; present but passed through without validation."
+    },
+    "tool_use_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "type": ["string", "null"]
+    },
+    "turn_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "model",
+    "permission_mode",
+    "session_id",
+    "tool_input",
+    "tool_name",
+    "tool_response",
+    "tool_use_id",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "Codex PostToolUse apply-patch maintenance input",
+  "type": "object"
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: Supabase
+  short_description: "Build and debug Supabase apps and infrastructure"
+  default_prompt: Use $supabase for the current Supabase task with current docs and focused verification.
+policy:
+  allow_implicit_invocation: true

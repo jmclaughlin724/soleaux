@@ -1,0 +1,29 @@
+{
+  "name": "soleaux-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 43121",
+    "build": "next build",
+    "start": "next start --port 43121",
+    "check:ci": "next typegen && tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@soleaux/protocol": "workspace:*",
+    "@soleaux/ui": "workspace:*",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-themes": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  }
+}

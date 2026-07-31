@@ -1,0 +1,7 @@
+id: decorator-py
+language: Python
+severity: info
+message: Python decorator candidate
+note: Registered framework decoration candidate (decorations class).
+rule:
+  kind: decorator

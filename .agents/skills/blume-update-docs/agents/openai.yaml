@@ -1,0 +1,6 @@
+interface:
+  display_name: Update Blume Docs
+  short_description: Audit or explicitly refresh Blume documentation
+  default_prompt: Use $blume-update-docs to audit the current Blume docs for factual drift.
+policy:
+  allow_implicit_invocation: true

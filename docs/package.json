@@ -1,0 +1,22 @@
+{
+  "name": "@soleaux/docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "audit": "blume audit --fail-on error",
+    "build": "blume build --strict",
+    "check:ci": "blume doctor && blume check --strict && blume validate --strict",
+    "dev": "blume dev --port 3309",
+    "doctor": "blume doctor",
+    "preview": "blume preview --port 3309",
+    "typecheck": "blume check --strict",
+    "validate": "blume validate --strict"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "astro": "catalog:",
+    "blume": "catalog:"
+  }
+}

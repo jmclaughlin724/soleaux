@@ -1,0 +1,6 @@
+interface:
+  display_name: "ast-grep"
+  short_description: "Structural code search, AST analysis, and rule testing"
+  default_prompt: "Use $ast-grep to choose the narrowest structural query, inspect the relevant syntax tree, test the rule against representative code, and search only the requested scope."
+policy:
+  allow_implicit_invocation: true

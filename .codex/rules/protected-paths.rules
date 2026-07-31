@@ -1,0 +1,288 @@
+# Canonical repository owners and protected configuration surfaces.
+
+_PROTECTED_DIRECTORIES = [
+    ".agents",
+    ".claude",
+    ".codex",
+    ".codex/rules",
+    ".github",
+    ".vscode",
+    "apps",
+    "apps/contact-portal",
+    "apps/corporate-admin",
+    "apps/corporate-web",
+    "apps/identity",
+    "apps/loan-officer-portal",
+    "apps/loan-officer-sites",
+    "apps/realtor-portal",
+    "apps/realtor-sites",
+    "packages",
+    "packages/audit",
+    "packages/auth",
+    "packages/authz",
+    "packages/brand",
+    "packages/crm",
+    "packages/db",
+    "packages/eslint-config",
+    "packages/mortgage",
+    "packages/observability",
+    "packages/real-estate",
+    "packages/sites",
+    "packages/tenancy",
+    "packages/typescript-config",
+    "packages/ui",
+    "plans",
+    "scripts",
+    "standards",
+    "supabase",
+    "tests",
+    "tools",
+    "tools/ast-grep",
+]
+
+# Every protected directory matches with and without a trailing slash.
+PROTECTED_DIRECTORY_PATHS = [
+    path + suffix
+    for path in _PROTECTED_DIRECTORIES
+    for suffix in ["", "/"]
+]
+
+PROTECTED_FILE_PATHS = [
+    "AGENTS.md",
+    ".prettierignore",
+    "eslint.config.mjs",
+    "prettier.config.mjs",
+    "sgconfig.yml",
+    "stylelint.config.mjs",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "turbo.json",
+    ".codex/config.toml",
+    "packages/db/src/database.types.ts",
+]
+
+# Shared shadcn primitives are owned by packages/ui; per-app ui directories are
+# prohibited, with and without a trailing slash.
+APP_UI_COMPONENT_DIRECTORIES = [
+    "apps/%s/components/ui%s" % (app, suffix)
+    for app in [
+        "contact-portal",
+        "corporate-admin",
+        "corporate-web",
+        "identity",
+        "loan-officer-portal",
+        "loan-officer-sites",
+        "realtor-portal",
+        "realtor-sites",
+    ]
+    for suffix in ["", "/"]
+]
+
+_PROTECTED_DIRECTORY_DELETE_JUSTIFICATION = "Do not shell-delete a canonical repository owner or deployment surface. For an explicitly authorized architecture migration, use structured edits, update every owner and consumer atomically, and run the affected owner checks."
+_PROTECTED_FILE_DELETE_JUSTIFICATION = "Do not shell-delete a canonical policy, task-graph, lockfile, or generated owner. Edit the canonical file in place, run its owning generator when applicable, or perform an explicitly authorized ownership migration through structured edits."
+
+prefix_rule(
+    pattern = ["rm", ["-r", "-R", "--recursive"], PROTECTED_DIRECTORY_PATHS],
+    decision = "forbidden",
+    justification = _PROTECTED_DIRECTORY_DELETE_JUSTIFICATION,
+    match = [
+        "rm -r apps/identity",
+        "rm -R tools/ast-grep/",
+        "rm --recursive packages/ui",
+    ],
+    not_match = [
+        "rm -r node_modules",
+        "rm -r apps/identity/.next",
+        "rm -r packages/ui/dist",
+    ],
+)
+
+prefix_rule(
+    pattern = ["rm", ["-r", "-R", "--recursive"], "--", PROTECTED_DIRECTORY_PATHS],
+    decision = "forbidden",
+    justification = _PROTECTED_DIRECTORY_DELETE_JUSTIFICATION,
+    match = [
+        "rm -r -- tools/ast-grep",
+        "rm --recursive -- packages/ui/",
+    ],
+    not_match = [
+        "rm -r -- node_modules",
+        "rm -r tools/ast-grep",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rm", ["-r", "-R", "--recursive"], PROTECTED_DIRECTORY_PATHS],
+    decision = "forbidden",
+    justification = _PROTECTED_DIRECTORY_DELETE_JUSTIFICATION,
+    match = [
+        "git rm -r apps/identity",
+        "git rm -R tools/ast-grep/",
+        "git rm --recursive packages/ui",
+    ],
+    not_match = [
+        "git rm apps/identity/obsolete.ts",
+        "git status",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rm", ["-rf", "-fr", "-Rf", "-fR"], PROTECTED_DIRECTORY_PATHS],
+    decision = "forbidden",
+    justification = _PROTECTED_DIRECTORY_DELETE_JUSTIFICATION,
+    match = [
+        "git rm -rf tools/ast-grep",
+        "git rm -fr packages/ui/",
+    ],
+    not_match = [
+        "git rm -rf generated-cache",
+        "git rm -r tools/ast-grep",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rm", ["-rf", "-fr", "-Rf", "-fR"], "--", PROTECTED_DIRECTORY_PATHS],
+    decision = "forbidden",
+    justification = _PROTECTED_DIRECTORY_DELETE_JUSTIFICATION,
+    match = [
+        "git rm -rf -- tools/ast-grep",
+        "git rm -fR -- packages/ui/",
+    ],
+    not_match = [
+        "git rm -rf -- generated-cache",
+        "git rm -rf tools/ast-grep",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rm", ["-r", "-R", "--recursive"], ["-f", "--force"], PROTECTED_DIRECTORY_PATHS],
+    decision = "forbidden",
+    justification = _PROTECTED_DIRECTORY_DELETE_JUSTIFICATION,
+    match = [
+        "git rm -r -f tools/ast-grep",
+        "git rm --recursive --force packages/ui/",
+    ],
+    not_match = [
+        "git rm -r -f generated-cache",
+        "git rm -r tools/ast-grep",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rm", ["-f", "--force"], ["-r", "-R", "--recursive"], PROTECTED_DIRECTORY_PATHS],
+    decision = "forbidden",
+    justification = _PROTECTED_DIRECTORY_DELETE_JUSTIFICATION,
+    match = [
+        "git rm -f -r tools/ast-grep",
+        "git rm --force --recursive packages/ui/",
+    ],
+    not_match = [
+        "git rm -f -r generated-cache",
+        "git rm -r tools/ast-grep",
+    ],
+)
+
+_PROTECTED_FILE_DELETE_VARIANTS = [
+    {
+        "pattern": ["rm", PROTECTED_FILE_PATHS],
+        "match": ["rm AGENTS.md", "rm packages/db/src/database.types.ts"],
+        "not_match": ["rm notes.txt", "rm packages/db/src/obsolete.ts"],
+    },
+    {
+        "pattern": ["rm", ["-f", "--force"], PROTECTED_FILE_PATHS],
+        "match": ["rm -f AGENTS.md", "rm --force pnpm-lock.yaml"],
+        "not_match": ["rm -f notes.txt", "rm --force temp.log"],
+    },
+    {
+        "pattern": ["git", "rm", PROTECTED_FILE_PATHS],
+        "match": [
+            "git rm AGENTS.md",
+            "git rm sgconfig.yml",
+            "git rm packages/db/src/database.types.ts",
+        ],
+        "not_match": ["git rm packages/db/src/obsolete.ts", "git status"],
+    },
+    {
+        "pattern": ["git", "rm", ["-f", "--force"], PROTECTED_FILE_PATHS],
+        "match": ["git rm -f AGENTS.md"],
+        "not_match": ["git rm -f notes.txt", "git status"],
+    },
+]
+
+_PROTECTED_FILE_DELETE_RULES = [
+    prefix_rule(
+        pattern = variant["pattern"],
+        decision = "forbidden",
+        justification = _PROTECTED_FILE_DELETE_JUSTIFICATION,
+        match = variant["match"],
+        not_match = variant["not_match"],
+    )
+    for variant in _PROTECTED_FILE_DELETE_VARIANTS
+]
+
+prefix_rule(
+    pattern = ["touch", [".prettierrc", ".prettierrc.json", ".prettierrc.yaml", ".prettierrc.yml", "prettier.config.js", ".eslintrc", ".eslintrc.js", ".eslintrc.json", "eslint.config.js", "sgconfig.yaml"]],
+    decision = "forbidden",
+    justification = "Do not create a second formatter, linter, or ast-grep configuration owner. Update `prettier.config.mjs`, `eslint.config.mjs`, or `sgconfig.yml` respectively.",
+    match = [
+        "touch .prettierrc.json",
+        "touch eslint.config.js",
+        "touch sgconfig.yaml",
+    ],
+    not_match = [
+        "touch notes.txt",
+        "touch prettier.config.mjs",
+        "touch eslint.config.mjs",
+        "touch sgconfig.yml",
+    ],
+)
+
+prefix_rule(
+    pattern = ["touch", "TODO.md"],
+    decision = "forbidden",
+    justification = "Do not create TODO files. Track work in the issue system and reference the issue from narrowly necessary code comments.",
+    match = [
+        "touch TODO.md",
+    ],
+    not_match = [
+        "touch notes.md",
+        "touch docs/decisions/0001-example.md",
+    ],
+)
+
+_APP_UI_DIRECTORY_VARIANTS = [
+    {
+        "pattern": ["mkdir", "-p", APP_UI_COMPONENT_DIRECTORIES],
+        "match": [
+            "mkdir -p apps/identity/components/ui",
+            "mkdir -p apps/realtor-portal/components/ui/",
+        ],
+        "not_match": [
+            "mkdir -p apps/identity/components/forms",
+            "mkdir -p packages/ui/src/components",
+        ],
+    },
+    {
+        "pattern": ["mkdir", APP_UI_COMPONENT_DIRECTORIES],
+        "match": [
+            "mkdir apps/identity/components/ui",
+            "mkdir apps/realtor-portal/components/ui/",
+        ],
+        "not_match": [
+            "mkdir apps/identity/components/forms",
+            "mkdir packages/ui/src/components",
+        ],
+    },
+]
+
+_APP_UI_DIRECTORY_RULES = [
+    prefix_rule(
+        pattern = variant["pattern"],
+        decision = "forbidden",
+        justification = "Shared shadcn primitives are owned by packages/ui. Use the repository UI wrappers and import from @anilize/ui.",
+        match = variant["match"],
+        not_match = variant["not_match"],
+    )
+    for variant in _APP_UI_DIRECTORY_VARIANTS
+]

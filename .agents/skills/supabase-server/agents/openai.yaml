@@ -1,0 +1,6 @@
+interface:
+  display_name: Supabase Server
+  short_description: "Build Supabase server auth and request integrations"
+  default_prompt: Use $supabase-server for the current @supabase/server task.
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Sync the locked environment
+        run: uv sync --locked
+      - name: Ruff
+        run: |
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+      - name: Pyright
+        run: uv run --locked pyright
+      - name: Pytest
+        run: uv run --locked pytest
+        env:
+          SOLEAUX_REQUIRE_CONFORMANCE: "1"
+
+  telemetry-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the daemon with the locked graph
+        run: cargo check --locked --manifest-path telemetry/daemon/Cargo.toml
+
+  telemetry-node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install the workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify the Git-hook delivery
+        run: pnpm run check:hooks
+      - name: Typecheck and unit-test telemetry packages
+        run: pnpm exec turbo run typecheck test:unit
+      - name: Audit the docs site
+        run: pnpm exec turbo run audit --filter=@soleaux/docs
+      - name: Verify upstream claim registry hygiene
+        run: node telemetry/scripts/verify-upstream.mjs
+
+  distribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+      - name: Build distributions
+        run: uv build --no-sources --out-dir dist --no-create-gitignore

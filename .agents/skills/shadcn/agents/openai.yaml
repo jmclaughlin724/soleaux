@@ -1,0 +1,18 @@
+interface:
+  display_name: "shadcn/ui"
+  short_description: "Install, compose, theme, and troubleshoot shadcn/ui components."
+  icon_small: "./assets/shadcn-small.png"
+  icon_large: "./assets/shadcn.png"
+  default_prompt: "Use $shadcn for the current task."
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - type: mcp
+      value: shadcn
+      description: Live shadcn/ui registry discovery and component inspection
+      transport: stdio
+      command: npx
+      args:
+        - shadcn@4.13.0
+        - mcp

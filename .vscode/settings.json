@@ -1,0 +1,249 @@
+{
+  "[css]": {
+    "editor.formatOnSave": true
+  },
+  "[javascript]": {
+    "editor.formatOnSave": true
+  },
+  "[javascriptreact]": {
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.formatOnSave": true
+  },
+  "[jsonc]": {
+    "editor.formatOnSave": true
+  },
+  "[markdown]": {
+    "editor.formatOnSave": true
+  },
+  "[mdx]": {
+    "editor.formatOnSave": true
+  },
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "always",
+      "source.organizeImports.ruff": "always",
+      "source.addMissingImports": "always"
+    },
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
+  "[sql]": {
+    "editor.formatOnSave": false
+  },
+  "[tailwindcss]": {
+    "editor.formatOnSave": true
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "tombi-toml.tombi",
+    "editor.formatOnSave": true
+  },
+  "[typescript]": {
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.formatOnSave": true,
+    "editor.quickSuggestions": {
+      "strings": "on"
+    }
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "astGrep.serverPath": "node_modules/.bin/ast-grep",
+  "deno.documentPreloadLimit": 0,
+  "deno.enable": true,
+  "deno.enablePaths": ["./supabase/functions"],
+  "deno.importMap": "./supabase/functions/deno.json",
+  "deno.lint": true,
+  "deno.organizeImports.enabled": false,
+  "deno.suggest.imports.autoDiscover": false,
+  "deno.suggest.imports.hosts": {
+    "https://deno.land": false,
+    "jsr:": true,
+    "npm:": true
+  },
+  "editor.codeActionsOnSave": {
+    "source.convertImportFormat": "explicit",
+    "source.convertImportToModule": "explicit",
+    "source.fixAll.ast-grep": "explicit",
+    "source.fixAll.eslint": "explicit",
+    "source.fixAll.prettier": "explicit",
+    "source.fixAll.pylance": "explicit",
+    "source.fixAll.ruff": "explicit",
+    "source.fixAll.stylelint": "always",
+    "source.organizeImports.ruff": "explicit",
+    "source.organizeLinkDefinitions": "explicit",
+    "source.renameShadowedStdlibImports": "explicit",
+    "source.sort.json": "explicit",
+    "source.sortImports": "explicit"
+  },
+  "editor.codeLens": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.dragAndDrop": true,
+  "editor.editContext": true,
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.inlayHints.enabled": "on",
+  "editor.inlineSuggest.enabled": true,
+  "editor.linkedEditing": true,
+  "editor.minimap.enabled": false,
+  "editor.occurrencesHighlight": "multiFile",
+  "editor.quickSuggestions": {
+    "comments": "off",
+    "strings": "on"
+  },
+  "emmet.showExpandedAbbreviation": "never",
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "files.autoSave": "onFocusChange",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "files.watcherExclude": {
+    "**/.next/**": true,
+    "**/.turbo/**": true,
+    "**/.venv/**": true,
+    "supabase/.temp/**": true
+  },
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.implementationsCodeLens.enabled": true,
+  "js/ts.implicitProjectConfig.strict": true,
+  "js/ts.locale": "auto",
+  "js/ts.preferences.preferTypeOnlyAutoImports": true,
+  "js/ts.preferGoToSourceDefinition": true,
+  "js/ts.referencesCodeLens.enabled": true,
+  "js/ts.suggest.autoImports": true,
+  "js/ts.suggest.enabled": true,
+  "js/ts.suggest.paths": true,
+  "js/ts.suggestionActions.enabled": true,
+  "js/ts.tsc.autoDetect": "on",
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+  "js/ts.tsserver.automaticTypeAcquisition.enabled": true,
+  "js/ts.tsserver.log": "off",
+  "js/ts.tsserver.useSyntaxServer": "auto",
+  "js/ts.tsserver.watchOptions": {
+    "excludeFiles": [
+      "**/.claude/**",
+      "**/.codex/**",
+      "**/.next/**",
+      "**/.turbo/**",
+      "**/node_modules/**",
+      "**/coverage/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/storybook-static/**",
+      "**/supabase/functions/**",
+      "**/__tests__/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx"
+    ]
+  },
+  "js/ts.tsserver.web.projectWideIntellisense.enabled": true,
+  "js/ts.tsserver.web.typeAcquisition.enabled": true,
+  "js/ts.updateImportsOnFileMove.enabled": "always",
+  "json.schemaDownload.enable": true,
+  "json.schemaDownload.trustedDomains": {
+    "https://developer.microsoft.com": true,
+    "https://gofastmcp.com": true,
+    "https://json-schema.org": true,
+    "https://json.schemastore.org": true,
+    "https://models.dev/model-schema.json": true,
+    "https://opencode.ai": true,
+    "https://raw.githubusercontent.com": true,
+    "https://schemastore.azurewebsites.net": true,
+    "https://turbo.build": true,
+    "https://turborepo.dev": true,
+    "https://ui.shadcn.com": true,
+    "https://v2-9-14.turborepo.dev": true,
+    "https://www.schemastore.org": true
+  },
+  "json.schemas": [
+    {
+      "fileMatch": ["turbo.json", "**/turbo.json"],
+      "url": "https://v2-9-14.turborepo.dev/schema.json"
+    },
+    {
+      "fileMatch": ["components.json"],
+      "url": "https://ui.shadcn.com/schema.json"
+    },
+    {
+      "fileMatch": ["package.json"],
+      "url": "https://json.schemastore.org/package.json"
+    },
+    {
+      "fileMatch": [
+        "opencode.json",
+        "opencode.jsonc",
+        "**/.opencode/opencode.json",
+        "**/.opencode/opencode.jsonc"
+      ],
+      "url": "https://opencode.ai/config.json"
+    },
+    {
+      "fileMatch": ["fastmcp.json", "**/fastmcp.json"],
+      "url": "https://gofastmcp.com/public/schemas/fastmcp.json/v1.json"
+    }
+  ],
+  "json.validate.enable": true,
+  "npm.packageManager": "pnpm",
+  "npm.scriptRunner": "pnpm",
+  "prettier.enable": true,
+  "prettier.ignorePath": ".prettierignore",
+  "prettier.requireConfig": true,
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportPrivateUsage": "none"
+  },
+  "python.analysis.exclude": [
+    "**/.venv/**",
+    "**/.tmp/**",
+    "**/dist/**",
+    "**/node_modules/**"
+  ],
+  "python.analysis.extraPaths": ["./tools/soleaux/src"],
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.useNearestConfiguration": false,
+  "python.analysis.userFileIndexFollowSymlinkedFolders": false,
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "references.preferredLocation": "view",
+  "search.exclude": {
+    "**/.next": true,
+    "**/.tsbuildinfo": true,
+    "**/.turbo": true,
+    "**/coverage": true,
+    "**/dist": true,
+    "**/node_modules": true,
+    "**/pnpm-lock.yaml": true,
+    "**/storybook-static": true
+  },
+  "search.followSymlinks": false,
+  "search.smartCase": false,
+  "stylelint.validate": ["css", "postcss", "tailwindcss"],
+  "tailwindCSS.classAttributes": ["class", "className", "theme"],
+  "tailwindCSS.classFunctions": ["tw", "clsx", "cn", "cva"],
+  "tailwindCSS.codeActions": true,
+  "tailwindCSS.colorDecorators": true,
+  "tailwindCSS.files.exclude": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/dist/**",
+    "**/.claude/worktrees/**",
+    "**/.claude/plans/**",
+    "**/.claude/skills/**",
+    "**/.codex/**"
+  ],
+  "tailwindCSS.hovers": true,
+  "vitest.rootConfig": "vitest.config.mjs",
+  "vitest.runtime": "node",
+  "workbench.colorTheme": "Dark Modern",
+  "workbench.iconTheme": "vscode-icons"
+}

@@ -1,0 +1,7 @@
+id: call-py
+language: Python
+severity: info
+message: Python call-site candidate
+note: Call-site candidate (calls class); never a resolved edge.
+rule:
+  kind: call

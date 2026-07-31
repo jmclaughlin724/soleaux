@@ -1,0 +1,2755 @@
+{
+  "generatedAt": "2026-07-20T22:37:10.383Z",
+  "scope": "Complete ambient Git status under tools/anilize-mcp; every row is protected and excluded from the implementation allowlist unless the primary manifest marks its concrete path add or update.",
+  "counts": {
+    "total": 683,
+    "stagedDeleted": 46,
+    "workingTreeDeleted": 630,
+    "untracked": 2,
+    "byStatus": {
+      " D": 88,
+      "??": 2,
+      "AD": 513,
+      "AM": 1,
+      "D ": 46,
+      "MD": 5,
+      "MM": 4,
+      "RD": 24
+    }
+  },
+  "rows": [
+    {
+      "status": "MM",
+      "path": "tools/anilize-mcp/AGENTS.md"
+    },
+    {
+      "status": "MD",
+      "path": "tools/anilize-mcp/README.md"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/bm25.fastmcp.json"
+    },
+    {
+      "status": "MD",
+      "path": "tools/anilize-mcp/browser-tests/apps.spec.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/deno.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/deno.lock"
+    },
+    {
+      "status": "MM",
+      "path": "tools/anilize-mcp/fastmcp.json"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/full-catalog.fastmcp.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/playwright.config.ts"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/code-mode.fastmcp.json -> tools/anilize-mcp/profiles/code-mode.fastmcp.json"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/dev.fastmcp.json -> tools/anilize-mcp/profiles/dev.fastmcp.json"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/self-hosted.fastmcp.json -> tools/anilize-mcp/profiles/self-hosted.fastmcp.json"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/sse.fastmcp.json -> tools/anilize-mcp/profiles/sse.fastmcp.json"
+    },
+    {
+      "status": "MM",
+      "path": "tools/anilize-mcp/pyproject.toml"
+    },
+    {
+      "status": "MD",
+      "path": "tools/anilize-mcp/scripts/run_apps_browser_host.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/scripts/verify_anilize_transforms.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/scripts/verify_client_only.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/scripts/verify_client_surface.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/scripts/verify_distribution.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/scripts/verify_extensibility_api.py"
+    },
+    {
+      "status": "MM",
+      "path": "tools/anilize-mcp/src/anilize_mcp/__init__.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/app_surfaces.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/approval/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/approval/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/approval/tools/request_approval.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/choice/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/choice/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/choice/tools/choose.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/feedback/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/feedback/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/feedback/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/feedback/tools/collect_feedback.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/service.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/tools/file_manager.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/tools/list_files.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/files/tools/read_file.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/deno.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/sandbox.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/tools/generate_prefab_ui.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/generative/tools/search_prefab_components.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/graph_explorer/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/graph_explorer/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/graph_explorer/tools/repository_graph_explorer.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/input_limits.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/sales/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/sales/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/sales/tools/sales_dashboard.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/status/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/status/assets/status.html"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/status/resources/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/status/resources/status.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/status/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/status/tools/custom_status.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/status/tools/custom_status_data.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/uploads/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/uploads/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/uploads/repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/uploads/workflow.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/workspace/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/workspace/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/workspace/repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/workspace/service.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/workspace/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/workspace/tools/list_work_items.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/apps/workspace/tools/workspace_app.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/authorization.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/bridges.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/discovery.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/prompts/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/prompts/compose_provider_server.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/resources/__init__.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/components/provider_catalog.py -> tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/resources/providers.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/provider_guidance/tools/catalog_explain_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/resources/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/resources/runtime_providers.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/runtime_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/tools/catalog_tool_fingerprint.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/tools/reset_session_catalog_visibility.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/tools/set_session_catalog_visibility.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/catalog/versioning.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/client.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/client/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/client/callbacks.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/client/profile.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/client/targets.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/client_surfaces.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/application.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/catalog_contract.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/graph.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/lifespan.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/provider_stack.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/composition/transforms.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/configuration/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/configuration/parsing.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/dependency_surfaces.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/mounted_server.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/prompts/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/prompts/triage_provider_catalog.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/resources/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/resources/provider_health.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/routes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/tools/provider_health.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/diagnostics/tools/runtime_request_context.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/entrypoints.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/dependencies.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/prompts/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/prompts/greeting_workflow.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/resources/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/resources/style_detail.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/resources/style_guide.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/service.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/tools/build_greeting_export.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/tools/greet.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/tools/greet_many.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/greetings/tools/set_greeting_style.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/public_skills/fastmcp-provider-composition/SKILL.md -> tools/anilize-mcp/src/anilize_mcp/guidance/skills/fastmcp-provider-composition/SKILL.md"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/public_skills/fastmcp-provider-composition/references/operations.md -> tools/anilize-mcp/src/anilize_mcp/guidance/skills/fastmcp-provider-composition/references/operations.md"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/public_skills/repository-intelligence/SKILL.md -> tools/anilize-mcp/src/anilize_mcp/guidance/skills/repository-intelligence/SKILL.md"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/public_skills/repository-intelligence/agents/openai.yaml -> tools/anilize-mcp/src/anilize_mcp/guidance/skills/repository-intelligence/agents/openai.yaml"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/hosting/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/hosting/asgi.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/hosting/auth.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/hosting/event_storage.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/hosting/self_hosted.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/deployment.py -> tools/anilize-mcp/src/anilize_mcp/hosting/settings.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/src/anilize_mcp/icons.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/integrations.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/integrations/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/integrations/clients.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/integrations/launchers.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/integrations/openapi.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/context/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/context/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/context/tools/exercise_request_local_state.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/context/tools/inspect_client_component_context.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/elicit_client_workflow_review.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/elicit_confirmation.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/elicit_delivery_preferences.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/elicit_greeting_plan.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/elicit_greeting_style.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/elicit_option_schema.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/elicitation/tools/elicit_titled_review_tags.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/logging/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/logging/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/logging/tools/emit_client_log_levels.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/notifications/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/notifications/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/notifications/tools/notify_client_catalogs_changed.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/notifications/tools/notify_client_features_updated.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/progress/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/progress/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/progress/tools/observe_greetings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/progress/tools/observe_progress_patterns.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/prompts/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/prompts/client_feature_workflow.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/resources/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/resources/client_features.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/roots/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/roots/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/roots/tools/list_client_roots.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/sampling/__init__.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/sampling.py -> tools/anilize-mcp/src/anilize_mcp/interactivity/sampling/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/sampling/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/sampling/tools/sample_greeting.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/sampling/tools/sample_greeting_step.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/sampling/tools/sample_greeting_with_tools.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/interactivity/sampling/tools/sample_structured_greeting.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/lifecycle.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/metadata.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware/audit.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware/code_mode_limits.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware/ping.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware/retry.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/middleware/stack.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/protocol/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/protocol/annotations.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/protocol/task_defaults.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/providers.py"
+    },
+    {
+      "status": "AM",
+      "path": "tools/anilize-mcp/src/anilize_mcp/providers/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/providers/contracts.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/providers/proxy.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/providers/skills.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/py.typed"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/remote_security.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/admission.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/context/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/context/instructions.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/context/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/documents.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/evidence/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/evidence/fetch.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/evidence/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/evidence/search.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/index_bridge/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/index_bridge/contracts.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/index_bridge/decoding.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/scripts/repository-index.mjs -> tools/anilize-mcp/src/anilize_mcp/repository/index_bridge/repository-index.mjs"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/index_bridge/runner.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/instructions.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/reading.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/source_urls.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/tools/fetch.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/tools/repository_load_task_context.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/tools/repository_read_text_file.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/tools/repository_search.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository/tools/search.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/__init__.py"
+    },
+    {
+      "status": "MD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/__main__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/resources/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/resources/current.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/resources/schema.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/tools/repository_context.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/tools/repository_graph_query.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/tools/repository_impact.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/api/tools/repository_verification_plan.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build/builder.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build/fingerprints.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build/partitioning.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build/pipeline.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build/planner.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/build/publication.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/cli/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/cli/build.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/cli/check.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/cli/evidence.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/cli/inspect.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/cli/parser.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/cli/render.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/code_mode/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/code_mode/factory.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/common.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/completeness.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/edges.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/evidence.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/base.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/nextjs.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/operations.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/postgres.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/security.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/nodes/source.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/partitions.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/queries.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/results.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/serialization.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/contracts/snapshots.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/nextjs/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/nextjs/config.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/nextjs.py -> tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/nextjs/extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/nextjs/routes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/nextjs/segments.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations/commands.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations/extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations/git.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations/manifests.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations/turbo.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/operations/validators.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/postgres.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/postgres/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/postgres/consumers.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/postgres/ddl.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/postgres/extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/postgres/policies.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/repository/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/repository/extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/repository/files.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/repository/instructions.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/repository.py -> tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/repository/metadata.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/repository/ownership.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/source.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/source/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/source/extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/source/postgresql.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/source/python.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/source/structured.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/extractors/source/typescript.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/envelopes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/factory.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/keys.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/manifest_store.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/partition_store.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/query_cache.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/persistence/validation.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/context.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/facade.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/graph.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/impact.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/indexes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/legacy.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/search.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/traversal.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/query/verification.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/runtime.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/runtime/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/runtime/factory.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/runtime/lifespan.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/runtime/settings.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/service.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/storage.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/src/anilize_mcp/repository_graph/telemetry.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/runtime/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/runtime/lifespan.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/runtime/request_tracker.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/auth_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/component_checks.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/headers.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/remote_mcp.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/scopes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/tools/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/security/tools/authenticated_principal.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/server.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/backends/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/backends/file.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/backends/key_value_compat.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/backends/memory.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/backends/postgres.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/backends/redis.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/backends/s3.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/factory.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/lifecycle.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/namespaces.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/protocols.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/stores/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/stores/apps.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/stores/cache.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/stores/graph.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/stores/oauth.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/storage/stores/session.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/task_runtime.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/task_surfaces.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/execution.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/fastmcp.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/progress.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/cancellation.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/elicitation.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/get.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/installation.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/listing.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/notifications.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/protocol/result.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/records.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/runtime.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/storage.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/src/anilize_mcp/tasks/worker.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/transforms.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/src/anilize_mcp/versioning.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/scripts/__tests__/repository-index.test.mjs -> tools/anilize-mcp/tests-node/repository-index.test.mjs"
+    },
+    {
+      "status": "MD",
+      "path": "tools/anilize-mcp/tests/conftest.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/catalog/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/catalog/contract.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/catalog/expected.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/catalog/test_catalog_contract.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/distribution/test_artifacts.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/profiles/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/profiles/expected.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/profiles/test_entrypoints.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/public/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/public/test_imports.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/public/test_version.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/tasks/__init__.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/contracts/tasks/test_fastmcp_pin.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/client_stdio_server.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/legacy_v1/contracts.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/legacy_v1/repository/AGENTS.md"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/legacy_v1/repository/docs/AGENTS.md"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/legacy_v1/repository/docs/guide.md"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/legacy_v1/serialization.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/AGENTS.md"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/%5Fpublic/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/(marketing)/about/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/(shop)/about/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/@modal/(.)photo/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/@modal/default.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/_private/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/actions.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/api/all/route.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/api/auto/route.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/api/login/route.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/blog/[slug]/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/conflict/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/conflict/route.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/default.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/docs/[...parts]/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/error.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/global-error.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/global-not-found.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/healthz/route.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/layout.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/loading.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/manual/[[...parts]]/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/not-found.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/photo/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/protected/route.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/app/template.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/next.config.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/proxy.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/conventions/src/app/ignored/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/multiple-roots/app/(marketing)/layout.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/multiple-roots/app/(marketing)/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/multiple-roots/app/(shop)/cart/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/multiple-roots/app/(shop)/layout.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/multiple-roots/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/src-app/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/src-app/src/app/layout.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/src-app/src/app/page.tsx"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/nextjs/src-app/src/proxy.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/.codex/hooks.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/.codex/rules/example.rules"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/.github/workflows/ci.yml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/.prettierignore"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/.prettierrc"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/biome.jsonc"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/lefthook.yml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/alpha/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/alpha/src/index.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/alpha/turbo.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/beta/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/beta/src/index.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/beta/turbo.jsonc"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/turbo-base/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/turbo-base/turbo.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/turbo-overlay/package.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/packages/turbo-overlay/turbo.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/playwright.config.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/pnpm-lock.yaml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/pnpm-workspace.yaml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/pyproject.toml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/rule-tests/no-debugger.yml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/rules/no-debugger.yml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/sgconfig.yml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/supabase/config.toml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/tests/example.test.ts"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/tests/test_fixture.py"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/tombi.toml"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/tools/anilize-mcp/pyproject.toml"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/turbo-projection-2.10.5.json -> tools/anilize-mcp/tests/fixtures/repository_graph/operations/turbo-projection-2.10.5.json"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/turbo.jsonc"
+    },
+    {
+      "status": " D",
+      "path": "tools/anilize-mcp/tests/fixtures/repository_graph/operations/vitest.config.ts"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/apps/conftest.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/apps/test_catalog.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/apps/test_generative.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/apps/test_graph_explorer.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/apps/test_persistence.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/apps/test_uploads.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/auth/test_http_authorization.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/client/test_elicitation.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/client/test_interactivity.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/client/test_notifications.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/client/test_profile.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/client/test_sampling.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/client/test_tasks.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_integration_config.py -> tools/anilize-mcp/tests/integration/profiles/test_codex_registration.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/profiles/test_feature_gates.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/profiles/test_greetings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/profiles/test_provider_stack.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/profiles/test_runtime_guidance_versioning.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/repository/test_index_bridge.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/repository/test_protocol.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/repository_graph/api/test_protocol.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/repository_graph/ecosystem/test_operations_pipeline.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_ecosystem.py -> tools/anilize-mcp/tests/integration/repository_graph/ecosystem/test_repository_ecosystem.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_telemetry.py -> tools/anilize-mcp/tests/integration/repository_graph/telemetry/test_protocol.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/repository_graph/test_persistence_postgres.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/runtime/telemetry_harness.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/runtime/test_event_storage_lifecycle.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/runtime/test_extensibility_lifespan.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/runtime/test_repository_graph_lifespan.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/runtime/test_telemetry.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/storage/conftest.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/storage/test_real_backends.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/storage/test_server_lifecycle.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/storage/test_session_state.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/tasks/test_actor_isolation.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/tasks/test_authorization_lifecycle.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/tasks/test_runtime_guidance_protocol.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/tasks/test_server_tasks.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/transports/test_client_http.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/transports/test_client_stdio.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/transports/test_deployment.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/transports/test_diagnostics_mount.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_extensibility.py -> tools/anilize-mcp/tests/integration/transports/test_extensibility_middleware.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/integration/transports/test_host_launcher.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_apps.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_auth.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_client.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_deployment.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_feature_profiles.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_graph_server.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_interactivity_complete.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_providers.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_repository.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_nextjs.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_operations.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_postgres.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_service.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_source.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_runtime_guidance.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_server.py"
+    },
+    {
+      "status": "D ",
+      "path": "tools/anilize-mcp/tests/test_storage.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/apps/generative/test_deno.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/apps/generative/test_sandbox.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/apps/generative/test_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/apps/uploads/test_repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/catalog/test_runtime_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/catalog/test_runtime_versioning.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/catalog/test_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/catalog/test_tools.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/catalog/test_transforms.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/client/test_import_boundary.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/client/test_profile.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/client/test_targets.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/configuration/test_environment_owners.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/configuration/test_feature_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/configuration/test_parsing.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/diagnostics/test_mounted_server.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/greetings/test_models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/greetings/test_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/greetings/test_service.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/hosting/test_auth.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/hosting/test_event_storage.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/hosting/test_facade.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/hosting/test_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/integrations/test_clients.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/integrations/test_launchers.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_integrations.py -> tools/anilize-mcp/tests/unit/integrations/test_openapi.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/interactivity/elicitation/test_models.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/interactivity/logging/test_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/interactivity/test_import_boundaries.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/interactivity/test_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/middleware/test_code_mode_limits.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/middleware/test_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/protocol/test_annotations.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/protocol/test_task_defaults.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/providers/test_guidance.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/providers/test_import_order.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/providers/test_proxy.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/providers/test_skills.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/context/test_instructions.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/evidence/test_fetch.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/evidence/test_search.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/index_bridge/test_contracts.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/index_bridge/test_decoding.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/index_bridge/test_runner.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/test_admission.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/test_reading.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/test_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository/test_source_urls.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/api/_support.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/api/test_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/api/test_resources.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/api/test_tools.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_models.py -> tools/anilize-mcp/tests/unit/repository_graph/build/test_model_pipeline.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/build/test_nextjs_pipeline.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/build/test_operations_pipeline.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/build/test_partitioning.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/build/test_postgres_pipeline.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/build/test_publication.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/build/test_source_pipeline.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/cli/test_decomposition.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/code_mode/test_factory.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/contracts/test_model_contracts.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/contracts/test_partitions.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/contracts/test_queries.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/contracts/test_results.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/nextjs/conftest.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/nextjs/test_config.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/nextjs/test_extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/nextjs/test_routes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/nextjs/test_segments.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/operations/_fixtures.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/operations/test_commands.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/operations/test_extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/operations/test_git.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/operations/test_manifests.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/operations/test_turbo.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/operations/test_validators.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/postgres/conftest.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/postgres/test_consumers.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/postgres/test_ddl.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/postgres/test_extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/postgres/test_policies.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/repository/test_extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/source/_support.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/source/test_extractor.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/source/test_postgresql.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/source/test_python.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/source/test_structured.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/extractors/source/test_typescript.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_repository_graph_storage.py -> tools/anilize-mcp/tests/unit/repository_graph/persistence/test_publication.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/persistence/test_storage_bytes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/query/_support.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/query/test_graph_queries.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/query/test_intelligence.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/query/test_legacy.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/query/test_lifecycle.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/query/test_partition_routing.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/query/test_repository_legacy.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/repository_graph/runtime/test_ownership.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/runtime/test_request_tracker.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/security/test_auth_provider.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/security/test_component_checks.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/security/test_headers.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/security/test_remote_mcp.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/security/test_scopes.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/security/tools/test_authenticated_principal.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/storage/test_clean_imports.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/storage/test_file_backed_stores.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/storage/test_redis_backend.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/storage/test_s3_backend.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/storage/test_settings_and_factories.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/tasks/test_protocol_installation.py"
+    },
+    {
+      "status": "RD",
+      "path": "tools/anilize-mcp/tests/test_task_runtime.py -> tools/anilize-mcp/tests/unit/tasks/test_repository.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/tasks/test_settings.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/tasks/test_storage.py"
+    },
+    {
+      "status": "AD",
+      "path": "tools/anilize-mcp/tests/unit/tasks/test_worker.py"
+    },
+    {
+      "status": "??",
+      "path": "tools/anilize-mcp/src/anilize_mcp/server.py"
+    },
+    {
+      "status": "??",
+      "path": "tools/anilize-mcp/tests/test_server.py"
+    }
+  ],
+  "planFolderSelfInventoryExcluded": true
+}

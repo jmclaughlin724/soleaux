@@ -1,0 +1,21 @@
+{
+  "name": "@soleaux/telemetry-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check:ci": "tsc --noEmit && node --test",
+    "test:unit": "node --test test/record.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@soleaux/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "environment": {
+    "ast_grep_py": "0.44.1",
+    "fastmcp": "4.0.0a2",
+    "platform": "darwin-arm64",
+    "python": "3.14.6"
+  },
+  "gates": {
+    "cancellation_return_ms": 250,
+    "lsp_first_start_ms": 15000,
+    "lsp_warm_ms": 2000,
+    "mcp_initialize_tools_list_p95_ms": 750,
+    "shutdown_grace_ms": 5000,
+    "structural_100_file_p95_ms": 3000,
+    "warm_structural_query_2kib_p95_ms": 75
+  },
+  "mcp": {
+    "default_cache_ttl_seconds": 300,
+    "lifecycles_available": [
+      "on_demand",
+      "session",
+      "shared"
+    ]
+  },
+  "recorded_at": "2026-07-28T00:18:40-0400",
+  "schema_version": "soleaux.performance-baseline/v1",
+  "startup": {
+    "about_read_ms": {
+      "median": 1.491,
+      "samples": [
+        2.241,
+        1.336,
+        1.519,
+        1.491,
+        1.321
+      ]
+    },
+    "child_processes_after_each_phase": 0,
+    "discovered_resource_count": 498,
+    "import_ms": {
+      "median": 718.376,
+      "samples": [
+        883.269,
+        718.376,
+        698.406,
+        709.294,
+        744.89
+      ]
+    },
+    "initialize_tools_list_ms": {
+      "median": 8.932,
+      "samples": [
+        10.207,
+        8.932,
+        9.117,
+        8.812,
+        8.534
+      ]
+    },
+    "local_resource_count": 4,
+    "source_files_opened": 0
+  },
+  "structural_probe": {
+    "coverage": "complete",
+    "elapsed_ms": 219.202,
+    "files": 100,
+    "gate_ms": 3000.0,
+    "projections": [
+      "syntax.declarations",
+      "syntax.imports"
+    ],
+    "row_checksum": "eb9d4253826faf39120fd79058b6a9379d3602fd237de937bdd9e9535a8a544c",
+    "row_count": 200,
+    "within_gate": true
+  }
+}

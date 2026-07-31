@@ -1,0 +1,157 @@
+[project]
+name = "soleaux"
+version = "0.1.0"
+description = "Soleaux: fast, AI-ready, zero-config repository intelligence."
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "John McLaughlin" }]
+keywords = [
+  "ast-grep",
+  "lsp",
+  "mcp",
+  "repository-intelligence",
+  "static-analysis"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development",
+  "Topic :: Text Editors :: Integrated Development Environments (IDE)",
+]
+dependencies = [
+  "ast-grep-py==0.44.1",
+  "fastmcp==4.0.0b1",
+  # FastMCP v4 beta's split runtime graph contains pre-release dependencies.
+  # Pin each one explicitly for uv's default pre-release policy.
+  "fastmcp-slim==4.0.0b1",
+  "httpx2>=2.9.1",
+  "libcst>=1.8.6",
+  "markdown-it-py>=4.2.0",
+  "mcp==2.0.0",
+  "mcp-types==2.0.0",
+  "platformdirs==4.10.1",
+  "pydantic>=2.13.4",
+  "pyyaml>=6.0.3",
+]
+
+[project.urls]
+Changelog = "https://github.com/jmclaughlin724/soleaux/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/jmclaughlin724/soleaux"
+Issues = "https://github.com/jmclaughlin724/soleaux/issues"
+Source = "https://github.com/jmclaughlin724/soleaux"
+
+[project.scripts]
+soleaux = "soleaux.server:main"
+
+[project.optional-dependencies]
+adopt = [
+  "psutil>=6.0",
+  "tomlkit>=0.11",
+  "json5>=0.9",
+]
+
+[dependency-groups]
+dev = [
+  "hatchling==1.31.0",
+  "json5>=0.9",
+  "psutil>=6.0",
+  "pyright>=1.1.411",
+  "pytest>=8.4",
+  "pytest-asyncio>=1.4",
+  "ruff==0.15.22",
+  "tomlkit>=0.11",
+]
+
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/soleaux"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"rust/Cargo.lock" = "soleaux/resources/structural/rust/Cargo.lock"
+"rust/Cargo.toml" = "soleaux/resources/structural/rust/Cargo.toml"
+"rust/soleaux-ast-grep-worker/Cargo.toml" = "soleaux/resources/structural/rust/soleaux-ast-grep-worker/Cargo.toml"
+"rust/soleaux-ast-grep-worker/src" = "soleaux/resources/structural/rust/soleaux-ast-grep-worker/src"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/docs/.blume",
+  "/docs/.blume-verify",
+  "/docs/.turbo",
+  "/docs/dist",
+  "/docs/node_modules",
+  "/rust/target",
+  "/telemetry/daemon/target",
+  "/scripts",
+  "/tests",
+]
+
+[tool.hatch.build.targets.sdist.force-include]
+"scripts/build_identity_hook.py" = "scripts/build_identity_hook.py"
+
+[tool.hatch.build.hooks.custom]
+path = "scripts/build_identity_hook.py"
+
+[tool.pyright]
+typeCheckingMode = "strict"
+include = ["scripts", "src", "tests"]
+exclude = ["scripts/soleaux/__tests__"]
+extraPaths = [".", "src"]
+pythonVersion = "3.14"
+venvPath = "."
+venv = ".venv"
+reportPrivateUsage = "none"
+
+[tool.pytest.ini_options]
+addopts = ["--strict-markers", "--strict-config"]
+faulthandler_exit_on_timeout = true
+faulthandler_timeout = "60"
+filterwarnings = [
+  "error",
+  # ResourceWarning emission rides garbage-collection timing, so erroring on it is nondeterministic.
+  "ignore::ResourceWarning",
+]
+pythonpath = [".", "src"]
+testpaths = ["tests", "scripts/soleaux/__tests__"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 100
+required-version = "==0.15.22"
+target-version = "py314"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+  "B",
+  "E",
+  "ERA",
+  "F",
+  "G",
+  "I",
+  "ICN",
+  "LOG",
+  "PGH",
+  "PTH",
+  "RET",
+  "RSE",
+  "RUF",
+  "SIM",
+  "UP",
+  "W",
+  "YTT",
+]
+# W191 is on the Ruff formatter's documented conflicting-rules list.
+ignore = ["W191"]
+
+[tool.uv]
+required-version = "==0.11.28"

@@ -1,0 +1,7 @@
+{
+  "endpoint": "http://soleaux.local/mcp",
+  "schema_version": "soleaux.local-deployment/v2",
+  "service_label": "dev.soleaux.<workspace-name>",
+  "socket_relative_path": "Library/Caches/Soleaux/<workspace-name>.sock",
+  "workspace_root": "/absolute/path/to/consuming/workspace"
+}

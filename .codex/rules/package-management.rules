@@ -1,0 +1,206 @@
+# Package-manager and dependency mutation commands.
+
+_PNPM_ONLY_MUTATION_JUSTIFICATION = "This repository is pnpm-only. Run the equivalent pnpm command, such as `pnpm install`, `pnpm add <package>`, or `pnpm remove <package>`, so pnpm-lock.yaml remains authoritative."
+
+prefix_rule(
+    pattern = ["npm", ["install", "i", "ci", "update", "uninstall", "remove", "rm", "link", "unlink", "publish"]],
+    decision = "forbidden",
+    justification = _PNPM_ONLY_MUTATION_JUSTIFICATION,
+    match = [
+        "npm install",
+        "npm i react",
+        "npm ci",
+        "npm update react",
+        "npm uninstall react",
+        "npm publish",
+    ],
+    not_match = [
+        "npm view react version",
+        "npm --version",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "--prefix", [".", "./"], ["install", "i", "ci", "update", "uninstall", "remove", "rm", "link", "unlink", "publish"]],
+    decision = "forbidden",
+    justification = _PNPM_ONLY_MUTATION_JUSTIFICATION,
+    match = [
+        "npm --prefix . install",
+        "npm --prefix ./ ci",
+        "npm --prefix . uninstall react",
+    ],
+    not_match = [
+        "npm --prefix . view react version",
+        "npm view react version",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", ["--prefix=.", "--prefix=./"], ["install", "i", "ci", "update", "uninstall", "remove", "rm", "link", "unlink", "publish"]],
+    decision = "forbidden",
+    justification = _PNPM_ONLY_MUTATION_JUSTIFICATION,
+    match = [
+        "npm --prefix=. install",
+        "npm --prefix=./ ci",
+    ],
+    not_match = [
+        "npm --prefix=. view react version",
+        "npm view react version",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "audit", ["fix", "--fix"]],
+    decision = "forbidden",
+    justification = "This repository is pnpm-only. Inspect with `pnpm audit`, update the affected package with `pnpm add <package>@<version>`, and verify package.json plus pnpm-lock.yaml.",
+    match = [
+        "npm audit fix",
+        "npm audit --fix",
+    ],
+    not_match = [
+        "npm audit",
+        "pnpm audit",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "pkg", ["set", "delete"]],
+    decision = "forbidden",
+    justification = "This repository is pnpm-only. Edit package.json through a structured change and run `pnpm install` when dependency fields change.",
+    match = [
+        "npm pkg set type=commonjs",
+        "npm pkg delete scripts.test",
+    ],
+    not_match = [
+        "npm pkg get name",
+        "pnpm pkg get name",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", ["exec", "x"]],
+    decision = "forbidden",
+    justification = "This repository is pnpm-only. Use `pnpm exec <installed-binary> ...`; for an intentional one-off, use an explicitly versioned `pnpm dlx <package>@<version> ...`.",
+    match = [
+        "npm exec vitest",
+        "npm x create-next-app",
+    ],
+    not_match = [
+        "npm view react version",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", ["it", "install-test"]],
+    decision = "forbidden",
+    justification = "This repository is pnpm-only and install-test runs npm install. Use pnpm install and pnpm test so pnpm-lock.yaml remains authoritative.",
+    match = [
+        "npm it",
+        "npm install-test",
+    ],
+    not_match = [
+        "npm view react version",
+        "pnpm test",
+    ],
+)
+
+prefix_rule(
+    pattern = ["yarn", ["install", "add", "remove", "upgrade", "up", "link", "unlink", "dlx", "create", "run", "publish"]],
+    decision = "forbidden",
+    justification = _PNPM_ONLY_MUTATION_JUSTIFICATION,
+    match = [
+        "yarn install",
+        "yarn add react",
+        "yarn dlx shadcn add button",
+    ],
+    not_match = [
+        "yarn info react",
+        "yarn --version",
+        "pnpm install",
+        "pnpm add react",
+    ],
+)
+
+prefix_rule(
+    pattern = ["bun", ["install", "add", "remove", "update", "upgrade", "x", "publish"]],
+    decision = "forbidden",
+    justification = _PNPM_ONLY_MUTATION_JUSTIFICATION,
+    match = [
+        "bun install",
+        "bun add react",
+        "bun update react",
+        "bun x shadcn",
+    ],
+    not_match = [
+        "bun --version",
+        "pnpm add react",
+    ],
+)
+
+prefix_rule(
+    pattern = ["bunx"],
+    decision = "forbidden",
+    justification = "This repository is pnpm-only. Use `pnpm exec <installed-binary> ...` or an explicitly versioned `pnpm dlx <package>@<version> ...`.",
+    match = [
+        "bunx shadcn add button",
+        "bunx create-next-app",
+    ],
+    not_match = [
+        "bun --version",
+        "pnpm exec turbo run build",
+    ],
+)
+
+prefix_rule(
+    pattern = ["bun", "run"],
+    decision = "forbidden",
+    justification = "This repository is pnpm-only. Run package scripts through pnpm so the task graph and lockfile stay authoritative.",
+    match = [
+        "bun run dev",
+    ],
+    not_match = [
+        "bun --version",
+        "pnpm dev",
+    ],
+)
+
+_PIP_MUTATION_VARIANTS = [
+    {
+        "pattern": ["pip", ["install", "uninstall"]],
+        "match": ["pip install fastmcp", "pip uninstall fastmcp"],
+        "not_match": ["pip list", "uv sync"],
+    },
+    {
+        "pattern": [["python", "python3"], "-m", "pip", ["install", "uninstall"]],
+        "match": [
+            "python -m pip install fastmcp",
+            "python3 -m pip uninstall fastmcp",
+        ],
+        "not_match": ["python -m pip list", "uv sync"],
+    },
+]
+
+_PIP_MUTATION_RULES = [
+    prefix_rule(
+        pattern = variant["pattern"],
+        decision = "forbidden",
+        justification = "Python dependencies are owned by uv. Use uv add, uv remove, or uv sync through the repository workflow.",
+        match = variant["match"],
+        not_match = variant["not_match"],
+    )
+    for variant in _PIP_MUTATION_VARIANTS
+]
+
+prefix_rule(
+    pattern = ["uv", "pip", ["install", "uninstall"]],
+    decision = "forbidden",
+    justification = "Do not mutate the environment with uv pip directly. Use uv add or uv remove for dependencies, then uv sync so pyproject.toml and uv.lock remain authoritative.",
+    match = [
+        "uv pip install fastmcp",
+        "uv pip uninstall fastmcp",
+    ],
+    not_match = [
+        "uv pip list",
+        "uv run pytest",
+    ],
+)

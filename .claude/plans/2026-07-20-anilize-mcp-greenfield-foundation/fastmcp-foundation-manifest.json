@@ -1,0 +1,269 @@
+{
+  "generatedAt": "2026-07-20T22:30:15Z",
+  "scope": "Local anilize-mcp greenfield stdio foundation only",
+  "allowedDispositions": ["add", "update", "unchanged/excluded"],
+  "counts": {
+    "total": 15,
+    "add": 1,
+    "update": 6,
+    "remove": 0,
+    "unchanged/excluded": 8
+  },
+  "rows": [
+    {
+      "path": "tools/anilize-mcp/src/anilize_mcp/server.py",
+      "owner": "tools/anilize-mcp/AGENTS.md: server composition",
+      "runner": "anilize-mcp console script and fastmcp.json",
+      "role": "composition root and stdio entrypoint",
+      "disposition": "update",
+      "confidence": "high",
+      "reason": "Set application identity, duplicate rejection, error masking, deliberate validation, and explicit stdio.",
+      "evidence": "Live source plus installed FastMCP 3.4.4 signature and transport failure probe.",
+      "targetOwner": "W1-T10",
+      "expectedState": "file",
+      "expectedPreimageSha256": "9a562ea8cfd042578723c6a2e6fb4a441e2fdd005549aab545e948b375092b57",
+      "ambientGitStatus": [
+        "D  tools/anilize-mcp/src/anilize_mcp/server.py",
+        "?? tools/anilize-mcp/src/anilize_mcp/server.py"
+      ]
+    },
+    {
+      "path": "tools/anilize-mcp/tests/test_server.py",
+      "owner": "tools/anilize-mcp/AGENTS.md: behavior contracts",
+      "runner": "pytest through pnpm mcp:test",
+      "role": "in-process server policy contract",
+      "disposition": "update",
+      "confidence": "high",
+      "reason": "Prove identity, empty catalogs, duplicate rejection, and masked client errors.",
+      "evidence": "Current test covers only ping and an empty tool catalog.",
+      "targetOwner": "W1-T10",
+      "expectedState": "file",
+      "expectedPreimageSha256": "1ea4287fb1d4958483c3c824c69b831bc0438e1abfe42881cd7e85d503eae4d6",
+      "ambientGitStatus": [
+        "D  tools/anilize-mcp/tests/test_server.py",
+        "?? tools/anilize-mcp/tests/test_server.py"
+      ]
+    },
+    {
+      "path": "tools/anilize-mcp/tests/test_stdio.py",
+      "owner": "tools/anilize-mcp/AGENTS.md: behavior contracts",
+      "runner": "pytest and FastMCP StdioTransport",
+      "role": "real console/profile transport and wheel smoke contract",
+      "disposition": "add",
+      "confidence": "high",
+      "reason": "No current test exercises a subprocess, ambient transport override, declarative profile, or installed artifact.",
+      "evidence": "Current inventory contains only tests/test_server.py; runtime probe reproduced the HTTP override failure.",
+      "targetOwner": "W2-T21",
+      "expectedState": "absent",
+      "expectedPreimageSha256": null,
+      "ambientGitStatus": []
+    },
+    {
+      "path": "tools/anilize-mcp/pyproject.toml",
+      "owner": "tools/anilize-mcp/AGENTS.md: direct dependencies and tool configuration",
+      "runner": "uv, Hatchling, pytest, Ruff, mypy",
+      "role": "installed package and quality configuration",
+      "disposition": "update",
+      "confidence": "high",
+      "reason": "Remove pytest source-path injection while preserving the installed package and existing toolchain.",
+      "evidence": "Line 39 currently sets pythonpath=[src]; the package is already installed in the shared uv environment.",
+      "targetOwner": "W2-T20",
+      "expectedState": "file",
+      "expectedPreimageSha256": "87a4304e22e374f79b1f9ec88dd051584742fd32c068569eb6b2a2d034d2d7c7",
+      "ambientGitStatus": ["MM tools/anilize-mcp/pyproject.toml"]
+    },
+    {
+      "path": "package.json",
+      "owner": "repository root MCP command entry points",
+      "runner": "pnpm",
+      "role": "canonical local operator wrappers",
+      "disposition": "update",
+      "confidence": "high",
+      "reason": "Make mcp:dev locked and add one locked mcp:inspect wrapper.",
+      "evidence": "mcp:dev omits --locked; lint, test, and typecheck are already locked.",
+      "targetOwner": "W2-T20",
+      "expectedState": "file",
+      "expectedPreimageSha256": "bd4d4a7c443046dab937c8e24c41b1dcea3b43e2282aeab6c31ad0fa550caeff",
+      "ambientGitStatus": ["MM package.json"]
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "owner": "repository CI",
+      "runner": "GitHub Actions python-quality job",
+      "role": "lock, quality, profile, build, and installed-artifact gate",
+      "disposition": "update",
+      "confidence": "high",
+      "reason": "Current CI lacks lock check, profile inspection, artifact build, isolated install, and wheel console smoke.",
+      "evidence": "Current python-quality steps stop after mcp:test.",
+      "targetOwner": "W3-T30",
+      "expectedState": "file",
+      "expectedPreimageSha256": "23f5c83a1b14abd87129dd9c9930db0a007839edf6e79a7564a3f87e45bbf418",
+      "ambientGitStatus": [" M .github/workflows/ci.yml"]
+    },
+    {
+      "path": "tools/anilize-mcp/AGENTS.md",
+      "owner": "Anilize MCP boundary",
+      "runner": "coding-agent instruction chain",
+      "role": "canonical package boundary and execution guidance",
+      "disposition": "update",
+      "confidence": "high",
+      "reason": "Codify verified post-implementation root defaults while preserving the corrected empty no-proxy boundary and validated FastMCP skill route.",
+      "evidence": "The package brief identifies the empty catalog, excludes ProxyProvider, and routes reusable workflow through the repository FastMCP skill; W5 remains responsible for verified constructor and command guidance.",
+      "targetOwner": "W5-T50",
+      "expectedState": "file",
+      "expectedPreimageSha256": "536b8452803bd2b9951db3a2eba977bf77f9a02d7aab502c8db26d14e3bb03c6",
+      "ambientGitStatus": ["MM tools/anilize-mcp/AGENTS.md"]
+    },
+    {
+      "path": "pyproject.toml",
+      "owner": "repository root uv workspace",
+      "runner": "uv",
+      "role": "virtual workspace and shared environment owner",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "Workspace membership, Python constraint, non-package mode, and uv pin are already correct.",
+      "evidence": "Direct manifest read and successful root uv execution.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "6a26dafe408bebc1df0419b6df5f7898c524d4f821c6c59fcc75043b84c975ff",
+      "ambientGitStatus": []
+    },
+    {
+      "path": ".python-version",
+      "owner": "repository Python runtime pin",
+      "runner": "uv and setup-uv",
+      "role": "exact interpreter selection",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "Python 3.14.6 is installed and successfully runs FastMCP 3.4.4.",
+      "evidence": "Runtime probe and direct file read.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "3a55324cbeddc91df012407d051dad08c88624c95a82fbdb856728729fbd14ab",
+      "ambientGitStatus": ["A  .python-version"]
+    },
+    {
+      "path": "uv.lock",
+      "owner": "repository root uv resolution",
+      "runner": "uv lock and sync",
+      "role": "resolved Python dependency graph",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "No dependency or extra change is required; lock mutation would be scope drift.",
+      "evidence": "uv lock --check succeeds and installed FastMCP is exactly 3.4.4.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "151379b57564a14cbf510397bb1dcd1d7b09df0071f53cfd046b8c86c8209d4d",
+      "ambientGitStatus": ["MM uv.lock"]
+    },
+    {
+      "path": "tools/anilize-mcp/fastmcp.json",
+      "owner": "tools/anilize-mcp/AGENTS.md: launch profile",
+      "runner": "FastMCP CLI",
+      "role": "declarative filesystem/uv/stdio profile",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "The v1 schema, explicit entrypoint, Python 3.14 project, cwd, and stdio deployment are already correct.",
+      "evidence": "FastMCP inspect and real profile subprocess both succeed.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "dd30430b77c636dcc68f73133da405ae921adf5d30a4c3c41178f3c0806ca48f",
+      "ambientGitStatus": ["MM tools/anilize-mcp/fastmcp.json"]
+    },
+    {
+      "path": "tools/anilize-mcp/src/anilize_mcp/__init__.py",
+      "owner": "anilize_mcp package",
+      "runner": "Python import system",
+      "role": "empty package marker",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "No public consumer API or re-export belongs in the package marker.",
+      "evidence": "Boundary forbids an exported client/helper surface.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "5d618f35e4a6074ef837f39c4a65dce829159b83172fc936b3a4bae8641ed160",
+      "ambientGitStatus": ["MM tools/anilize-mcp/src/anilize_mcp/__init__.py"]
+    },
+    {
+      "path": "tools/anilize-mcp/src/anilize_mcp/providers/__init__.py",
+      "owner": "anilize_mcp provider namespace",
+      "runner": "Python import system",
+      "role": "empty provider package marker",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "No provider capability or registration contract is approved.",
+      "evidence": "Live catalog and consumer inventory prove no first feature capability.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "c71c664d827bac1417e6fadef9dc46382bcc98097485255c07034d578700f94c",
+      "ambientGitStatus": [
+        "AM tools/anilize-mcp/src/anilize_mcp/providers/__init__.py"
+      ]
+    },
+    {
+      "path": ".codex/config.toml",
+      "owner": "Codex host configuration",
+      "runner": "Codex",
+      "role": "separate remote OAuth MCP consumer",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "The configured remote URL is a distinct external contract, not this local stdio package.",
+      "evidence": "Lines 10-17 point to https://anilize.fastmcp.app/mcp with OAuth.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "a7ac9e6c0ea4e63d8f3bdd471aab8cb0236f7862a8bc7f2df806206d5943ca0f",
+      "ambientGitStatus": ["MM .codex/config.toml"]
+    },
+    {
+      "path": ".claude/settings.json",
+      "owner": "Claude runtime settings",
+      "runner": "Claude Code",
+      "role": "non-MCP runtime settings",
+      "disposition": "unchanged/excluded",
+      "confidence": "high",
+      "reason": "No local MCP server registration is present or required.",
+      "evidence": "Direct settings search found runtime MCP limits and permissions but no server registration.",
+      "targetOwner": null,
+      "expectedState": "file",
+      "expectedPreimageSha256": "2139e2bbf1c3b938f815cf83a70a43c44703e1a1fd2111b944e64ef1bc93cefd",
+      "ambientGitStatus": ["MM .claude/settings.json"]
+    }
+  ],
+  "ambientStatusManifest": "./ambient-worktree-manifest.json",
+  "deletedTrackedPaths": {
+    "count": 46,
+    "source": "ambient-worktree-manifest.json rows whose index status is D"
+  },
+  "workingTreeDeletedPaths": {
+    "count": 630,
+    "source": "ambient-worktree-manifest.json rows whose working-tree status is D"
+  },
+  "excludedNameCollisions": [],
+  "ambientScope": {
+    "tools/anilize-mcpStatusRows": 683,
+    "stagedDeleted": 46,
+    "workingTreeDeleted": 630,
+    "untracked": 2,
+    "policy": "Every path not marked add or update above is protected and excluded; do not stage, restore, remove, or absorb it."
+  },
+  "routes": {
+    "creates": [],
+    "modifies": [],
+    "removes": []
+  },
+  "dependencies": {
+    "creates": [],
+    "modifies": [],
+    "removes": []
+  },
+  "generatedRepositoryOutputs": {
+    "creates": [],
+    "modifies": [],
+    "removes": []
+  },
+  "externalRollout": {
+    "creates": [],
+    "modifies": [],
+    "removes": []
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "devDependencies": {
+    "@ast-grep/lang-json": "catalog:",
+    "@ast-grep/lang-python": "catalog:",
+    "@ast-grep/napi": "catalog:",
+    "husky": "catalog:",
+    "turbo": "catalog:",
+    "vitest": "catalog:",
+    "yaml": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "name": "@soleaux/core",
+  "packageManager": "pnpm@11.16.0",
+  "private": true,
+  "scripts": {
+    "check:ci": "uv run --locked ruff check . && uv run --locked ruff format --check . && uv run --locked pyright",
+    "check:hooks": "pnpm run husky:test",
+    "husky:test": "vitest run .github/scripts/__tests__/husky.test.mjs",
+    "prepare": "husky",
+    "test:unit": "uv run --locked pytest && vitest run scripts/soleaux/",
+    "typecheck": "uv run --locked pyright"
+  },
+  "type": "module"
+}

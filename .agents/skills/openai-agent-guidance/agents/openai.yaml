@@ -1,0 +1,13 @@
+interface:
+  display_name: "OpenAI Agent Guidance"
+  short_description: "Build or migrate OpenAI agents using current official guidance."
+  default_prompt: "Use $openai-agent-guidance to review or implement this OpenAI model, prompt, cache, citation, tool, skill, or multi-agent change."
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "openai-docs"
+      description: "Current official OpenAI developer documentation"
+      transport: "streamable_http"
+      url: "https://developers.openai.com/mcp"

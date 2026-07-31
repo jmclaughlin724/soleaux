@@ -1,0 +1,5 @@
+def requires_integer(value: int) -> int:
+    return value
+
+
+requires_integer("not an integer")

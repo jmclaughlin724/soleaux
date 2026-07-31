@@ -1,0 +1,6 @@
+interface:
+  display_name: "Elegant"
+  short_description: "Consolidate accepted designs to one canonical owner"
+  default_prompt: "Use $elegant for this explicitly accepted clean-slate consolidation and migrate every in-scope consumer."
+policy:
+  allow_implicit_invocation: false

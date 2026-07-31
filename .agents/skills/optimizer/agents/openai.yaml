@@ -1,0 +1,6 @@
+interface:
+  display_name: "Optimizer"
+  short_description: "Skill catalogs and Claude + Codex surface optimization"
+  default_prompt: "Use $optimizer to design, review, or repair skill catalogs and Claude or Codex agent-surface configuration."
+policy:
+  allow_implicit_invocation: true

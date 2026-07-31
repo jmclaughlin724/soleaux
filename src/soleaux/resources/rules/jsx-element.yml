@@ -1,0 +1,9 @@
+id: jsx-element
+language: Tsx
+severity: info
+message: JSX element candidate
+note: JSX element usage candidate (JSX class).
+rule:
+  any:
+    - kind: jsx_element
+    - kind: jsx_self_closing_element

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Python"
+  short_description: "Python code, CLI, packaging, testing, and release"
+  default_prompt: "Use $python to design, test, package, observe, secure, or release Python apps and libraries."
+policy:
+  allow_implicit_invocation: true

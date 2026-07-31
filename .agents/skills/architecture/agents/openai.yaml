@@ -1,0 +1,6 @@
+interface:
+  display_name: "Architecture"
+  short_description: "Design ownership and placement boundaries"
+  default_prompt: "Use $architecture to decide canonical ownership and where a contract, behavior, or durable instruction belongs."
+policy:
+  allow_implicit_invocation: true

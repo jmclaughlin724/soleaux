@@ -1,0 +1,17 @@
+# Privilege escalation.
+
+prefix_rule(
+    pattern = [["sudo", "doas", "pkexec", "su"]],
+    decision = "forbidden",
+    justification = "Do not escalate privileges for repository work. Use the unprivileged repository command or request an environment change.",
+    match = [
+        "sudo pnpm install",
+        "doas rm file",
+        "pkexec sh",
+        "su -c whoami",
+    ],
+    not_match = [
+        "pnpm install",
+        "git status",
+    ],
+)
