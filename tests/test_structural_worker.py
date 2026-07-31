@@ -245,8 +245,8 @@ async def test_default_worker_is_isolated_from_workspace_modules_and_host_secret
     assert "SOLEAUX_TEST_UNLISTED_SECRET" not in environment
     assert "PYTHONPATH" not in environment
     assert environment == soleaux.postgresql.runtime.build_safe_environment(
-        {"MALLOC_ARENA_MAX": "2"},
-        environment_names=("MALLOC_ARENA_MAX",),
+        {},
+        environment_names=(),
     )
     assert spawn.call_args_list[0].kwargs["start_new_session"] is True
     assert "creationflags" not in spawn.call_args_list[0].kwargs

@@ -352,8 +352,8 @@ class StructuralWorkerSupervisor:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=soleaux.postgresql.runtime.build_safe_environment(
-                    {"MALLOC_ARENA_MAX": "2"},
-                    environment_names=("MALLOC_ARENA_MAX",),
+                    {},
+                    environment_names=(),
                 ),
                 start_new_session=True,
             )
