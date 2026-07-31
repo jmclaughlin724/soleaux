@@ -87,6 +87,12 @@ def _is_mcp_namespace(value: str) -> bool:
     return not previous_was_separator
 
 
+# Names the product already occupies: ``soleaux`` is the server identity,
+# ``local`` is the metrics attribution sentinel for built-in operations, and
+# ``telemetry_`` prefixes the conditionally attached local telemetry tools.
+RESERVED_MCP_NAMESPACES: tuple[str, ...] = ("soleaux", "local", "telemetry")
+
+
 def _is_http_token(value: str) -> bool:
     return bool(value) and all(character in _HTTP_TOKEN_CHARACTERS for character in value)
 
@@ -212,6 +218,19 @@ class McpBackendConfig(pydantic.BaseModel):
     forward_progress: typing.Literal[False] = False
     fail_open: typing.Literal[True] = True
 
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _infer_legacy_bearer_auth(cls, data: object) -> object:
+        # The pre-D035 schema had no auth field; a bare auth_token_env meant
+        # bearer auth. Keep those configs loading by inferring bearer_env only
+        # when auth is absent, so an explicit conflicting auth still fails.
+        if not isinstance(data, dict):
+            return data
+        mapping = typing.cast("dict[str, typing.Any]", data)
+        if mapping.get("auth_token_env") is not None and "auth" not in mapping:
+            return {**mapping, "auth": "bearer_env"}
+        return mapping
+
     @pydantic.model_validator(mode="after")
     def _validate_backend(self) -> McpBackendConfig:
         has_command = self.command is not None
@@ -253,6 +272,7 @@ class McpBackendConfig(pydantic.BaseModel):
             return
         oauth_fields_set = (
             bool(self.oauth_scopes)
+            or "oauth_client_name" in self.model_fields_set
             or self.oauth_client_metadata_url is not None
             or self.oauth_token_endpoint_auth_method is not None
             or self.client_id_env is not None
@@ -670,7 +690,7 @@ class ResolvedConfig(pydantic.BaseModel):
     def _validate_mcp_namespaces(self) -> ResolvedConfig:
         names = sorted(self.mcp)
         for name in names:
-            if name == "soleaux" or not _is_mcp_namespace(name):
+            if name in RESERVED_MCP_NAMESPACES or not _is_mcp_namespace(name):
                 raise ValueError(f"invalid or reserved MCP namespace: {name!r}")
         for index, name in enumerate(names):
             for other in names[index + 1 :]:

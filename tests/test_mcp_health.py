@@ -420,3 +420,141 @@ async def test_about_resource_surfaces_mcp_backends(
     backend = about_backend(about_payload)
     assert backend["name"] == "fixture"
     assert backend["state"] == "ok"
+
+
+async def test_probe_once_probes_backends_concurrently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        gateway_module,
+        "_transport_factory",
+        _recording_factory(_backend_server("alpha"), calls),
+    )
+    reached = {"aaa": asyncio.Event(), "bbb": asyncio.Event()}
+
+    async def gated_tokens(_backend: McpBackendConfig, *, backend_name: str) -> bool:
+        reached[backend_name].set()
+        if backend_name == "aaa":
+            # Serial probing would deadlock here: bbb would never be reached.
+            await asyncio.wait_for(reached["bbb"].wait(), timeout=5)
+        return True
+
+    monkeypatch.setattr(mcp_health_module, "_has_stored_tokens", gated_tokens)
+    config = ResolvedConfig(
+        mcp={
+            "aaa": McpBackendConfig(url="https://aaa.invalid/mcp", auth="oauth"),
+            "bbb": McpBackendConfig(url="https://bbb.invalid/mcp", auth="oauth"),
+        }
+    )
+    tracker = McpHealthTracker(tmp_path, config)
+
+    await asyncio.wait_for(tracker.probe_once(), timeout=10)
+
+    assert _snapshot(tracker, "aaa")["state"] == "ok"
+    assert _snapshot(tracker, "bbb")["state"] == "ok"
+
+
+async def test_rejected_oauth_credentials_classify_as_unauthenticated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from soleaux.gateway import McpBackendAuthRequiredError
+
+    monkeypatch.setattr(
+        gateway_module,
+        "_transport_factory",
+        _failing_factory(
+            McpBackendAuthRequiredError(
+                "MCP backend 'remote' is not authenticated; run `soleaux mcp login remote`"
+            )
+        ),
+    )
+
+    async def stored_tokens(_backend: McpBackendConfig, *, backend_name: str) -> bool:
+        _ = backend_name
+        return True
+
+    monkeypatch.setattr(mcp_health_module, "_has_stored_tokens", stored_tokens)
+    config = ResolvedConfig(
+        mcp={"remote": McpBackendConfig(url="https://backend.invalid/mcp", auth="oauth")}
+    )
+    tracker = McpHealthTracker(tmp_path, config)
+
+    await tracker.probe_once()
+
+    snapshot = _snapshot(tracker, "remote")
+    assert snapshot["state"] == "unauthenticated"
+    assert "soleaux mcp login remote" in str(snapshot["last_error"])
+
+
+async def test_rejected_bearer_token_classifies_as_unauthenticated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx2
+
+    request = httpx2.Request("GET", "https://backend.invalid/mcp")
+    rejected = httpx2.HTTPStatusError(
+        "401 Unauthorized",
+        request=request,
+        response=httpx2.Response(401, request=request),
+    )
+    monkeypatch.setattr(
+        gateway_module,
+        "_transport_factory",
+        _failing_factory(ExceptionGroup("probe failed", [rejected])),
+    )
+    monkeypatch.setenv("SOLEAUX_HEALTH_TEST_TOKEN", "stored-token")
+    config = ResolvedConfig(
+        mcp={
+            "remote": McpBackendConfig(
+                url="https://backend.invalid/mcp",
+                auth="bearer_env",
+                auth_token_env="SOLEAUX_HEALTH_TEST_TOKEN",
+            )
+        }
+    )
+    tracker = McpHealthTracker(tmp_path, config)
+
+    await tracker.probe_once()
+
+    assert _snapshot(tracker, "remote")["state"] == "unauthenticated"
+
+
+async def test_catalog_digest_binds_complete_tool_definitions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def server_with_description(description: str) -> FastMCP[None]:
+        server: FastMCP[None] = FastMCP(name="health-backend")
+
+        def ping() -> str:
+            return "pong"
+
+        server.tool(name="alpha", description=description)(ping)
+        return server
+
+    calls: list[str] = []
+    tracker = McpHealthTracker(tmp_path, _command_config("fixture"))
+
+    monkeypatch.setattr(
+        gateway_module,
+        "_transport_factory",
+        _recording_factory(server_with_description("first"), calls),
+    )
+    await tracker.probe_once()
+    first_digest = _snapshot(tracker, "fixture")["catalog_digest"]
+
+    monkeypatch.setattr(
+        gateway_module,
+        "_transport_factory",
+        _recording_factory(server_with_description("second"), calls),
+    )
+    await tracker.probe_once()
+    second_digest = _snapshot(tracker, "fixture")["catalog_digest"]
+
+    assert isinstance(first_digest, str)
+    assert isinstance(second_digest, str)
+    assert first_digest != second_digest

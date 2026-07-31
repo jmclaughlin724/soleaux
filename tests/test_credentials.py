@@ -82,6 +82,29 @@ def test_keyring_store_selection_does_not_touch_the_disk_root(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_keyring_store_isolates_each_backend_by_service_name(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _isolate_token_root(monkeypatch, tmp_path)
+    service_names: list[str] = []
+
+    class _RecordingKeyringStore:
+        def __init__(self, *, service_name: str, **_kwargs: object) -> None:
+            service_names.append(service_name)
+
+    monkeypatch.setattr(soleaux.credentials, "KeyringStore", _RecordingKeyringStore)
+
+    soleaux.credentials.build_token_store(
+        _oauth_backend(token_store="keyring"), backend_name="alpha"
+    )
+    soleaux.credentials.build_token_store(
+        _oauth_backend(token_store="keyring"), backend_name="beta"
+    )
+
+    assert service_names == ["soleaux-alpha", "soleaux-beta"]
+
+
 def test_clear_token_store_reports_absence(
     tmp_path: pathlib.Path,
     monkeypatch: pytest.MonkeyPatch,

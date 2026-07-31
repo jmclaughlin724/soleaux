@@ -33,7 +33,6 @@ EXPECTED_LOCAL_RESOURCES = (
     "soleaux://health/v1",
     "soleaux://providers/v1",
     "soleaux://skills/v1",
-    "soleaux://mcp/v1",
 )
 EXPECTED_ANALYSIS_COMMANDS = frozenset(
     {

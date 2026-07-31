@@ -83,7 +83,7 @@ SERVER_INSTRUCTIONS = (
     "provider sessions. The soleaux://about resource lists the full catalog. Zero rows "
     "means none found only under complete coverage; every result names its evidence. "
     "Soleaux is also the MCP gateway: every configured MCP server reaches this host "
-    "through soleaux, its tools namespaced as <backend>_<tool>. The soleaux://mcp/v1 "
+    "through soleaux, its tools namespaced as <backend>_<tool>. The soleaux://about "
     "resource lists backends with their lifecycle, auth mode, and live health. Backend "
     "registration and tool policy are owned by soleaux.toml; never edit host MCP configs "
     "or propose per-host registrations. If a backend call fails because it is not "
@@ -841,82 +841,6 @@ def skills(context: fastmcp.Context = _CURRENT_CONTEXT) -> str:
     return json.dumps(payload, indent=2)
 
 
-@fastmcp.resources.resource(
-    "soleaux://mcp/v1",
-    name="mcp_registry",
-    description=(
-        "Live MCP gateway registry: every configured backend with its lifecycle, "
-        "auth mode and state, latest health probe, server version, and catalog digest."
-    ),
-    mime_type="application/json",
-)
-async def mcp_registry(context: fastmcp.Context = _CURRENT_CONTEXT) -> str:
-    """The live gateway registry: config, policy, and health per backend."""
-    state = _state(context)
-    described = await state.service.describe(
-        soleaux.contracts.requests.DescribeRequest(workspace_id=state.service.workspace_ids[0])
-    )
-    described_data = described.data or {}
-    health_raw: object = described_data.get("mcp_backends")
-    health: dict[str, typing.Any] = (
-        typing.cast("dict[str, typing.Any]", health_raw) if isinstance(health_raw, dict) else {}
-    )
-    health_by_name: dict[str, dict[str, typing.Any]] = {}
-    health_entries: object = health.get("backends")
-    if isinstance(health_entries, list):
-        for entry_value in typing.cast("list[object]", health_entries):
-            if not isinstance(entry_value, dict):
-                continue
-            entry = typing.cast("dict[str, typing.Any]", entry_value)
-            entry_name: object = entry.get("name")
-            if isinstance(entry_name, str):
-                health_by_name[entry_name] = entry
-
-    backends: list[dict[str, object]] = []
-    for name, backend in sorted(state.config.mcp.items()):
-        policy_backend = state.config.policy.backends.get(name)
-        entry: dict[str, object] = {
-            "name": name,
-            "enabled": backend.enabled,
-            "transport": "command" if backend.command is not None else "url",
-            "lifecycle": backend.lifecycle,
-            "auth": backend.auth,
-            "policy": {
-                "default": policy_backend.default.value if policy_backend is not None else "ask",
-                "tools": (
-                    {tool: effect.value for tool, effect in sorted(policy_backend.tools.items())}
-                    if policy_backend is not None
-                    else {}
-                ),
-            },
-        }
-        if backend.auth == "oauth":
-            entry["token_store"] = backend.token_store
-        snapshot = health_by_name.get(name)
-        if snapshot is not None:
-            entry["health"] = {
-                key: snapshot.get(key)
-                for key in (
-                    "state",
-                    "tool_count",
-                    "catalog_digest",
-                    "server_version",
-                    "last_probe_at",
-                    "last_error",
-                    "elapsed_ms",
-                )
-            }
-        backends.append(entry)
-
-    payload = {
-        "schema_version": "soleaux.mcp-registry/v1",
-        "probe_interval_seconds": health.get("probe_interval_seconds"),
-        "backend_count": len(backends),
-        "backends": backends,
-    }
-    return json.dumps(payload, indent=2)
-
-
 LOCAL_RESOURCES: tuple[collections.abc.Callable[..., object], ...] = (
     about,
     guide,
@@ -925,7 +849,6 @@ LOCAL_RESOURCES: tuple[collections.abc.Callable[..., object], ...] = (
     health,
     providers,
     skills,
-    mcp_registry,
 )
 
 
@@ -1029,7 +952,12 @@ def create_server(
     soleaux.gateway.attach_mcp_proxies(server, resolved_config, resolved_root)
     soleaux.skills.attach_skills_provider(server, resolved_config, resolved_root)
     soleaux.telemetry.attach_telemetry_tools(server, resolved_config)
-    server.add_middleware(soleaux.metrics.MetricsMiddleware.from_config(resolved_config))
+    server.add_middleware(
+        soleaux.metrics.MetricsMiddleware.from_config(
+            resolved_config,
+            local_tools=soleaux.surface.tool_names(),
+        )
+    )
     return server
 
 

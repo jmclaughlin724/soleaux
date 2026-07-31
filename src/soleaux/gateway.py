@@ -310,12 +310,21 @@ def _client_factory(
     transport_factory = _transport_factory(backend, root, backend_name=backend_name)
     if backend.url is not None:
         if backend.lifecycle == "shared":
-            shared_client = fastmcp.server.providers.proxy.ProxyClient(
-                transport_factory(),
-                mode="auto",
-                **_client_options(backend),
-            )
-            return lambda: shared_client
+            shared_client: fastmcp.Client[typing.Any] | None = None
+
+            def shared_http_client() -> fastmcp.Client[typing.Any]:
+                # Construct on first use so a missing secret degrades this one
+                # backend instead of failing server construction (D034).
+                nonlocal shared_client
+                if shared_client is None:
+                    shared_client = fastmcp.server.providers.proxy.ProxyClient(
+                        transport_factory(),
+                        mode="auto",
+                        **_client_options(backend),
+                    )
+                return shared_client
+
+            return shared_http_client
 
         def create_http_client() -> fastmcp.Client[typing.Any]:
             return fastmcp.server.providers.proxy.ProxyClient(

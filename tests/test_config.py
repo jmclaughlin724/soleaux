@@ -285,6 +285,8 @@ def test_mcp_namespaces_accept_stable_kebab_and_snake_case() -> None:
     "namespace",
     [
         pytest.param("soleaux", id="reserved"),
+        pytest.param("local", id="reserved-metrics-sentinel"),
+        pytest.param("telemetry", id="reserved-telemetry-prefix"),
         pytest.param("Uppercase", id="uppercase"),
         pytest.param("-leading", id="leading-separator"),
         pytest.param("trailing-", id="trailing-separator"),
@@ -577,6 +579,24 @@ def test_mcp_callback_and_failure_defaults_are_fail_open_and_deny_forwarding() -
     assert backend.fail_open is True
 
 
+def test_mcp_legacy_bare_auth_token_env_infers_bearer_env() -> None:
+    backend = soleaux.contracts.config.McpBackendConfig.model_validate(
+        {"url": "https://example.com/mcp", "auth_token_env": "TOKEN"}
+    )
+
+    assert backend.auth == "bearer_env"
+    assert backend.auth_token_env == "TOKEN"
+
+
+def test_mcp_oauth_client_name_requires_oauth_auth() -> None:
+    with _assertions.raises_with_message(
+        pydantic.ValidationError, 'MCP OAuth fields require auth = "oauth"'
+    ):
+        soleaux.contracts.config.McpBackendConfig.model_validate(
+            {"url": "https://example.com/mcp", "oauth_client_name": "Custom"}
+        )
+
+
 def test_mcp_fail_open_policy_cannot_be_disabled() -> None:
     with pytest.raises(pydantic.ValidationError):
         _mcp_model(fail_open=False)
@@ -591,9 +611,9 @@ def test_mcp_fail_open_policy_cannot_be_disabled() -> None:
             id="bearer-without-token-env",
         ),
         pytest.param(
-            {"url": "https://example.com/mcp", "auth_token_env": "TOKEN"},
+            {"url": "https://example.com/mcp", "auth": "none", "auth_token_env": "TOKEN"},
             'requires auth = "bearer_env"',
-            id="token-env-without-bearer",
+            id="explicit-none-with-token-env",
         ),
         pytest.param(
             {"command": ["backend"], "auth": "oauth"},

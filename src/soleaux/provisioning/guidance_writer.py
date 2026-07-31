@@ -26,18 +26,40 @@ after they confirm; never retry-loop. `soleaux mcp status` and
 GUIDANCE_BLOCK = f"{GUIDANCE_BEGIN}\n{GUIDANCE_BODY}\n{GUIDANCE_END}"
 
 
+class GuidanceMarkerError(ValueError):
+    """The guidance file carries an incomplete or duplicate marker pair."""
+
+
 def render_guidance(current: bytes | None) -> bytes | None:
     """Return the file content with exactly one current guidance block.
 
     Replaces the content between existing markers, appends when absent, and
-    returns ``None`` when the file already carries the current block.
+    returns ``None`` when the file already carries the current block. A file
+    with an incomplete or duplicated marker pair is rejected: pairing the
+    first literal matches could span and delete human-authored guidance.
     """
     if current is None:
         return f"{GUIDANCE_BLOCK}\n".encode()
     text = current.decode("utf-8")
-    begin = text.find(GUIDANCE_BEGIN)
-    end = text.find(GUIDANCE_END)
-    if begin != -1 and end != -1 and begin < end:
+    begins = text.count(GUIDANCE_BEGIN)
+    ends = text.count(GUIDANCE_END)
+    if begins > 1 or ends > 1:
+        raise GuidanceMarkerError(
+            "duplicate soleaux-gateway markers; remove all but one"
+            f" {GUIDANCE_BEGIN} ... {GUIDANCE_END} pair"
+        )
+    if begins != ends:
+        raise GuidanceMarkerError(
+            f"incomplete soleaux-gateway marker pair; add or remove {GUIDANCE_BEGIN}"
+            f" and {GUIDANCE_END} so they appear together"
+        )
+    if begins == 1:
+        begin = text.find(GUIDANCE_BEGIN)
+        end = text.find(GUIDANCE_END)
+        if begin > end:
+            raise GuidanceMarkerError(
+                f"reversed soleaux-gateway markers; {GUIDANCE_BEGIN} must precede {GUIDANCE_END}"
+            )
         existing = text[begin : end + len(GUIDANCE_END)]
         if existing == GUIDANCE_BLOCK:
             return None

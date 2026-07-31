@@ -86,7 +86,9 @@ def _process_exists(pid: int) -> bool:
 
 
 async def _assert_processes_exit(*pids: int) -> None:
-    for _ in range(200):
+    # Session teardown serializes stdin-close grace, SIGTERM, and tree-kill
+    # (~2s each in mcp stdio); under full-suite load 4s is not enough.
+    for _ in range(750):
         if not any(_process_exists(pid) for pid in pids):
             return
         await asyncio.sleep(0.02)

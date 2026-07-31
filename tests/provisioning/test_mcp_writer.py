@@ -101,7 +101,8 @@ def test_register_codex_writes_validatable_toml(tmp_path: pathlib.Path) -> None:
     assert "default_tools_approval_mode" not in soleaux_entry
 
 
-def test_register_codex_scrubs_stale_approval_gate(tmp_path: pathlib.Path) -> None:
+def test_register_codex_preserves_policy_owned_approval_keys(tmp_path: pathlib.Path) -> None:
+    """Approval keys belong to policy_writer; registration leaves them alone."""
     target = tmp_path / ".codex" / "config.toml"
     target.parent.mkdir()
     target.write_text(
@@ -112,9 +113,29 @@ def test_register_codex_scrubs_stale_approval_gate(tmp_path: pathlib.Path) -> No
 
     changed = mcp_writer.register_in_codex_config(target)
 
-    assert changed is True
+    assert changed is False
     parsed = tomllib.loads(target.read_text(encoding="utf-8"))
-    assert "default_tools_approval_mode" not in parsed["mcp_servers"]["soleaux"]
+    assert parsed["mcp_servers"]["soleaux"]["default_tools_approval_mode"] == "prompt"
+
+
+def test_register_codex_force_rewrite_carries_policy_keys_forward(
+    tmp_path: pathlib.Path,
+) -> None:
+    target = tmp_path / ".codex" / "config.toml"
+    target.parent.mkdir()
+    target.write_text(
+        '[mcp_servers.soleaux]\ncommand = "uvx"\nargs = ["soleaux"]\n'
+        'default_tools_approval_mode = "approve"\n'
+        'disabled_tools = ["github_delete_repository"]\n',
+        encoding="utf-8",
+    )
+
+    changed = mcp_writer.register_in_codex_config(target, force=True)
+
+    assert changed is True
+    soleaux_entry = tomllib.loads(target.read_text(encoding="utf-8"))["mcp_servers"]["soleaux"]
+    assert soleaux_entry["default_tools_approval_mode"] == "approve"
+    assert soleaux_entry["disabled_tools"] == ["github_delete_repository"]
 
 
 def test_register_codex_preserves_comments(tmp_path: pathlib.Path) -> None:

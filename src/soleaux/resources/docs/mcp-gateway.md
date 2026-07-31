@@ -12,7 +12,7 @@ Soleaux is the MCP gateway between your host and every MCP server you use. Each 
 
 `soleaux.toml` is the single registry. Host MCP configurations (`.mcp.json`, `.codex/config.toml`, and equivalents) hold only the Soleaux bridge registration; they never list backend servers directly. Backend tools arrive through the gateway namespaced as `<backend>_<tool>` — a `github` backend's `create_issue` tool appears as `github_create_issue`.
 
-The `soleaux://mcp/v1` resource lists registered backends with their lifecycle, auth mode, and live health for agent-facing consumption.
+The `soleaux://about` resource lists registered backends with their lifecycle, auth mode, and live health for agent-facing consumption.
 
 Agents never edit host MCP configurations and never propose per-host registrations. When a backend is missing, propose the `[mcp.<name>]` block for `soleaux.toml` and let a human apply it.
 
@@ -85,7 +85,7 @@ stateless = true
 A command backend:
 
 ```toml
-[mcp.local]
+[mcp.files]
 command = ["backend-server", "--stdio"]
 lifecycle = "session"
 ```
@@ -115,7 +115,7 @@ create_issue = "ask"
 delete_repository = "deny"
 ```
 
-`soleaux.toml` owns policy effects. Host approval surfaces — Codex approval modes, host permission rules, and equivalents — are rendered output derived from this section, not independent sources of truth. Live backend membership is unknowable at config-load time, so only the shape of tool entries is validated; a stale tool key takes effect again if the backend re-exposes that name.
+`soleaux.toml` owns policy effects. Host approval surfaces — Codex approval modes, host permission rules, and equivalents — are rendered output derived from this section, not independent sources of truth. `soleaux adopt` merges the rendered surfaces into the registered host files after writing its registrations, and `soleaux generate host-policy --apply` re-applies them on demand; both write through the provisioning backups so `soleaux adopt --revert` restores the prior state. `soleaux generate host-policy` without `--apply` prints the rendered bundle for inspection. Codex matches tools only by exact name against one server-wide approval mode, so a backend rendered to Codex must use `default = "allow"` with every stricter tool pinned explicitly; a non-`allow` default fails rendering closed instead of silently auto-approving unlisted tools. Live backend membership is unknowable at config-load time, so only the shape of tool entries is validated; a stale tool key takes effect again if the backend re-exposes that name.
 
 ## Troubleshoot backends
 

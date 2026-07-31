@@ -84,5 +84,6 @@ class BackupRecord(_Model):
 class AdoptionResult(_Model):
     workspace_root: str = Field(min_length=1)
     backups: tuple[BackupRecord, ...] = ()
+    created: tuple[str, ...] = ()
     written: tuple[str, ...] = ()
     skipped: tuple[str, ...] = ()

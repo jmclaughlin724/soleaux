@@ -8,7 +8,7 @@ operation is forwarded toward the telemetry daemon's MCP-ingest route
 (``/api/v1/mcp/events``, owned by GW-13) through a bounded fire-and-forget
 emitter: emission is fail-open and never raises into, or blocks, the request
 path. ``MetricsMiddleware.snapshot`` exposes the recent in-memory aggregate
-per backend for the ``soleaux://mcp/v1`` resource.
+per backend for diagnostic consumers.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ class ToolCallEvent:
 
 
 class MetricsEmitter(typing.Protocol):
-    """Emission sink for tool-call events; implementations must not raise."""
+    """Emission sink for tool-call events; the middleware isolates failures."""
 
     async def emit(self, event: ToolCallEvent) -> None: ...
 
@@ -74,11 +74,11 @@ class DaemonMetricsEmitter:
         self._client_factory = client_factory
 
     async def emit(self, event: ToolCallEvent) -> None:
-        try:
-            async with self._client_factory() as client:
-                await client.post(MCP_EVENT_INGEST_PATH, json=event.payload())
-        except Exception:
-            logger.debug("soleaux metrics event dropped: daemon unreachable", exc_info=True)
+        async with self._client_factory() as client:
+            # A reachable daemon that rejects ingestion (4xx/5xx) is a dropped
+            # event, not a delivered one; the middleware counts the failure.
+            response = await client.post(MCP_EVENT_INGEST_PATH, json=event.payload())
+            response.raise_for_status()
 
 
 @dataclasses.dataclass
@@ -98,10 +98,14 @@ class MetricsMiddleware(Middleware):
         self,
         *,
         backends: tuple[str, ...] = (),
+        local_tools: tuple[str, ...] = (),
         emitter: MetricsEmitter | None = None,
     ) -> None:
         # Longest first so a namespace that prefixes another still wins.
         self._namespaces = tuple(sorted(backends, key=len, reverse=True))
+        # Canonical local identities win before namespace-prefix attribution:
+        # a backend named `restart` must not capture the local `restart_lsp`.
+        self._local_tools = frozenset(local_tools)
         self._emitter: MetricsEmitter = emitter if emitter is not None else NoopMetricsEmitter()
         self._aggregates: dict[str, _BackendAggregate] = {}
         self._pending: set[asyncio.Task[None]] = set()
@@ -109,16 +113,23 @@ class MetricsMiddleware(Middleware):
         self._dropped = 0
 
     @classmethod
-    def from_config(cls, config: soleaux.contracts.config.ResolvedConfig) -> MetricsMiddleware:
+    def from_config(
+        cls,
+        config: soleaux.contracts.config.ResolvedConfig,
+        *,
+        local_tools: tuple[str, ...] = (),
+    ) -> MetricsMiddleware:
         emitter: MetricsEmitter = (
             DaemonMetricsEmitter(soleaux.telemetry.build_client_factory(config))
             if config.telemetry.enabled
             else NoopMetricsEmitter()
         )
         backends = tuple(name for name, backend in config.mcp.items() if backend.enabled)
-        return cls(backends=backends, emitter=emitter)
+        return cls(backends=backends, local_tools=local_tools, emitter=emitter)
 
     def backend_for(self, tool_name: str) -> str:
+        if tool_name in self._local_tools:
+            return LOCAL_BACKEND
         for namespace in self._namespaces:
             if tool_name.startswith(f"{namespace}_"):
                 return namespace
@@ -199,6 +210,7 @@ class MetricsMiddleware(Middleware):
         try:
             await self._emitter.emit(event)
         except Exception:
+            self._dropped += 1
             logger.debug("soleaux metrics emission failed", exc_info=True)
 
     def snapshot(self) -> dict[str, typing.Any]:

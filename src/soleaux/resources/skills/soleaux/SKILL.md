@@ -94,7 +94,7 @@ Configured MCP components are additive and namespaced; they never replace the lo
 
 ## Work through the MCP gateway
 
-Every configured MCP server reaches the host through Soleaux as the gateway. Backend tools arrive namespaced as `<backend>_<tool>` — a `github` backend's `create_issue` tool appears as `github_create_issue`. Read the `soleaux://mcp/v1` resource to discover registered backends with their lifecycle, auth mode, and live health before calling a backend tool.
+Every configured MCP server reaches the host through Soleaux as the gateway. Backend tools arrive namespaced as `<backend>_<tool>` — a `github` backend's `create_issue` tool appears as `github_create_issue`. Read the `soleaux://about` resource to discover registered backends with their lifecycle, auth mode, and live health before calling a backend tool.
 
 When a backend call fails because the backend is not authenticated, do not retry it and do not loop. Tell the user to run `soleaux mcp login <backend>` in their shell — the daemon never launches a browser — then retry the call only after they confirm the login completed. `soleaux mcp status` shows each backend's transport, lifecycle, and auth state; `soleaux mcp doctor` probes liveness and never triggers interactive auth.
 

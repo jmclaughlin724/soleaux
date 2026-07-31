@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, HashSet}, convert::Infallible, net::SocketAddr, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
 
-use axum::{extract::{Path, State}, http::StatusCode, response::{sse::Event, IntoResponse, Sse}, routing::{get, post}, Json, Router};
+use axum::{extract::{Path, Query, State}, http::StatusCode, response::{sse::Event, IntoResponse, Sse}, routing::{get, post}, Json, Router};
 use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, System};
@@ -324,8 +324,33 @@ async fn record_mcp_event(State(state): State<AppState>, Json(event): Json<McpTo
     (StatusCode::CREATED, Json(event))
 }
 
-async fn list_mcp_events(State(state): State<AppState>) -> impl IntoResponse {
-    Json(state.mcp_events.read().await.clone())
+#[derive(Deserialize)]
+struct McpEventQuery {
+    backend: Option<String>,
+    limit: Option<usize>,
+}
+
+// Drill-down consumers poll one backend's recent calls every few seconds; the
+// page cap keeps a full 10,000-event retention buffer off the wire.
+const MAX_MCP_EVENT_PAGE: usize = 1_000;
+
+async fn list_mcp_events(State(state): State<AppState>, Query(query): Query<McpEventQuery>) -> impl IntoResponse {
+    let events = state.mcp_events.read().await;
+    if query.backend.is_none() && query.limit.is_none() {
+        return Json(events.clone());
+    }
+    let mut selected: Vec<McpToolCallEvent> = events
+        .iter()
+        .filter(|event| query.backend.as_deref().map_or(true, |backend| event.backend == backend))
+        .cloned()
+        .collect();
+    // Concurrent completions reach the daemon out of order through detached
+    // emitter tasks; `at` is UTC ISO-8601, so newest-first is lexicographic.
+    selected.sort_by(|a, b| b.at.cmp(&a.at));
+    if let Some(limit) = query.limit {
+        selected.truncate(limit.min(MAX_MCP_EVENT_PAGE));
+    }
+    Json(selected)
 }
 
 async fn mcp_summary(State(state): State<AppState>) -> impl IntoResponse {
@@ -333,8 +358,13 @@ async fn mcp_summary(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 fn summarize_mcp(events: &[McpToolCallEvent]) -> Vec<McpBackendSummary> {
+    // The middleware also emits tools/list catalog discoveries (attributed to
+    // the local backend); call counts and latency percentiles summarize only
+    // actual tool executions.
     let mut grouped: HashMap<&str, Vec<&McpToolCallEvent>> = HashMap::new();
-    for event in events { grouped.entry(event.backend.as_str()).or_default().push(event); }
+    for event in events.iter().filter(|event| event.operation == "tools/call") {
+        grouped.entry(event.backend.as_str()).or_default().push(event);
+    }
     let mut summaries = Vec::new();
     for (backend, backend_events) in grouped {
         let mut durations: Vec<f64> = backend_events.iter().map(|event| event.duration_ms).collect();
@@ -527,6 +557,20 @@ mod tests {
         }
     }
 
+    // The middleware emits tools/list catalog discoveries alongside calls;
+    // they must not inflate call summaries.
+    fn mcp_catalog_event(backend: &str, at: &str) -> McpToolCallEvent {
+        McpToolCallEvent {
+            operation: "tools/list".into(),
+            backend: backend.into(),
+            tool_name: "tools/list".into(),
+            duration_ms: 1.0,
+            ok: true,
+            error_type: None,
+            at: at.into(),
+        }
+    }
+
     async fn post_event(app: &Router, event: &McpToolCallEvent) -> axum::response::Response {
         app.clone()
             .oneshot(
@@ -574,6 +618,10 @@ mod tests {
             mcp_event("context7", "context7_fetch", 30.0, false, Some("AuthenticationError"), "2026-07-31T10:02:00+00:00"),
             mcp_event("local", "search", 5.0, false, Some("ToolError"), "2026-07-31T10:03:00+00:00"),
             mcp_event("local", "search", 15.0, true, None, "2026-07-31T10:04:00+00:00"),
+            // Catalog listings newer than every call must not move counts,
+            // last-event fields, or auth state.
+            mcp_catalog_event("context7", "2026-07-31T10:05:00+00:00"),
+            mcp_catalog_event("local", "2026-07-31T10:06:00+00:00"),
         ];
         for event in &events {
             assert_eq!(post_event(&app, event).await.status(), StatusCode::CREATED);
@@ -602,8 +650,40 @@ mod tests {
         assert_eq!(local["backend"], "local");
         assert_eq!(local["callCount"], 2);
         assert_eq!(local["errorCount"], 1);
+        assert_eq!(local["lastEventAt"], "2026-07-31T10:04:00+00:00");
         assert_eq!(local["lastAuthState"], "ok");
         assert_eq!(local["lastErrorType"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn mcp_events_query_filters_sorts_and_bounds() {
+        let app = build_router(AppState::default());
+        let events = [
+            mcp_event("context7", "older", 10.0, true, None, "2026-07-31T10:00:00+00:00"),
+            mcp_event("local", "other_backend", 5.0, true, None, "2026-07-31T10:03:00+00:00"),
+            // Posted before "middle" but completed later: arrival order must
+            // not determine drill-down order.
+            mcp_event("context7", "newest", 20.0, true, None, "2026-07-31T10:02:00+00:00"),
+            mcp_event("context7", "middle", 15.0, true, None, "2026-07-31T10:01:00+00:00"),
+        ];
+        for event in &events {
+            assert_eq!(post_event(&app, event).await.status(), StatusCode::CREATED);
+        }
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/mcp/events?backend=context7&limit=2")
+                    .body(Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("body should read");
+        let events: Vec<McpToolCallEvent> = serde_json::from_slice(&body).expect("page should deserialize");
+        let tools: Vec<&str> = events.iter().map(|event| event.tool_name.as_str()).collect();
+        assert_eq!(tools, ["newest", "middle"]);
     }
 
     #[tokio::test]

@@ -113,14 +113,12 @@ function AuthStateBadge({ state }: { readonly state?: McpBackendAuthState }) {
 }
 
 function BackendEvents({ backend }: { readonly backend: string }) {
+  // The daemon filters, sorts newest-first, and bounds the page server-side
+  // so polling never downloads the full retention buffer.
   const { data, reachable } = usePolledJson<McpToolCallEvent[]>(
-    "/api/monitor/mcp/events"
+    `/api/monitor/mcp/events?backend=${encodeURIComponent(backend)}&limit=${DRILL_DOWN_EVENT_LIMIT}`
   );
-  const events = (data ?? [])
-    .filter((event) => event.backend === backend)
-    .slice()
-    .reverse();
-  const recent = events.slice(0, DRILL_DOWN_EVENT_LIMIT);
+  const recent = data ?? [];
 
   return (
     <div className="bg-muted/30 px-4 py-3">

@@ -54,6 +54,18 @@ def test_backend_attribution_matches_configured_namespaces() -> None:
     assert middleware.backend_for("unknown_thing") == soleaux.metrics.LOCAL_BACKEND
 
 
+def test_local_identities_win_before_namespace_prefix_matching() -> None:
+    """A backend named `restart` must not capture the local `restart_lsp` call."""
+    middleware = soleaux.metrics.MetricsMiddleware(
+        backends=("restart", "db"),
+        local_tools=("restart_lsp", "describe"),
+    )
+    assert middleware.backend_for("restart_lsp") == soleaux.metrics.LOCAL_BACKEND
+    assert middleware.backend_for("describe") == soleaux.metrics.LOCAL_BACKEND
+    assert middleware.backend_for("restart_gateway") == "restart"
+    assert middleware.backend_for("db_query") == "db"
+
+
 async def test_tool_call_records_backend_timing_and_success() -> None:
     emitter = _RecordingEmitter()
     middleware = soleaux.metrics.MetricsMiddleware(backends=("db",), emitter=emitter)
@@ -180,7 +192,9 @@ async def test_emission_failure_never_breaks_the_tool_call() -> None:
     assert middleware.snapshot()["emissions"]["pending"] == 0
 
 
-async def test_daemon_emitter_swallows_http_failures() -> None:
+async def test_daemon_emitter_raises_on_non_success_response() -> None:
+    """A reachable daemon that rejects ingestion is a dropped event, not a send."""
+
     def reject(_request: httpx2.Request) -> httpx2.Response:
         return httpx2.Response(404, json={})
 
@@ -200,7 +214,26 @@ async def test_daemon_emitter_swallows_http_failures() -> None:
         error_type=None,
         at="2026-07-31T00:00:00+00:00",
     )
-    await emitter.emit(event)
+    with pytest.raises(httpx2.HTTPStatusError):
+        await emitter.emit(event)
+
+
+async def test_failed_emission_counts_as_dropped() -> None:
+    emitter = _RecordingEmitter(failure=RuntimeError("daemon down"))
+    middleware = soleaux.metrics.MetricsMiddleware(backends=("db",), emitter=emitter)
+
+    async def call_next(
+        context: MiddlewareContext[mt.CallToolRequestParams],
+    ) -> fastmcp.tools.ToolResult:
+        return _ok_result(context)
+
+    await middleware.on_call_tool(_call_tool_context("db_query"), call_next)
+    for task in tuple(middleware._pending):
+        await task
+
+    emissions = middleware.snapshot()["emissions"]
+    assert emissions["emitted"] == 1
+    assert emissions["dropped"] == 1
 
 
 async def test_daemon_emitter_posts_event_payload_to_ingest_route() -> None:

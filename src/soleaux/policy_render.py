@@ -18,13 +18,17 @@ Codex semantics come from ``AppToolApproval`` in codex-rs
 (``requires_mcp_tool_approval_for_mode``): ``approve`` never prompts,
 ``prompt`` always prompts, and no approval mode can deny, so deny renders into
 the server's ``disabled_tools`` deny-list. One Codex server hosts every
-backend, so per-backend defaults are inexpressible there; every configured
-tool is pinned by an explicit entry and the server default stays ``approve``,
-matching the live host posture. OpenCode evaluates its permission ruleset
+backend, so per-backend defaults are inexpressible there: codex-rs matches
+``tools`` entries by exact tool name and falls back to the one server-wide
+``default_tools_approval_mode``, which must stay ``approve`` so the local
+catalog runs non-interactively. A backend default of ``ask`` or ``deny`` would
+therefore silently render unlisted tools as auto-approved, so the Codex
+renderer rejects every non-``allow`` backend default instead of emitting a
+policy it cannot enforce. OpenCode evaluates its permission ruleset
 last-match-wins, and sorted key order places ``soleaux_*`` before
 ``soleaux_<backend>_*`` before exact tool keys, so the deterministic sorted
 output is also the correct general-to-specific precedence. Claude renders
-only deny entries as ``mcp__soleaux__<backend>__<tool>``; allow and ask are
+only deny entries as ``mcp__soleaux__<backend>_<tool>``; allow and ask are
 Claude's default behavior and need no rendered surface.
 """
 
@@ -44,6 +48,10 @@ _CODEX_APPROVAL_MODES = {
 _OPENCODE_FALLBACK_RULE = "soleaux_*"
 _OPENCODE_SERVER_PREFIX = "soleaux_"
 _CLAUDE_SERVER_PREFIX = "mcp__soleaux__"
+
+
+class PolicyRenderError(ValueError):
+    """A host surface cannot enforce the configured canonical policy."""
 
 
 class CodexToolEntry(typing.TypedDict):
@@ -66,11 +74,24 @@ def bridged_tool_name(backend: str, tool: str) -> str:
 
 
 def render_codex(config: soleaux.contracts.config.ResolvedConfig) -> CodexPolicyRender:
-    """Render the policy-owned fragment of Codex ``[mcp_servers.soleaux]``."""
+    """Render the policy-owned fragment of Codex ``[mcp_servers.soleaux]``.
+
+    Codex matches ``tools`` entries by exact bridged name and offers one
+    server-wide default, so a per-backend fallback is inexpressible. A
+    non-``allow`` backend default would leave unlisted tools silently
+    auto-approved; refuse to render instead of emitting a weaker policy.
+    """
     tools: dict[str, CodexToolEntry] = {}
     disabled: list[str] = []
     for backend_name in sorted(config.policy.backends):
         backend = config.policy.backends[backend_name]
+        if backend.default is not soleaux.contracts.config.PolicyEffect.ALLOW:
+            raise PolicyRenderError(
+                f"Codex cannot enforce policy backend {backend_name!r} default "
+                f"{backend.default.value!r}: unlisted tools would silently inherit "
+                "the server-wide approve mode. Pin every tool explicitly and set "
+                'default = "allow" for backends rendered to Codex.'
+            )
         for tool_name in sorted(backend.tools):
             effect = backend.tools[tool_name]
             bridged = bridged_tool_name(backend_name, tool_name)
@@ -109,7 +130,7 @@ def render_opencode(config: soleaux.contracts.config.ResolvedConfig) -> dict[str
 def render_claude_deny(config: soleaux.contracts.config.ResolvedConfig) -> list[str]:
     """Render Claude ``permissions.deny`` entries for denied bridged tools."""
     denied = [
-        f"{_CLAUDE_SERVER_PREFIX}{backend_name}__{tool_name}"
+        f"{_CLAUDE_SERVER_PREFIX}{bridged_tool_name(backend_name, tool_name)}"
         for backend_name, backend in config.policy.backends.items()
         for tool_name, effect in backend.tools.items()
         if effect is soleaux.contracts.config.PolicyEffect.DENY

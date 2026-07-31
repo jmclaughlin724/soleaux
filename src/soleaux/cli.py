@@ -176,6 +176,10 @@ def create_parser() -> argparse.ArgumentParser:
     generate_sub.add_parser(
         "host-policy",
         help="Render the canonical MCP policy as host-native policy JSON (stdout only).",
+    ).add_argument(
+        "--apply",
+        action="store_true",
+        help="Merge the rendered policy into the host configurations (with backups).",
     )
 
     adopt = subparsers.add_parser(
@@ -291,7 +295,7 @@ async def run_cli(
             root, getattr(args, "output", pathlib.Path("soleaux.toml")), stdout=output
         )
     if args.command == "generate" and args.generate_target == "host-policy":
-        return _generate_host_policy(root, stdout=output)
+        return _generate_host_policy(root, apply=bool(getattr(args, "apply", False)), stdout=output)
     if args.command == "adopt":
         return _run_adopt(args, root, stdout=output, stderr=sys.stderr)
     if args.command == "mcp":
@@ -506,12 +510,27 @@ def _check_health(root: pathlib.Path, *, json_output: bool, stdout: typing.TextI
     return 0
 
 
-def _generate_host_policy(root: pathlib.Path, stdout: typing.TextIO) -> int:
-    """Print the rendered host policy bundle as JSON; applying it is a separate step."""
+def _generate_host_policy(root: pathlib.Path, *, apply: bool, stdout: typing.TextIO) -> int:
+    """Print the rendered host policy bundle, or merge it into the host files."""
     config = soleaux.contracts.config.load_config(root)
-    bundle = soleaux.policy_render.render_all(config)
-    stdout.write(json.dumps(bundle.model_dump(mode="json"), indent=2, sort_keys=True))
-    stdout.write("\n")
+    try:
+        if not apply:
+            bundle = soleaux.policy_render.render_all(config)
+            stdout.write(json.dumps(bundle.model_dump(mode="json"), indent=2, sort_keys=True))
+            stdout.write("\n")
+            return 0
+        from soleaux.provisioning import policy_writer
+
+        result = policy_writer.apply_host_policy(root, config)
+    except soleaux.policy_render.PolicyRenderError as exc:
+        stdout.write(f"[FAIL] host-policy: {exc}\n")
+        return 1
+    for relative in result.written:
+        stdout.write(f"wrote: {relative}\n")
+    for relative in result.skipped:
+        stdout.write(f"skipped (no soleaux registration or no change): {relative}\n")
+    for record in result.backups:
+        stdout.write(f"backed up: {record.original_path} -> {record.backup_path}\n")
     return 0
 
 
@@ -738,12 +757,19 @@ async def _run_mcp(args: argparse.Namespace, root: pathlib.Path, *, stdout: typi
         transport = _transport_factory(
             backend, root, backend_name=args.name, interactive_oauth=True
         )()
-        async with Client(
-            transport,
-            init_timeout=backend.init_timeout_seconds,
-            timeout=backend.request_timeout_seconds,
-        ) as client:
-            tools = await client.list_tools()
+        try:
+            async with Client(
+                transport,
+                init_timeout=backend.init_timeout_seconds,
+                timeout=backend.request_timeout_seconds,
+            ) as client:
+                tools = await client.list_tools()
+        except Exception as exc:
+            # OAuth denial, an unreachable authorization server, callback
+            # timeout, and transport failures are routine login outcomes, not
+            # programming errors: report them in the CLI's normal shape.
+            stdout.write(f"[FAIL] {args.name}: login failed: {exc}\n")
+            return 1
         stdout.write(f"[OK] {args.name}: authenticated; {len(tools)} tools available\n")
         return 0
 
@@ -810,6 +836,7 @@ def _run_adopt(
     """Run the adopt workflow: detect → plan → consent → apply."""
     from soleaux.provisioning import adopt as adopt_mod
     from soleaux.provisioning.contracts import AdoptExtraMissingError
+    from soleaux.provisioning.guidance_writer import GuidanceMarkerError
 
     try:
         if args.revert:
@@ -858,10 +885,38 @@ def _run_adopt(
             stdout.write(f"skipped (already in desired state): {entry}\n")
         for backup in result.backups:
             stdout.write(f"backed up: {backup.original_path} -> {backup.backup_path}\n")
-        return 0
+        return _apply_configured_policy(root, stdout=stdout, stderr=stderr)
     except AdoptExtraMissingError as exc:
         stderr.write(f"{exc}\n")
         return 2
+    except GuidanceMarkerError as exc:
+        stderr.write(f"{exc}\n")
+        return 2
+
+
+def _apply_configured_policy(
+    root: pathlib.Path,
+    *,
+    stdout: typing.TextIO,
+    stderr: typing.TextIO,
+) -> int:
+    """Merge rendered policy into host files after adoption registers soleaux."""
+    from soleaux.contracts.config import load_config
+    from soleaux.provisioning import policy_writer
+
+    config = load_config(root)
+    if not config.policy.backends:
+        return 0
+    try:
+        result = policy_writer.apply_host_policy(root, config)
+    except soleaux.policy_render.PolicyRenderError as exc:
+        stderr.write(f"[FAIL] adoption registered soleaux but policy was not applied: {exc}\n")
+        return 1
+    for relative in result.written:
+        stdout.write(f"wrote: apply_policy:{relative}\n")
+    for record in result.backups:
+        stdout.write(f"backed up: {record.original_path} -> {record.backup_path}\n")
+    return 0
 
 
 def main(argv: collections.abc.Sequence[str] | None = None) -> None:

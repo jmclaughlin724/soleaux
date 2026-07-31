@@ -4,8 +4,9 @@ One tracker per service lifespan probes each enabled MCP proxy backend on a
 bounded interval from a lifespan-owned task; request-path surfaces
 (``describe``, ``soleaux://about``) only read the latest in-memory snapshot.
 Probing is fail-open: a dead backend never affects the tracker or the server,
-and an OAuth backend without stored tokens reports ``unauthenticated``
-(distinct from ``down``) instead of triggering the interactive login flow.
+and an OAuth backend without stored tokens — or one whose stored or configured
+credentials are rejected — reports ``unauthenticated`` (distinct from ``down``)
+instead of triggering the interactive login flow.
 A backend that has probed ``ok`` at least once and then fails reports
 ``degraded``; one that has never probed ``ok`` reports ``down``.
 """
@@ -16,6 +17,7 @@ import asyncio
 import contextlib
 import dataclasses
 import hashlib
+import json
 import logging
 import os
 import pathlib
@@ -73,6 +75,33 @@ async def _has_stored_tokens(
     store = soleaux.credentials.build_token_store(backend, backend_name=backend_name)
     adapter = TokenStorageAdapter(async_key_value=store, server_url=str(backend.url))
     return await adapter.get_tokens() is not None
+
+
+def _is_authentication_failure(exc: BaseException) -> bool:
+    """True when a probe failure is an expired or rejected credential."""
+    import httpx2
+
+    from soleaux.gateway import McpBackendAuthRequiredError
+
+    pending: list[BaseException] = [exc]
+    inspected = 0
+    while pending and inspected < 16:
+        current = pending.pop()
+        inspected += 1
+        if isinstance(current, McpBackendAuthRequiredError):
+            return True
+        if isinstance(current, httpx2.HTTPStatusError) and current.response.status_code in {
+            401,
+            403,
+        }:
+            return True
+        if isinstance(current, BaseExceptionGroup):
+            group = typing.cast("BaseExceptionGroup[BaseException]", current)
+            pending.extend(group.exceptions)
+        for linked in (current.__cause__, current.__context__):
+            if linked is not None:
+                pending.append(linked)
+    return False
 
 
 class McpHealthTracker:
@@ -152,14 +181,28 @@ class McpHealthTracker:
             await asyncio.wait_for(task, timeout=_CLOSE_JOIN_TIMEOUT_SECONDS)
 
     async def probe_once(self) -> None:
-        """Probe every enabled backend once; fail-open per backend."""
-        for name, backend in sorted(self._config.mcp.items()):
-            if not backend.enabled:
-                continue
-            try:
-                await self._probe_backend(name, backend)
-            except Exception as exc:  # one backend cannot terminate the tracker
-                self._record_failure(name, error=str(exc)[:_MAX_ERROR_LENGTH])
+        """Probe every enabled backend once; fail-open per backend.
+
+        Probes run concurrently so one backend consuming its full timeout
+        cannot starve the others past the advertised interval.
+        """
+        probes = [
+            self._probe_guarded(name, backend)
+            for name, backend in sorted(self._config.mcp.items())
+            if backend.enabled
+        ]
+        if probes:
+            await asyncio.gather(*probes)
+
+    async def _probe_guarded(
+        self,
+        name: str,
+        backend: soleaux.contracts.config.McpBackendConfig,
+    ) -> None:
+        try:
+            await self._probe_backend(name, backend)
+        except Exception as exc:  # one backend cannot terminate the tracker
+            self._record_failure(name, error=str(exc)[:_MAX_ERROR_LENGTH])
 
     async def _run(self) -> None:
         while True:
@@ -230,10 +273,32 @@ class McpHealthTracker:
                     await asyncio.wait_for(asyncio.shield(reap), timeout=_REAP_TIMEOUT_SECONDS)
             raise
         except Exception as exc:
+            if _is_authentication_failure(exc):
+                # Expired or revoked credentials are an actionable auth state,
+                # not an outage; point at the login flow instead of down.
+                detail = str(exc)[:_MAX_ERROR_LENGTH]
+                if backend.auth == "oauth" and "soleaux mcp login" not in detail:
+                    detail = f"stored credentials were rejected; run `soleaux mcp login {name}`"
+                self._record(
+                    name,
+                    state="unauthenticated",
+                    error=detail,
+                    tool_count=None,
+                    elapsed_ms=None,
+                )
+                return
             self._record_failure(name, error=str(exc)[:_MAX_ERROR_LENGTH])
             return
         elapsed_ms = round((time.perf_counter() - started) * 1000, 1)
-        digest = hashlib.sha256("\n".join(sorted(tool.name for tool in tools)).encode()).hexdigest()
+        definitions = sorted(
+            json.dumps(
+                tool.model_dump(mode="json", exclude_none=True),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            for tool in tools
+        )
+        digest = hashlib.sha256("\n".join(definitions).encode()).hexdigest()
         server_version = server_info.version if server_info is not None else None
         self._ever_ok.add(name)
         self._record(

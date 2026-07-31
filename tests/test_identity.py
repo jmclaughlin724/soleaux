@@ -240,7 +240,6 @@ async def test_wire_about_and_surface_metadata_agree_on_literal_v1_catalog() -> 
         "soleaux://health/v1",
         "soleaux://providers/v1",
         "soleaux://skills/v1",
-        "soleaux://mcp/v1",
     )
     assert surface.tool_names() == expected_tools
     assert surface.resource_uris() == expected_resources

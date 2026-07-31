@@ -222,6 +222,42 @@ def test_revert_restores_files_to_pre_apply_state(tmp_path: pathlib.Path) -> Non
     assert (tmp_path / ".vscode" / "settings.json").read_text() == original_settings
 
 
+def test_revert_removes_guidance_created_in_a_workspace_without_agents_md(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Adoption creates AGENTS.md from nothing; revert must remove it again."""
+    _seed_workspace(tmp_path)
+    assert not (tmp_path / "AGENTS.md").exists()
+    plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+    result = soleaux.provisioning.adopt.apply_plan(plan)
+
+    assert (tmp_path / "AGENTS.md").is_file()
+    assert "AGENTS.md" in result.created
+
+    restored = soleaux.provisioning.adopt.revert(tmp_path)
+
+    assert "AGENTS.md" in restored
+    assert not (tmp_path / "AGENTS.md").exists()
+
+
+def test_revert_removes_created_host_configs_and_restores_modified_ones(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Files adoption created are deleted; files it modified are restored."""
+    _seed_workspace(tmp_path)
+    original_mcp = (tmp_path / ".mcp.json").read_text()
+    assert not (tmp_path / "opencode.json").exists()
+    plan = soleaux.provisioning.adopt.build_plan(soleaux.provisioning.adopt.detect(tmp_path))
+    soleaux.provisioning.adopt.apply_plan(plan)
+
+    soleaux.provisioning.adopt.revert(tmp_path)
+
+    assert (tmp_path / ".mcp.json").read_text() == original_mcp
+    assert not (tmp_path / "opencode.json").exists()
+    assert not (tmp_path / ".codex" / "config.toml").exists()
+    assert not (tmp_path / "AGENTS.md").exists()
+
+
 def _provider_action(target: pathlib.Path) -> soleaux.provisioning.adopt.AdoptionAction:
     return soleaux.provisioning.adopt.AdoptionAction(
         kind="emit_provider",

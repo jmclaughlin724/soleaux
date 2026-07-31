@@ -53,6 +53,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check the daemon with the locked graph
         run: cargo check --locked --manifest-path telemetry/daemon/Cargo.toml
+      - name: Test the daemon with the locked graph
+        run: cargo test --locked --manifest-path telemetry/daemon/Cargo.toml
 
   telemetry-node:
     runs-on: ubuntu-latest

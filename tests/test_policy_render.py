@@ -43,11 +43,12 @@ def test_codex_maps_each_effect_to_the_host_native_surface() -> None:
     resolved = _resolved(
         {
             "playwright": {
+                "default": "allow",
                 "tools": {
                     "browser_navigate": "allow",
                     "browser_click": "ask",
                     "browser_run_code_unsafe": "deny",
-                }
+                },
             }
         }
     )
@@ -109,6 +110,23 @@ def test_opencode_renders_non_ask_backend_defaults_as_backend_wildcards() -> Non
     assert tuple(rendered) == tuple(sorted(rendered))
 
 
+def test_codex_rejects_backend_defaults_it_cannot_enforce() -> None:
+    implicit_ask = _resolved({"playwright": {"tools": {"browser_navigate": "allow"}}})
+    explicit_deny = _resolved({"playwright": {"default": "deny", "tools": {}}})
+
+    for resolved in (implicit_ask, explicit_deny):
+        with _assertions.raises_with_message(
+            soleaux.policy_render.PolicyRenderError, "cannot enforce policy backend 'playwright'"
+        ):
+            soleaux.policy_render.render_codex(resolved)
+
+    # The enforceable host surfaces still render the same policy.
+    assert soleaux.policy_render.render_opencode(implicit_ask) == {
+        "soleaux_*": "ask",
+        "soleaux_playwright_browser_navigate": "allow",
+    }
+
+
 def test_claude_renders_only_deny_effects() -> None:
     resolved = _resolved(
         {
@@ -123,15 +141,15 @@ def test_claude_renders_only_deny_effects() -> None:
     )
 
     assert soleaux.policy_render.render_claude_deny(resolved) == [
-        "mcp__soleaux__playwright__browser_run_code_unsafe"
+        "mcp__soleaux__playwright_browser_run_code_unsafe"
     ]
 
 
 def test_renderers_emit_deterministic_sorted_output() -> None:
     resolved = _resolved(
         {
-            "zeta": {"tools": {"write": "deny", "read": "ask"}},
-            "alpha": {"tools": {"scan": "allow", "purge": "deny"}},
+            "zeta": {"default": "allow", "tools": {"write": "deny", "read": "ask"}},
+            "alpha": {"default": "allow", "tools": {"scan": "allow", "purge": "deny"}},
         }
     )
 
@@ -146,7 +164,9 @@ def test_renderers_emit_deterministic_sorted_output() -> None:
 
 
 def test_render_all_bundles_every_host_surface() -> None:
-    resolved = _resolved({"playwright": {"tools": {"browser_run_code_unsafe": "deny"}}})
+    resolved = _resolved(
+        {"playwright": {"default": "allow", "tools": {"browser_run_code_unsafe": "deny"}}}
+    )
 
     bundle = soleaux.policy_render.render_all(resolved)
 
@@ -154,7 +174,7 @@ def test_render_all_bundles_every_host_surface() -> None:
     assert bundle.opencode == soleaux.policy_render.render_opencode(resolved)
     assert bundle.claude_deny == soleaux.policy_render.render_claude_deny(resolved)
     assert bundle.model_dump(mode="json")["claude_deny"] == [
-        "mcp__soleaux__playwright__browser_run_code_unsafe"
+        "mcp__soleaux__playwright_browser_run_code_unsafe"
     ]
 
 

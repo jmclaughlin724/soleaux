@@ -176,9 +176,10 @@ def apply_plan(
 
     written: list[str] = []
     skipped: list[str] = []
+    created: list[backup.AdmittedPath] = []
     backed_up: set[Path] = set()
     with backup.WorkspaceIo(requested_root) as workspace_io:
-        prepared: list[tuple[AdoptionAction, backup.AdmittedPath, _Applier]] = []
+        prepared: list[tuple[AdoptionAction, backup.AdmittedPath, _Applier, bool]] = []
         backup_targets: list[backup.AdmittedPath] = []
         for action in actions:
             applier = _APPLIERS.get(action.kind)
@@ -188,22 +189,28 @@ def apply_plan(
                 Path(action.target_path),
                 role="adoption target path",
             )
-            if workspace_io.is_file(target) and target.relative not in backed_up:
+            existed_before = workspace_io.is_file(target)
+            if existed_before and target.relative not in backed_up:
                 backup_targets.append(target)
                 backed_up.add(target.relative)
-            prepared.append((action, target, applier))
+            prepared.append((action, target, applier, existed_before))
 
         backups: list[BackupRecord] = backup._backup_files(workspace_io, backup_targets)
-        for action, target, applier in prepared:
+        for action, target, applier, existed_before in prepared:
             if applier(workspace_io, target, action, force=force):
                 written.append(f"{action.kind}:{target.as_posix}")
+                if not existed_before:
+                    # No earlier content exists to restore; revert must delete.
+                    created.append(target)
             else:
                 skipped.append(f"{action.kind}:{target.as_posix}")
+        backup.record_created(workspace_io, created)
         workspace_root = workspace_io.root
 
     return AdoptionResult(
         workspace_root=str(workspace_root),
         backups=tuple(backups),
+        created=tuple(path.as_posix for path in created),
         written=tuple(written),
         skipped=tuple(skipped),
     )

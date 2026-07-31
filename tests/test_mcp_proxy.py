@@ -551,6 +551,25 @@ async def test_shared_http_factory_reuses_one_proxy_client(tmp_path: Path) -> No
     await shared_transport.close()
 
 
+async def test_shared_http_factory_defers_secret_resolution_until_first_use(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SOLEAUX_TEST_MISSING_TOKEN", raising=False)
+    backend = McpBackendConfig(
+        url="https://example.invalid/mcp",
+        lifecycle="shared",
+        stateless=True,
+        auth="bearer_env",
+        auth_token_env="SOLEAUX_TEST_MISSING_TOKEN",
+    )
+
+    factory = _factory(backend, tmp_path)
+
+    with raises_with_message(ValueError, "SOLEAUX_TEST_MISSING_TOKEN"):
+        factory()
+
+
 async def test_cli_probe_uses_the_gateway_transport_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -796,6 +815,38 @@ async def test_mcp_login_rejects_unknown_and_non_oauth_backends(tmp_path: Path) 
     assert "[FAIL] unknown MCP backend: 'ghost'" in unknown_output.getvalue()
     assert non_oauth == 1
     assert "does not use OAuth" in non_oauth_output.getvalue()
+
+
+async def test_mcp_login_returns_a_controlled_failure_when_the_flow_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unreachable auth servers and denied flows are [FAIL] results, not tracebacks."""
+    _write_oauth_backend_config(tmp_path)
+    monkeypatch.setattr(credentials_module, "token_store_root", lambda: tmp_path / "tokens")
+
+    class _UnreachableClient:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> Any:
+            raise TimeoutError("authorization server unreachable")
+
+        async def __aexit__(self, *_exc: Any) -> None:
+            return None
+
+    monkeypatch.setattr("fastmcp.Client", _UnreachableClient)
+    output = io.StringIO()
+
+    result = await cli_module._run_mcp(
+        argparse.Namespace(mcp_target="login", name="fixture"),
+        tmp_path,
+        stdout=output,
+    )
+
+    assert result == 1
+    assert "[FAIL] fixture: login failed:" in output.getvalue()
+    assert "authorization server unreachable" in output.getvalue()
 
 
 def test_gateway_does_not_import_fastmcp_internal_context_or_transport_options() -> None:
