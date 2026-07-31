@@ -48,11 +48,11 @@ python -c "import inspect; from fastmcp import Client; print(inspect.getsourcefi
 
 ## Installed Baseline
 
-**Anilize installs FastMCP `4.0.0b1`** — declared at `tools/soleaux/pyproject.toml`, locked in `uv.lock`, and confirmed in the root `.venv` on Python 3.14. It is a **pre-release**; the current _stable_ channel is `3.4.5`.
+**Soleaux installs FastMCP `4.0.0b1`** — declared at `pyproject.toml`, locked in `uv.lock`, and confirmed in the root `.venv` on Python 3.14. It is a **pre-release**; the current _stable_ channel is `3.4.5`.
 
 `4.0.0b1` is a **beta**. Upstream's pre-release warning lives on [What's New](https://gofastmcp.com/getting-started/whats-new), not on the SDK reference pages. Nothing on `/python-sdk/*` marks an API as beta-only or unstable, so **a symbol's stability cannot be judged from its reference page**. Assume any v4 surface may move between pre-releases and re-verify after every pin change.
 
-Because Anilize runs a v4 beta, the unversioned pages at `https://gofastmcp.com/python-sdk/*` and the v4 guides are useful design guidance, but they carry no version marker and cannot establish the installed API. Resolve every residual discrepancy in favour of installed source.
+Because Soleaux runs a v4 beta, the unversioned pages at `https://gofastmcp.com/python-sdk/*` and the v4 guides are useful design guidance, but they carry no version marker and cannot establish the installed API. Resolve every residual discrepancy in favour of installed source.
 
 **Pre-release deltas are real, and they move in both directions.** This pin has gone `4.0.0a1` → `4.0.0a2` → `4.0.0b1` (with an `a1` rollback and restore along the way). Each move changed observable API surface, so a reference written against one pre-release is not automatically valid on its neighbour. The verified `a2` → `b1` delta:
 
@@ -73,7 +73,7 @@ Because `fastmcp` is a meta-package, the manifest also pins `fastmcp-slim==4.0.0
 
 ### Declared extras
 
-**This repository declares zero extras.** The install is `fastmcp-slim[client,server]` only. Consequently the `apps`, `tasks`, `code-mode`, `openai`, `gemini`, `azure`, `anthropic`, and `mcp` surfaces are **not importable here**, and enabling one is a manifest change to `tools/soleaux/pyproject.toml` — not a code change. References documenting those surfaces say so at the top; treat their claims as upstream-documented rather than locally verified.
+**This repository declares zero extras.** The install is `fastmcp-slim[client,server]` only. Consequently the `apps`, `tasks`, `code-mode`, `openai`, `gemini`, `azure`, `anthropic`, and `mcp` surfaces are **not importable here**, and enabling one is a manifest change to `pyproject.toml` — not a code change. References documenting those surfaces say so at the top; treat their claims as upstream-documented rather than locally verified.
 
 Importability is not availability in the other direction either: a module that imports cleanly may still fail at call time when its extra is missing — the auth providers are the standard case. Test the actual operation.
 

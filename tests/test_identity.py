@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import Mock
 
-import _host_root
 import _processes
 import fastmcp.server.server as fastmcp_server
 import pytest
@@ -57,10 +56,7 @@ def test_fastmcp_json_matches_the_stable_schema() -> None:
 
 
 def test_fastmcp_skill_claim_matches_manifest_pin() -> None:
-    repository_root = _host_root.require_host_root()
-    manifest = tomllib.loads(
-        (repository_root / "tools/soleaux/pyproject.toml").read_text(encoding="utf-8")
-    )
+    manifest = tomllib.loads((PACKAGE_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     dependencies = manifest["project"]["dependencies"]
     fastmcp_pins = [
         dependency
@@ -69,9 +65,9 @@ def test_fastmcp_skill_claim_matches_manifest_pin() -> None:
     ]
 
     routing = (
-        repository_root / ".agents/skills/fastmcp/references/version-and-source-routing.md"
+        PACKAGE_ROOT / ".agents/skills/fastmcp/references/version-and-source-routing.md"
     ).read_text(encoding="utf-8")
-    marker = "**Anilize installs FastMCP `"
+    marker = "**Soleaux installs FastMCP `"
     claimed_version = routing.partition(marker)[2].partition("`")[0]
 
     assert claimed_version

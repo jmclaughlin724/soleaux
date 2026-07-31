@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import base64
 import binascii
+import contextlib
 import json
 import os
+import pathlib
 import resource
 import sys
 import time
@@ -143,9 +145,21 @@ def _write_frame(stream: BinaryIO, payload: dict[str, Any]) -> None:
 
 
 def _max_rss_bytes() -> int:
-    """Peak resident set size of this worker, normalized to bytes."""
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    return peak * 1024 if sys.platform.startswith("linux") else peak
+    """Peak resident set size of this worker, normalized to bytes.
+
+    On Linux with THP in always mode, ru_maxrss counts whole 2 MiB pages for
+    sparsely touched regions and overstates residency by an order of magnitude;
+    smaps_rollup reports true per-page residency instead.
+    """
+    if sys.platform.startswith("linux"):
+        with contextlib.suppress(OSError, ValueError, IndexError):
+            for line in (
+                pathlib.Path("/proc/self/smaps_rollup").read_text(encoding="utf-8").splitlines()
+            ):
+                if line.startswith("Rss:"):
+                    return int(line.split()[1]) * 1024
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 
 
 def _serialize_with_byte_offsets(
