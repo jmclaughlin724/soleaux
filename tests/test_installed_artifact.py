@@ -9,7 +9,6 @@ import importlib.metadata
 import json
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -117,10 +116,12 @@ def _repack_installed_wheel(
     files = distribution.files
     assert files is not None
     distribution_root = pathlib.Path(str(distribution.locate_file(""))).resolve()
-    normalized_name = re.sub(r"[^\w\d.]+", "_", distribution_name, flags=re.UNICODE)
-    wheel_path = (
-        output_directory / f"{normalized_name}-{distribution.version}-{wheel_tag}.whl"
+    # PEP 503 wheel-name escaping without `re` (no-regex maintained surface).
+    normalized_name = "".join(
+        character if character == "_" or character == "." or character.isalnum() else "_"
+        for character in distribution_name
     )
+    wheel_path = output_directory / f"{normalized_name}-{distribution.version}-{wheel_tag}.whl"
     with zipfile.ZipFile(wheel_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         for relative_path in sorted(files, key=lambda path: path.as_posix()):
             source_path = pathlib.Path(str(distribution.locate_file(relative_path))).resolve()
