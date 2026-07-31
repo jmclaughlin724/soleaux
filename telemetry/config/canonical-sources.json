@@ -127,6 +127,16 @@
       ],
       "volatility": "high",
       "lastVerifiedAt": "2026-07-26"
+    },
+    {
+      "id": "nextjs-typescript-config",
+      "owner": "Vercel",
+      "url": "https://nextjs.org/docs/app/api-reference/config/typescript",
+      "claims": [
+        "Next.js generates the next-env.d.ts type reference file and documents that it must not be edited by hand."
+      ],
+      "volatility": "medium",
+      "lastVerifiedAt": "2026-07-31"
     }
   ]
 }

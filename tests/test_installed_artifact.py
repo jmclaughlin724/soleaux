@@ -9,6 +9,7 @@ import importlib.metadata
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,7 @@ import zipfile
 import _assertions
 import _processes
 import pytest
+from packaging.requirements import Requirement
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE_ROOT = pathlib.Path(__file__).resolve().parents[1] / "src"
@@ -27,6 +29,7 @@ EXPECTED_DOCS = {
     "adopt-guide.md",
     "editor-safety.md",
     "evidence-and-coverage.md",
+    "mcp-gateway.md",
     "postgresql-security.md",
     "provider-configuration.md",
     "quickstart.md",
@@ -68,6 +71,32 @@ def _only(directory: pathlib.Path, pattern: str) -> pathlib.Path:
     return matches[0]
 
 
+def _runtime_dependency_names() -> tuple[str, ...]:
+    """Installed distributions in soleaux's runtime dependency closure."""
+    seen: dict[str, importlib.metadata.Distribution] = {}
+    pending: list[tuple[importlib.metadata.Distribution, frozenset[str]]] = [
+        (importlib.metadata.distribution("soleaux"), frozenset())
+    ]
+    while pending:
+        distribution, requested_extras = pending.pop()
+        for requirement_text in distribution.requires or []:
+            requirement = Requirement(requirement_text)
+            name = requirement.name.lower().replace("_", "-")
+            if name in seen or name == "soleaux":
+                continue
+            try:
+                dependency = importlib.metadata.distribution(name)
+            except importlib.metadata.PackageNotFoundError:
+                continue
+            if requirement.marker is not None:
+                contexts = requested_extras or frozenset({""})
+                if not any(requirement.marker.evaluate({"extra": extra}) for extra in contexts):
+                    continue
+            seen[name] = dependency
+            pending.append((dependency, frozenset(requirement.extras)))
+    return tuple(sorted(seen))
+
+
 def _repack_installed_wheel(
     distribution_name: str,
     output_directory: pathlib.Path,
@@ -88,11 +117,15 @@ def _repack_installed_wheel(
     files = distribution.files
     assert files is not None
     distribution_root = pathlib.Path(str(distribution.locate_file(""))).resolve()
-    wheel_path = output_directory / f"{distribution_name}-{distribution.version}-{wheel_tag}.whl"
+    normalized_name = re.sub(r"[^\w\d.]+", "_", distribution_name, flags=re.UNICODE)
+    wheel_path = (
+        output_directory / f"{normalized_name}-{distribution.version}-{wheel_tag}.whl"
+    )
     with zipfile.ZipFile(wheel_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         for relative_path in sorted(files, key=lambda path: path.as_posix()):
             source_path = pathlib.Path(str(distribution.locate_file(relative_path))).resolve()
-            assert source_path.is_relative_to(distribution_root)
+            if not source_path.is_relative_to(distribution_root):
+                continue
             assert source_path.is_file()
             archive.write(source_path, arcname=relative_path.as_posix())
     return wheel_path
@@ -134,11 +167,16 @@ def artifacts(tmp_path_factory: pytest.TempPathFactory) -> ArtifactSet:
         cwd=root,
         environment=environment,
     )
+    dependency_directory = root / "dependencies"
+    dependency_directory.mkdir()
     return ArtifactSet(
         direct_wheel=_only(direct, "soleaux-*.whl"),
         sdist=sdist,
         sdist_wheel=_only(rebuilt, "soleaux-*.whl"),
-        offline_dependency_wheels=(_repack_installed_wheel("libcst", root),),
+        offline_dependency_wheels=tuple(
+            _repack_installed_wheel(name, dependency_directory)
+            for name in _runtime_dependency_names()
+        ),
     )
 
 
@@ -823,12 +861,12 @@ def test_installed_artifact_acceptance(
     stdio = _json_output(stdio_probe)
     assert stdio == {
         "zero_tools": 10,
-        "zero_resources": 7,
+        "zero_resources": 8,
         "zero_guide": True,
         "zero_search_rows": ["answer"],
         "configured_tools": 11,
         "mcp_tools": ["artifact_echo"],
-        "configured_resources": 7,
+        "configured_resources": 8,
         "configured_guide": True,
         "mcp_payload": {"echo": "installed"},
         "children": [],

@@ -29,7 +29,7 @@ from scripts.zero_mcp_fixture import (
 )
 
 ZERO_MCP_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "contracts" / "d019-zero-mcp.json"
-ZERO_MCP_SHA256 = "d87930cd9fb839c22581c90da5eee11003caae669c04b20e73f345cf8cbf8ed0"
+ZERO_MCP_SHA256 = "91dfea44e15aa427872d2012eff135478dea7fb0fd902187cc6de645e49e3bc9"
 
 
 def _unexpected_mcp_boundary(*_args: object, **_kwargs: object) -> typing.Never:

@@ -1,4 +1,4 @@
-"""soleaux.toml resolution and gateway policy validation (D021, D034)."""
+"""soleaux.toml resolution and gateway policy validation (D021, D034, D036)."""
 
 import pathlib
 
@@ -181,9 +181,35 @@ def test_structural_language_packages_accept_bare_package_identities() -> None:
 def test_repository_mcp_config_parses_without_executing_backends() -> None:
     resolved = soleaux.contracts.config.load_config(REPOSITORY_ROOT)
 
-    assert set(resolved.mcp) == {"eslint", "next-devtools", "playwright", "shadcn"}
-    assert all(backend.command is not None for backend in resolved.mcp.values())
+    assert set(resolved.mcp) == {
+        "anilize",
+        "context7",
+        "eslint",
+        "next-devtools",
+        "openai-docs",
+        "playwright",
+        "shadcn",
+        "supabase-anilize-temp",
+        "web-reader",
+        "web-search-prime",
+        "zod",
+        "zread",
+    }
+    command_backends = {"eslint", "next-devtools", "playwright", "shadcn"}
+    for name, backend in resolved.mcp.items():
+        if name in command_backends:
+            assert backend.command is not None
+        else:
+            assert backend.url is not None
     assert resolved.mcp["playwright"].lifecycle == "session"
+    assert resolved.mcp["supabase-anilize-temp"].auth == "oauth"
+    assert (
+        resolved.mcp["supabase-anilize-temp"].oauth_token_endpoint_auth_method
+        == "client_secret_post"
+    )
+    assert resolved.mcp["zod"].auth == "none"
+    assert resolved.mcp["zread"].auth == "bearer_env"
+    assert resolved.mcp["zread"].auth_token_env == "ZAI_API_KEY"
 
 
 def test_mcp_command_config_preserves_explicit_values() -> None:
@@ -435,7 +461,7 @@ def test_mcp_url_and_tls_policy_rejects_unsafe_values(
             id="url-with-cwd",
         ),
         pytest.param(
-            {"command": ["backend"], "auth_token_env": "TOKEN"},
+            {"command": ["backend"], "auth": "bearer_env", "auth_token_env": "TOKEN"},
             "require a URL backend",
             id="command-with-auth",
         ),
@@ -464,6 +490,7 @@ def test_mcp_source_specific_fields_are_rejected(payload: dict[str, object], mes
 def test_mcp_external_auth_header_and_ca_references_are_accepted() -> None:
     backend = soleaux.contracts.config.McpBackendConfig(
         url="https://example.com/mcp",
+        auth="bearer_env",
         auth_token_env="MCP_TOKEN",
         headers_from_env={"X-API-Key": "MCP_API_KEY", "X-Trace": "TRACE_ID"},
         tls_ca_file_env="SSL_CERT_FILE",
@@ -481,7 +508,7 @@ def test_mcp_external_auth_header_and_ca_references_are_accepted() -> None:
     ("payload", "message"),
     [
         pytest.param(
-            {"auth_token_env": "INVALID-NAME"},
+            {"auth": "bearer_env", "auth_token_env": "INVALID-NAME"},
             "environment variable names",
             id="invalid-auth-env",
         ),
@@ -555,6 +582,185 @@ def test_mcp_fail_open_policy_cannot_be_disabled() -> None:
         _mcp_model(fail_open=False)
 
 
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        pytest.param(
+            {"url": "https://example.com/mcp", "auth": "bearer_env"},
+            "auth 'bearer_env' requires auth_token_env",
+            id="bearer-without-token-env",
+        ),
+        pytest.param(
+            {"url": "https://example.com/mcp", "auth_token_env": "TOKEN"},
+            'requires auth = "bearer_env"',
+            id="token-env-without-bearer",
+        ),
+        pytest.param(
+            {"command": ["backend"], "auth": "oauth"},
+            "auth 'oauth' requires a URL backend",
+            id="oauth-with-command",
+        ),
+        pytest.param(
+            {
+                "url": "https://example.com/mcp",
+                "auth": "oauth",
+                "auth_token_env": "TOKEN",
+            },
+            "mutually exclusive with auth_token_env",
+            id="oauth-with-token-env",
+        ),
+    ],
+)
+def test_mcp_auth_modes_require_matching_fields(payload: dict[str, object], message: str) -> None:
+    with _assertions.raises_with_message(pydantic.ValidationError, message):
+        soleaux.contracts.config.McpBackendConfig.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param({"oauth_scopes": ["read"]}, id="scopes"),
+        pytest.param(
+            {"oauth_client_metadata_url": "https://example.com/client.json"},
+            id="client-metadata-url",
+        ),
+        pytest.param({"client_id_env": "CLIENT_ID"}, id="client-id-env"),
+        pytest.param(
+            {"client_id_env": "CLIENT_ID", "client_secret_env": "CLIENT_SECRET"},
+            id="client-secret-env",
+        ),
+        pytest.param({"token_store": "keyring"}, id="token-store"),
+    ],
+)
+@pytest.mark.parametrize("auth", ["none", "bearer_env"])
+def test_mcp_oauth_fields_require_oauth_auth(auth: str, payload: dict[str, object]) -> None:
+    base: dict[str, object] = {"url": "https://example.com/mcp", "auth": auth}
+    if auth == "bearer_env":
+        base["auth_token_env"] = "TOKEN"
+    with _assertions.raises_with_message(
+        pydantic.ValidationError, 'MCP OAuth fields require auth = "oauth"'
+    ):
+        soleaux.contracts.config.McpBackendConfig.model_validate({**base, **payload})
+
+
+@pytest.mark.parametrize(
+    "metadata_url",
+    [
+        pytest.param("http://example.com/client.json", id="http-scheme"),
+        pytest.param("https://example.com", id="empty-path"),
+        pytest.param("https://example.com/", id="root-path"),
+        pytest.param("https://user@example.com/client.json", id="userinfo"),
+        pytest.param("https://user:pass@example.com/client.json", id="userinfo-password"),
+        pytest.param("https://example.com/client.json#fragment", id="fragment"),
+    ],
+)
+def test_mcp_oauth_client_metadata_url_requires_an_https_non_root_path(
+    metadata_url: str,
+) -> None:
+    with _assertions.raises_with_message(
+        pydantic.ValidationError, "HTTPS URL with a non-root path"
+    ):
+        soleaux.contracts.config.McpBackendConfig.model_validate(
+            {
+                "url": "https://example.com/mcp",
+                "auth": "oauth",
+                "oauth_client_metadata_url": metadata_url,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    [
+        pytest.param(["read write"], id="embedded-space"),
+        pytest.param(["read\twrite"], id="embedded-tab"),
+        pytest.param([""], id="empty-scope"),
+    ],
+)
+def test_mcp_oauth_scopes_reject_empty_and_whitespace_elements(scopes: list[str]) -> None:
+    with _assertions.raises_with_message(
+        pydantic.ValidationError, "nonempty, whitespace-free elements"
+    ):
+        soleaux.contracts.config.McpBackendConfig.model_validate(
+            {
+                "url": "https://example.com/mcp",
+                "auth": "oauth",
+                "oauth_scopes": scopes,
+            }
+        )
+
+
+def test_mcp_oauth_client_name_must_be_nonempty() -> None:
+    with _assertions.raises_with_message(pydantic.ValidationError, "nonempty, NUL-free string"):
+        soleaux.contracts.config.McpBackendConfig.model_validate(
+            {
+                "url": "https://example.com/mcp",
+                "auth": "oauth",
+                "oauth_client_name": "",
+            }
+        )
+
+
+def test_mcp_oauth_client_secret_requires_a_client_id() -> None:
+    with _assertions.raises_with_message(
+        pydantic.ValidationError, "client_secret_env requires client_id_env"
+    ):
+        soleaux.contracts.config.McpBackendConfig.model_validate(
+            {
+                "url": "https://example.com/mcp",
+                "auth": "oauth",
+                "client_secret_env": "CLIENT_SECRET",
+            }
+        )
+
+
+@pytest.mark.parametrize("field", ["client_id_env", "client_secret_env"])
+def test_mcp_oauth_client_references_must_be_environment_names(field: str) -> None:
+    payload: dict[str, object] = {
+        "url": "https://example.com/mcp",
+        "auth": "oauth",
+        "client_id_env": "CLIENT_ID",
+        "client_secret_env": "CLIENT_SECRET",
+    }
+    payload[field] = "INVALID-NAME"
+    with _assertions.raises_with_message(pydantic.ValidationError, "environment variable names"):
+        soleaux.contracts.config.McpBackendConfig.model_validate(payload)
+
+
+def test_mcp_oauth_defaults_are_disk_store_and_empty_scopes() -> None:
+    backend = soleaux.contracts.config.McpBackendConfig(url="https://example.com/mcp", auth="oauth")
+
+    assert backend.oauth_scopes == ()
+    assert backend.oauth_client_name == "Soleaux"
+    assert backend.oauth_client_metadata_url is None
+    assert backend.client_id_env is None
+    assert backend.client_secret_env is None
+    assert backend.token_store == "disk"
+
+
+def test_mcp_oauth_config_preserves_explicit_values() -> None:
+    backend = soleaux.contracts.config.McpBackendConfig.model_validate(
+        {
+            "url": "https://example.com/mcp",
+            "auth": "oauth",
+            "oauth_scopes": ["read", "write"],
+            "oauth_client_name": "Soleaux Test",
+            "oauth_client_metadata_url": "https://example.com/oauth/client.json",
+            "client_id_env": "CLIENT_ID",
+            "client_secret_env": "CLIENT_SECRET",
+            "token_store": "keyring",
+        }
+    )
+
+    assert backend.auth == "oauth"
+    assert backend.oauth_scopes == ("read", "write")
+    assert backend.oauth_client_name == "Soleaux Test"
+    assert backend.oauth_client_metadata_url == "https://example.com/oauth/client.json"
+    assert backend.client_id_env == "CLIENT_ID"
+    assert backend.client_secret_env == "CLIENT_SECRET"
+    assert backend.token_store == "keyring"
+
+
 def test_config_digest_binds_exact_content() -> None:
     assert soleaux.contracts.config.config_digest(
         b"config"
@@ -563,3 +769,110 @@ def test_config_digest_binds_exact_content() -> None:
         b"config"
     ) != soleaux.contracts.config.config_digest(b"config ")
     assert len(soleaux.contracts.config.config_digest(b"")) == 64
+
+
+def test_absent_policy_resolves_to_an_empty_typed_default() -> None:
+    resolved = soleaux.contracts.config.ResolvedConfig.default()
+
+    assert resolved.policy.backends == {}
+    assert "policy" not in resolved.public_payload()
+
+
+def test_policy_per_backend_default_and_tool_overrides_round_trip(
+    tmp_path: pathlib.Path,
+) -> None:
+    (tmp_path / "soleaux.toml").write_text(
+        "\n".join(
+            (
+                "[mcp.playwright]",
+                'command = ["playwright", "run-mcp-server"]',
+                "",
+                "[policy.backends.playwright]",
+                'default = "ask"',
+                "",
+                "[policy.backends.playwright.tools]",
+                'browser_navigate = "allow"',
+                'browser_run_code_unsafe = "deny"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = soleaux.contracts.config.load_config(tmp_path)
+
+    backend = resolved.policy.backends["playwright"]
+    assert backend.default is soleaux.contracts.config.PolicyEffect.ASK
+    assert backend.tools == {
+        "browser_navigate": soleaux.contracts.config.PolicyEffect.ALLOW,
+        "browser_run_code_unsafe": soleaux.contracts.config.PolicyEffect.DENY,
+    }
+    assert resolved.public_payload()["policy"] == {
+        "backends": {
+            "playwright": {
+                "default": "ask",
+                "tools": {
+                    "browser_navigate": "allow",
+                    "browser_run_code_unsafe": "deny",
+                },
+            }
+        }
+    }
+
+
+def test_policy_backend_defaults_to_ask_with_no_overrides() -> None:
+    resolved = soleaux.contracts.config.ResolvedConfig(
+        mcp={"playwright": _mcp_model()},
+        policy=soleaux.contracts.config.PolicyConfig.model_validate(
+            {"backends": {"playwright": {}}}
+        ),
+    )
+
+    backend = resolved.policy.backends["playwright"]
+    assert backend.default is soleaux.contracts.config.PolicyEffect.ASK
+    assert backend.tools == {}
+
+
+def test_policy_tool_names_validate_shape_not_membership() -> None:
+    backend = soleaux.contracts.config.PolicyBackendConfig.model_validate(
+        {"tools": {"definitely_not_a_live_backend_tool": "allow"}}
+    )
+
+    assert backend.tools == {
+        "definitely_not_a_live_backend_tool": soleaux.contracts.config.PolicyEffect.ALLOW
+    }
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        pytest.param({"default": "permit"}, "default", id="invalid-default-effect"),
+        pytest.param(
+            {"tools": {"read": "permit"}},
+            "tools",
+            id="invalid-tool-effect",
+        ),
+        pytest.param({"tools": {"": "allow"}}, "nonempty", id="empty-tool-name"),
+        pytest.param({"tools": {"bad\x00name": "allow"}}, "NUL-free", id="nul-tool-name"),
+        pytest.param({"tools": {"*": "deny"}}, "non-wildcard", id="wildcard-tool-name"),
+        pytest.param({"tools": {"browser_*": "deny"}}, "non-wildcard", id="glob-tool-name"),
+        pytest.param({"bogus": 1}, "bogus", id="unknown-backend-key"),
+    ],
+)
+def test_policy_backend_rejects_invalid_values(payload: dict[str, object], message: str) -> None:
+    with _assertions.raises_with_message(pydantic.ValidationError, message):
+        soleaux.contracts.config.PolicyBackendConfig.model_validate(payload)
+
+
+def test_policy_unknown_section_keys_fail_clearly(tmp_path: pathlib.Path) -> None:
+    (tmp_path / "soleaux.toml").write_text("[policy]\nbogus = 1\n", encoding="utf-8")
+
+    with _assertions.raises_with_message(soleaux.contracts.config.ConfigError, "bogus"):
+        soleaux.contracts.config.load_config(tmp_path)
+
+
+def test_policy_backends_must_reference_declared_mcp_backends() -> None:
+    with _assertions.raises_with_message(pydantic.ValidationError, "undeclared MCP backend"):
+        soleaux.contracts.config.ResolvedConfig(
+            policy=soleaux.contracts.config.PolicyConfig.model_validate({"backends": {"ghost": {}}})
+        )

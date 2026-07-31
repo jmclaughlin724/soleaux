@@ -20,6 +20,7 @@ from soleaux.provisioning.contracts import (
     DetectionReport,
 )
 from soleaux.provisioning.editor_writer import render_disabled_editor_setting
+from soleaux.provisioning.guidance_writer import render_guidance
 from soleaux.provisioning.mcp_writer import render_registration
 
 Target = Literal["editor", "mcp", "providers"]
@@ -117,6 +118,20 @@ def build_plan(
                     language="host",
                 )
             )
+        guidance_rel = (
+            "CLAUDE.md"
+            if not (workspace_root / "AGENTS.md").is_file()
+            and (workspace_root / "CLAUDE.md").is_file()
+            else "AGENTS.md"
+        )
+        actions.append(
+            AdoptionAction(
+                kind="write_guidance",
+                description=f"Write the soleaux gateway guidance block in {guidance_rel}",
+                target_path=str(workspace_root / guidance_rel),
+                language="host",
+            )
+        )
 
     if "providers" in target_set:
         seen: set[str] = set()
@@ -262,10 +277,27 @@ def _register(
     return True
 
 
+def _write_guidance(
+    workspace_io: backup.WorkspaceIo,
+    target: backup.AdmittedPath,
+    action: AdoptionAction,
+    *,
+    force: bool,
+) -> bool:
+    _ = action, force
+    snapshot = workspace_io.read_optional(target)
+    rendered = render_guidance(snapshot.data if snapshot is not None else None)
+    if rendered is None:
+        return False
+    workspace_io.write_bytes_atomic(target, rendered)
+    return True
+
+
 _APPLIERS: dict[str, _Applier] = {
     "disable_editor": _disable_editor,
     "register_mcp": _register,
     "emit_provider": _emit_provider_block,
+    "write_guidance": _write_guidance,
 }
 
 

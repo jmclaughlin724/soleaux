@@ -15,10 +15,11 @@ import {
   Gauge,
   type LucideIcon,
   MemoryStick,
-  Radio,
   Timer,
   Workflow,
 } from "lucide-react";
+
+import { SiteNav } from "./site-nav";
 
 const initialSnapshot: SnapshotEvent = {
   type: "snapshot",
@@ -99,10 +100,8 @@ function DashboardHeader({
   return (
     <header className="border-border bg-background flex min-h-16 items-center justify-between gap-4 border-b px-6 py-3">
       <div>
-        <div className="flex items-center gap-2 font-semibold">
-          <Radio className="size-4" /> Soleaux
-        </div>
-        <p className="text-muted-foreground text-xs">
+        <SiteNav active="overview" />
+        <p className="text-muted-foreground mt-1 text-xs">
           Agent, model, quota, context, and system observability
         </p>
       </div>

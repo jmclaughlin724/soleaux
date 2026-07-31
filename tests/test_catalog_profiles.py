@@ -346,7 +346,7 @@ async def test_authority_server_tools_read_only_the_lifecycle_published_profile(
         tools = await client.list_tools()
         resources = await client.list_resources()
         assert len(tools) == 10
-        assert len(resources) == 7
+        assert len(resources) == 8
         assert service.publication_profile is CatalogPublicationProfile.AUTHORITY
 
         owners = await client.call_tool(

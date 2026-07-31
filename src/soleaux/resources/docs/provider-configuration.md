@@ -143,6 +143,7 @@ lifecycle = "on_demand"
 
 [mcp.remote]
 url = "https://mcp.example.com/mcp"
+auth = "bearer_env"
 auth_token_env = "MCP_TOKEN"
 ```
 
@@ -155,14 +156,18 @@ soleaux --root /path/to/repository generate soleaux-toml --output soleaux.toml
 Three lifecycle modes are available:
 
 - `on_demand` (default) creates a fresh backend client per operation. Best for rarely used backends.
-- `session` retains one backend client per connected downstream session and closes it with that session. Best for interactive stdio backends used throughout a session.
-- `shared` retains one backend client across all sessions for the server lifetime. Best for stateless HTTP backends where connection reuse eliminates per-call initialization overhead.
+- `session` retains one backend client per connected downstream session and closes it with that session. Requires a command backend; best for interactive stdio backends used throughout a session.
+- `shared` retains one backend client across all sessions for the server lifetime. Requires a URL backend declared with `stateless = true`; best for stateless HTTP backends where connection reuse eliminates per-call initialization overhead.
 
 Command backends may set literal `env` values and a workspace-contained relative `cwd`. URL backends require HTTPS except for loopback HTTP; bearer tokens, custom headers, and custom CA paths are read only from named environment variables.
+
+URL backends declare one auth mode through `auth`: `none` (default), `bearer_env` (requires `auth_token_env`), or `oauth`. OAuth backends may set `oauth_scopes`, `oauth_client_name`, `oauth_client_metadata_url`, `client_id_env` with optional `client_secret_env`, and `token_store` (`disk` default, `keyring` opt-in); tokens persist in a user-private per-backend store, and login is CLI-mediated through `soleaux mcp login <name>`. See the [MCP gateway](/guides/mcp-gateway) guide for the full auth model, registration priority, and troubleshooting.
 
 MCP backend component listings and calls can start a configured backend. Soleaux does not forward incoming headers, roots, sampling, elicitation, logs, or progress to it. A provider failure warns and omits only that provider's components so the fixed local catalog and other available providers remain usable.
 
 Gateway tool capabilities and annotations are upstream-owned. MCP host approval is configured independently by the client; Soleaux never writes approval-mode keys.
+
+Per-backend tool approval effects live in the `[policy]` section: a `default` effect of `allow`, `ask`, or `deny` per declared `[mcp]` backend plus per-tool overrides keyed by unprefixed backend tool names. `soleaux.toml` owns these effects; host approval surfaces are rendered output. See the [MCP gateway](/guides/mcp-gateway) guide for the policy model.
 
 ## Generate a starter config
 

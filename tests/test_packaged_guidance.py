@@ -21,6 +21,7 @@ EXPECTED_DOCS = {
     "adopt-guide.md",
     "editor-safety.md",
     "evidence-and-coverage.md",
+    "mcp-gateway.md",
     "postgresql-security.md",
     "provider-configuration.md",
     "quickstart.md",

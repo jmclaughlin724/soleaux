@@ -224,3 +224,29 @@ export interface SnapshotEvent {
 }
 
 export type MonitorStreamEvent = SnapshotEvent;
+
+// Wire shape of one MCP tool-call event emitted by the soleaux metrics
+// middleware. Field names stay snake_case to match the Python emitter's
+// ToolCallEvent.payload() exactly; the daemon ingests it unchanged.
+export interface McpToolCallEvent {
+  operation: string;
+  backend: string;
+  tool_name: string;
+  duration_ms: number;
+  ok: boolean;
+  error_type: string | null;
+  at: string;
+}
+
+export type McpBackendAuthState = "ok" | "auth_error" | "error";
+
+export interface McpBackendSummary {
+  backend: string;
+  callCount: number;
+  errorCount: number;
+  p50DurationMs?: number;
+  p95DurationMs?: number;
+  lastEventAt?: string;
+  lastErrorType?: string;
+  lastAuthState?: McpBackendAuthState;
+}

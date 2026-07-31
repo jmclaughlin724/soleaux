@@ -6,13 +6,16 @@ import argparse
 import asyncio
 import collections.abc
 import json
+import os
 import pathlib
 import sys
 import typing
 
 import soleaux.analysis.service
+import soleaux.contracts.config
 import soleaux.contracts.requests
 import soleaux.contracts.results
+import soleaux.policy_render
 
 
 def _add_common_request_options(parser: argparse.ArgumentParser) -> None:
@@ -134,6 +137,26 @@ def create_parser() -> argparse.ArgumentParser:
     check_health = check_sub.add_parser("health")
     check_health.add_argument("--json", action="store_true")
 
+    mcp = subparsers.add_parser(
+        "mcp",
+        help="Manage proxied MCP backends: login, logout, status, doctor.",
+    )
+    mcp_sub = mcp.add_subparsers(dest="mcp_target", required=True)
+    mcp_login = mcp_sub.add_parser(
+        "login", help="Run the OAuth flow for one backend in this foreground shell."
+    )
+    mcp_login.add_argument("name")
+    mcp_logout = mcp_sub.add_parser("logout", help="Clear one backend's stored OAuth tokens.")
+    mcp_logout.add_argument("name")
+    mcp_status = mcp_sub.add_parser(
+        "status", help="Show each backend's transport, lifecycle, and auth state."
+    )
+    mcp_status.add_argument("--json", action="store_true")
+    mcp_doctor = mcp_sub.add_parser(
+        "doctor", help="Probe backend liveness; never triggers interactive auth."
+    )
+    mcp_doctor.add_argument("--json", action="store_true")
+
     suggest = subparsers.add_parser("suggest")
     suggest.add_argument("--json", action="store_true")
 
@@ -150,6 +173,10 @@ def create_parser() -> argparse.ArgumentParser:
     generate_sub = generate.add_subparsers(dest="generate_target", required=True)
     gen_toml = generate_sub.add_parser("soleaux-toml")
     gen_toml.add_argument("--output", type=pathlib.Path, default=pathlib.Path("soleaux.toml"))
+    generate_sub.add_parser(
+        "host-policy",
+        help="Render the canonical MCP policy as host-native policy JSON (stdout only).",
+    )
 
     adopt = subparsers.add_parser(
         "adopt",
@@ -263,8 +290,12 @@ async def run_cli(
         return _generate_soleaux_toml(
             root, getattr(args, "output", pathlib.Path("soleaux.toml")), stdout=output
         )
+    if args.command == "generate" and args.generate_target == "host-policy":
+        return _generate_host_policy(root, stdout=output)
     if args.command == "adopt":
         return _run_adopt(args, root, stdout=output, stderr=sys.stderr)
+    if args.command == "mcp":
+        return await _run_mcp(args, root, stdout=output)
 
     owns_service = service is None
     active = service or soleaux.analysis.service.SoleauxService.from_directory(
@@ -475,6 +506,15 @@ def _check_health(root: pathlib.Path, *, json_output: bool, stdout: typing.TextI
     return 0
 
 
+def _generate_host_policy(root: pathlib.Path, stdout: typing.TextIO) -> int:
+    """Print the rendered host policy bundle as JSON; applying it is a separate step."""
+    config = soleaux.contracts.config.load_config(root)
+    bundle = soleaux.policy_render.render_all(config)
+    stdout.write(json.dumps(bundle.model_dump(mode="json"), indent=2, sort_keys=True))
+    stdout.write("\n")
+    return 0
+
+
 def _generate_soleaux_toml(root: pathlib.Path, output: pathlib.Path, stdout: typing.TextIO) -> int:
     """Generate a soleaux.toml template from existing workspace configs."""
     import json as json_mod
@@ -610,13 +650,20 @@ async def _probe_mcp_backends(
         if not backend.enabled:
             continue
         entry: dict[str, object] = {"name": name}
+        if backend.auth == "oauth" and not await _has_stored_tokens(backend, backend_name=name):
+            # Probing an unauthenticated OAuth backend would trigger the
+            # interactive flow; report the login action instead.
+            entry["alive"] = False
+            entry["error"] = f"not authenticated; run `soleaux mcp login {name}`"
+            results.append(entry)
+            continue
         try:
             if backend.command is None and backend.url is None:
                 entry["alive"] = False
                 entry["error"] = "no command or url"
                 results.append(entry)
                 continue
-            transport = _transport_factory(backend, root)()
+            transport = _transport_factory(backend, root, backend_name=name)()
             init_timeout = backend.init_timeout_seconds
             req_timeout = backend.request_timeout_seconds
             started = time.perf_counter()
@@ -643,6 +690,114 @@ async def _probe_mcp_backends(
             if "error" in r:
                 stdout.write(f"  error: {r['error']}\n")
     return 1 if any(not r.get("alive") for r in results) else 0
+
+
+async def _has_stored_tokens(
+    backend: soleaux.contracts.config.McpBackendConfig,
+    *,
+    backend_name: str,
+) -> bool:
+    """True when the shared token store holds tokens for one OAuth backend."""
+    from fastmcp.client.auth.oauth import TokenStorageAdapter
+
+    import soleaux.credentials
+
+    store = soleaux.credentials.build_token_store(backend, backend_name=backend_name)
+    adapter = TokenStorageAdapter(async_key_value=store, server_url=str(backend.url))
+    return await adapter.get_tokens() is not None
+
+
+def _require_oauth_backend(
+    root: pathlib.Path, name: str
+) -> soleaux.contracts.config.McpBackendConfig:
+    from soleaux.contracts.config import load_config
+
+    backend = load_config(root).mcp.get(name)
+    if backend is None:
+        raise ValueError(f"unknown MCP backend: {name!r}")
+    if backend.auth != "oauth":
+        raise ValueError(f"MCP backend {name!r} does not use OAuth (auth = {backend.auth!r})")
+    return backend
+
+
+async def _run_mcp(args: argparse.Namespace, root: pathlib.Path, *, stdout: typing.TextIO) -> int:
+    import json as json_mod
+
+    from soleaux.contracts.config import load_config
+
+    if args.mcp_target == "login":
+        try:
+            backend = _require_oauth_backend(root, args.name)
+        except ValueError as exc:
+            stdout.write(f"[FAIL] {exc}\n")
+            return 1
+        from fastmcp import Client
+
+        from soleaux.gateway import _transport_factory
+
+        transport = _transport_factory(
+            backend, root, backend_name=args.name, interactive_oauth=True
+        )()
+        async with Client(
+            transport,
+            init_timeout=backend.init_timeout_seconds,
+            timeout=backend.request_timeout_seconds,
+        ) as client:
+            tools = await client.list_tools()
+        stdout.write(f"[OK] {args.name}: authenticated; {len(tools)} tools available\n")
+        return 0
+
+    if args.mcp_target == "logout":
+        try:
+            backend = _require_oauth_backend(root, args.name)
+        except ValueError as exc:
+            stdout.write(f"[FAIL] {exc}\n")
+            return 1
+        from fastmcp.client.auth.oauth import TokenStorageAdapter
+
+        import soleaux.credentials
+
+        store = soleaux.credentials.build_token_store(backend, backend_name=args.name)
+        adapter = TokenStorageAdapter(async_key_value=store, server_url=str(backend.url))
+        await adapter.clear()
+        soleaux.credentials.clear_token_store(backend, backend_name=args.name)
+        stdout.write(f"[OK] {args.name}: stored tokens cleared\n")
+        return 0
+
+    if args.mcp_target == "status":
+        config = load_config(root)
+        entries: list[dict[str, object]] = []
+        for name, backend in sorted(config.mcp.items()):
+            entry: dict[str, object] = {
+                "name": name,
+                "enabled": backend.enabled,
+                "transport": "command" if backend.command is not None else "url",
+                "lifecycle": backend.lifecycle,
+                "auth": backend.auth,
+            }
+            if backend.auth == "oauth":
+                entry["authenticated"] = await _has_stored_tokens(backend, backend_name=name)
+            elif backend.auth == "bearer_env":
+                entry["authenticated"] = bool(
+                    backend.auth_token_env and os.environ.get(backend.auth_token_env)
+                )
+            entries.append(entry)
+        if getattr(args, "json", False):
+            stdout.write(json_mod.dumps(entries, indent=2) + "\n")
+        else:
+            for entry in entries:
+                state = ""
+                if "authenticated" in entry:
+                    state = "authenticated" if entry["authenticated"] else "NOT authenticated"
+                stdout.write(
+                    f"{entry['name']}: {entry['transport']}/{entry['lifecycle']} "
+                    f"auth={entry['auth']} {state}\n"
+                )
+        return 0
+
+    return await _probe_mcp_backends(
+        root, json_output=bool(getattr(args, "json", False)), stdout=stdout
+    )
 
 
 def _run_adopt(

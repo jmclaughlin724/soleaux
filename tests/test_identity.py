@@ -78,7 +78,7 @@ def test_fastmcp_skill_claim_matches_manifest_pin() -> None:
     assert fastmcp_pins == [f"fastmcp=={claimed_version}"]
 
 
-async def test_catalog_is_exactly_ten_tools_seven_resources() -> None:
+async def test_catalog_is_exactly_ten_tools_eight_resources() -> None:
     async with Client(mcp) as client:
         assert client.protocol_version in MODERN_PROTOCOL_VERSIONS
         tools = await client.list_tools()
@@ -240,6 +240,7 @@ async def test_wire_about_and_surface_metadata_agree_on_literal_v1_catalog() -> 
         "soleaux://health/v1",
         "soleaux://providers/v1",
         "soleaux://skills/v1",
+        "soleaux://mcp/v1",
     )
     assert surface.tool_names() == expected_tools
     assert surface.resource_uris() == expected_resources
