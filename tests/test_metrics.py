@@ -16,9 +16,15 @@ import soleaux.metrics
 
 
 class _RecordingEmitter:
-    def __init__(self, failure: BaseException | None = None) -> None:
+    def __init__(
+        self,
+        failure: BaseException | None = None,
+        register_failure: BaseException | None = None,
+    ) -> None:
         self.events: list[soleaux.metrics.ToolCallEvent] = []
         self.failure = failure
+        self.registered: list[str] = []
+        self.register_failure = register_failure
         self.delivered = asyncio.Event()
 
     async def emit(self, event: soleaux.metrics.ToolCallEvent) -> None:
@@ -26,6 +32,11 @@ class _RecordingEmitter:
             raise self.failure
         self.events.append(event)
         self.delivered.set()
+
+    async def register_backend(self, backend: str) -> None:
+        if self.register_failure is not None:
+            raise self.register_failure
+        self.registered.append(backend)
 
 
 def _call_tool_context(tool_name: str) -> MiddlewareContext[mt.CallToolRequestParams]:
@@ -269,6 +280,61 @@ async def test_daemon_emitter_posts_event_payload_to_ingest_route() -> None:
         b'"duration_ms":1.5,"ok":true,"error_type":null,'
         b'"at":"2026-07-31T00:00:00+00:00"}'
     )
+
+
+async def test_register_backends_announces_each_backend_sorted() -> None:
+    emitter = _RecordingEmitter()
+    middleware = soleaux.metrics.MetricsMiddleware(backends=("db", "auth"), emitter=emitter)
+
+    await middleware.register_backends()
+
+    assert emitter.registered == ["auth", "db"]
+
+
+async def test_register_backends_is_fail_open() -> None:
+    emitter = _RecordingEmitter(register_failure=RuntimeError("daemon down"))
+    middleware = soleaux.metrics.MetricsMiddleware(backends=("db",), emitter=emitter)
+
+    await middleware.register_backends()
+
+    assert emitter.registered == []
+
+
+async def test_daemon_emitter_registers_backend_with_daemon_route() -> None:
+    captured: list[httpx2.Request] = []
+
+    def record(request: httpx2.Request) -> httpx2.Response:
+        captured.append(request)
+        return httpx2.Response(201, json={})
+
+    def factory() -> httpx2.AsyncClient:
+        return httpx2.AsyncClient(
+            transport=httpx2.MockTransport(record),
+            base_url="http://telemetry.test/api/v1",
+        )
+
+    emitter = soleaux.metrics.DaemonMetricsEmitter(factory)
+    await emitter.register_backend("db")
+
+    assert len(captured) == 1
+    assert captured[0].method == "POST"
+    assert captured[0].url.path == "/api/v1/mcp/backends"
+    assert captured[0].content == b'{"backend":"db"}'
+
+
+async def test_daemon_emitter_register_raises_on_non_success_response() -> None:
+    def reject(_request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(404, json={})
+
+    def factory() -> httpx2.AsyncClient:
+        return httpx2.AsyncClient(
+            transport=httpx2.MockTransport(reject),
+            base_url="http://telemetry.test/api/v1",
+        )
+
+    emitter = soleaux.metrics.DaemonMetricsEmitter(factory)
+    with pytest.raises(httpx2.HTTPStatusError):
+        await emitter.register_backend("db")
 
 
 def test_from_config_selects_emitter_and_backends() -> None:

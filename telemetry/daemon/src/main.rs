@@ -13,6 +13,7 @@ struct AppState {
     usage_events: Arc<RwLock<Vec<UsageEvent>>>,
     quotas: Arc<RwLock<HashMap<String, QuotaWindow>>>,
     mcp_events: Arc<RwLock<Vec<McpToolCallEvent>>>,
+    mcp_backends: Arc<RwLock<HashSet<String>>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -157,6 +158,12 @@ struct McpToolCallEvent {
     at: String,
 }
 
+// Registration payload from the soleaux server: one configured MCP backend.
+// Registration lets the summary surface backends that have produced no events.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RegisterMcpBackend { backend: String }
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct McpBackendSummary {
@@ -239,6 +246,7 @@ fn build_router(state: AppState) -> Router {
         .route("/api/v1/usage/summary", get(usage_summary))
         .route("/api/v1/quotas", get(list_quotas).post(record_quota))
         .route("/api/v1/mcp/events", get(list_mcp_events).post(record_mcp_event))
+        .route("/api/v1/mcp/backends", post(register_mcp_backend))
         .route("/api/v1/mcp/summary", get(mcp_summary))
         .route("/api/v1/stream", get(stream_snapshots))
         .with_state(state)
@@ -324,6 +332,12 @@ async fn record_mcp_event(State(state): State<AppState>, Json(event): Json<McpTo
     (StatusCode::CREATED, Json(event))
 }
 
+// Idempotent upsert: server restarts re-register the same configured backends.
+async fn register_mcp_backend(State(state): State<AppState>, Json(input): Json<RegisterMcpBackend>) -> impl IntoResponse {
+    state.mcp_backends.write().await.insert(input.backend.clone());
+    (StatusCode::CREATED, Json(input))
+}
+
 #[derive(Deserialize)]
 struct McpEventQuery {
     backend: Option<String>,
@@ -354,10 +368,12 @@ async fn list_mcp_events(State(state): State<AppState>, Query(query): Query<McpE
 }
 
 async fn mcp_summary(State(state): State<AppState>) -> impl IntoResponse {
-    Json(summarize_mcp(&state.mcp_events.read().await))
+    let events = state.mcp_events.read().await;
+    let backends = state.mcp_backends.read().await;
+    Json(summarize_mcp(&events, &backends))
 }
 
-fn summarize_mcp(events: &[McpToolCallEvent]) -> Vec<McpBackendSummary> {
+fn summarize_mcp(events: &[McpToolCallEvent], registered: &HashSet<String>) -> Vec<McpBackendSummary> {
     // The middleware also emits tools/list catalog discoveries (attributed to
     // the local backend); call counts and latency percentiles summarize only
     // actual tool executions.
@@ -366,7 +382,7 @@ fn summarize_mcp(events: &[McpToolCallEvent]) -> Vec<McpBackendSummary> {
         grouped.entry(event.backend.as_str()).or_default().push(event);
     }
     let mut summaries = Vec::new();
-    for (backend, backend_events) in grouped {
+    for (backend, backend_events) in &grouped {
         let mut durations: Vec<f64> = backend_events.iter().map(|event| event.duration_ms).collect();
         durations.sort_by(f64::total_cmp);
         // The middleware stamps `at` with UTC ISO-8601, so the latest event
@@ -381,6 +397,21 @@ fn summarize_mcp(events: &[McpToolCallEvent]) -> Vec<McpBackendSummary> {
             last_event_at: last.map(|event| event.at.clone()),
             last_error_type: last.and_then(|event| event.error_type.clone()),
             last_auth_state: last.map(|event| auth_state(event)),
+        });
+    }
+    // Registered backends with no recorded events still surface with zeroed
+    // aggregates so a configured but silent (down, unauthenticated, or newly
+    // added) backend is visible instead of looking like no gateway traffic.
+    for backend in registered.iter().filter(|backend| !grouped.contains_key(backend.as_str())) {
+        summaries.push(McpBackendSummary {
+            backend: backend.clone(),
+            call_count: 0,
+            error_count: 0,
+            p50_duration_ms: None,
+            p95_duration_ms: None,
+            last_event_at: None,
+            last_error_type: None,
+            last_auth_state: None,
         });
     }
     summaries.sort_by(|a, b| a.backend.cmp(&b.backend));
@@ -607,6 +638,69 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].duration_ms, 12.5);
         assert!(events[0].ok);
+    }
+
+    #[tokio::test]
+    async fn mcp_summary_includes_registered_backends_without_events() {
+        let app = build_router(AppState::default());
+        for backend in ["context7", "vercel"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/v1/mcp/backends")
+                        .header("content-type", "application/json")
+                        .body(Body::from(format!(r#"{{"backend":"{backend}"}}"#)))
+                        .expect("request should build"),
+                )
+                .await
+                .expect("router should respond");
+            assert_eq!(response.status(), StatusCode::CREATED);
+        }
+        // Re-registration (server restart) is idempotent.
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/mcp/backends")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"backend":"context7"}"#))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(
+            post_event(&app, &mcp_event("context7", "context7_search", 10.0, true, None, "2026-07-31T10:00:00+00:00")).await.status(),
+            StatusCode::CREATED,
+        );
+
+        let response = app
+            .oneshot(Request::builder().uri("/api/v1/mcp/summary").body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("body should read");
+        let summaries: Vec<serde_json::Value> = serde_json::from_slice(&body).expect("summary should deserialize");
+        assert_eq!(summaries.len(), 2);
+
+        let context7 = &summaries[0];
+        assert_eq!(context7["backend"], "context7");
+        assert_eq!(context7["callCount"], 1);
+
+        // The silent registered backend surfaces with zeroed aggregates and
+        // no last-event fields instead of disappearing from the registry.
+        let vercel = &summaries[1];
+        assert_eq!(vercel["backend"], "vercel");
+        assert_eq!(vercel["callCount"], 0);
+        assert_eq!(vercel["errorCount"], 0);
+        assert_eq!(vercel["p50DurationMs"], serde_json::Value::Null);
+        assert_eq!(vercel["p95DurationMs"], serde_json::Value::Null);
+        assert_eq!(vercel["lastEventAt"], serde_json::Value::Null);
+        assert_eq!(vercel["lastErrorType"], serde_json::Value::Null);
+        assert_eq!(vercel["lastAuthState"], serde_json::Value::Null);
     }
 
     #[tokio::test]

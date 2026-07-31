@@ -36,7 +36,7 @@ async def test_multiple_projections_parse_the_content_exactly_once(
     assert result.parses == 1
     assert supervisor.completed_jobs == 1, (
         f"jobs={supervisor.completed_jobs} total={supervisor.total_completed_jobs} "
-        f"rss={supervisor._last_rss_bytes} reason={supervisor._last_replace_reason}"
+        f"rss={supervisor._last_replace_rss_bytes} reason={supervisor._last_replace_reason}"
     )
     projections = {row.projection for row in result.fragments}
     assert "syntax.declarations" in projections

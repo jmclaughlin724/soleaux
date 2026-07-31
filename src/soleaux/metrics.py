@@ -7,7 +7,11 @@ and attribute to ``local``), and counts successes and errors. Each completed
 operation is forwarded toward the telemetry daemon's MCP-ingest route
 (``/api/v1/mcp/events``, owned by GW-13) through a bounded fire-and-forget
 emitter: emission is fail-open and never raises into, or blocks, the request
-path. ``MetricsMiddleware.snapshot`` exposes the recent in-memory aggregate
+path. At server startup ``MetricsMiddleware.register_backends`` announces the
+configured backends toward the daemon's registry route
+(``/api/v1/mcp/backends``), also fail-open, so backends with no recorded
+events still surface in the daemon's summary.
+``MetricsMiddleware.snapshot`` exposes the recent in-memory aggregate
 per backend for diagnostic consumers.
 """
 
@@ -32,9 +36,10 @@ logger = logging.getLogger(__name__)
 
 LOCAL_BACKEND = "local"
 # Relative to the client base URL, which already carries the "/api/v1" prefix
-# (soleaux.telemetry.TELEMETRY_API_PREFIX); the daemon route is
-# "/api/v1/mcp/events".
+# (soleaux.telemetry.TELEMETRY_API_PREFIX); the daemon routes are
+# "/api/v1/mcp/events" and "/api/v1/mcp/backends".
 MCP_EVENT_INGEST_PATH = "/mcp/events"
+MCP_BACKEND_REGISTER_PATH = "/mcp/backends"
 _MAX_PENDING_EMISSIONS = 64
 
 
@@ -59,12 +64,17 @@ class MetricsEmitter(typing.Protocol):
 
     async def emit(self, event: ToolCallEvent) -> None: ...
 
+    async def register_backend(self, backend: str) -> None: ...
+
 
 class NoopMetricsEmitter:
     """Default sink when ``[telemetry]`` is disabled; drops every event."""
 
     async def emit(self, event: ToolCallEvent) -> None:
         _ = event
+
+    async def register_backend(self, backend: str) -> None:
+        _ = backend
 
 
 class DaemonMetricsEmitter:
@@ -78,6 +88,11 @@ class DaemonMetricsEmitter:
             # A reachable daemon that rejects ingestion (4xx/5xx) is a dropped
             # event, not a delivered one; the middleware counts the failure.
             response = await client.post(MCP_EVENT_INGEST_PATH, json=event.payload())
+            response.raise_for_status()
+
+    async def register_backend(self, backend: str) -> None:
+        async with self._client_factory() as client:
+            response = await client.post(MCP_BACKEND_REGISTER_PATH, json={"backend": backend})
             response.raise_for_status()
 
 
@@ -126,6 +141,14 @@ class MetricsMiddleware(Middleware):
         )
         backends = tuple(name for name, backend in config.mcp.items() if backend.enabled)
         return cls(backends=backends, local_tools=local_tools, emitter=emitter)
+
+    async def register_backends(self) -> None:
+        """Announce each configured backend to the daemon registry, fail-open."""
+        for backend in sorted(self._namespaces):
+            try:
+                await self._emitter.register_backend(backend)
+            except Exception:
+                logger.debug("soleaux backend registration failed: %s", backend, exc_info=True)
 
     def backend_for(self, tool_name: str) -> str:
         if tool_name in self._local_tools:
@@ -245,6 +268,7 @@ class MetricsMiddleware(Middleware):
 
 __all__: tuple[str, ...] = (
     "LOCAL_BACKEND",
+    "MCP_BACKEND_REGISTER_PATH",
     "MCP_EVENT_INGEST_PATH",
     "DaemonMetricsEmitter",
     "MetricsEmitter",

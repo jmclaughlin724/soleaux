@@ -918,6 +918,11 @@ def create_server(
         finally:
             signal.signal(signal.SIGTERM, previous_term)
 
+    metrics_middleware = soleaux.metrics.MetricsMiddleware.from_config(
+        resolved_config,
+        local_tools=soleaux.surface.tool_names(),
+    )
+
     @contextlib.asynccontextmanager
     async def lifespan(
         _server: fastmcp.FastMCP[dict[str, typing.Any]],
@@ -925,6 +930,7 @@ def create_server(
         service = active_service_factory()
         try:
             await service.start()
+            await metrics_middleware.register_backends()
             with _sigterm_as_sigint():
                 yield {
                     _LIFESPAN_STATE_KEY: LifespanState(
@@ -952,12 +958,7 @@ def create_server(
     soleaux.gateway.attach_mcp_proxies(server, resolved_config, resolved_root)
     soleaux.skills.attach_skills_provider(server, resolved_config, resolved_root)
     soleaux.telemetry.attach_telemetry_tools(server, resolved_config)
-    server.add_middleware(
-        soleaux.metrics.MetricsMiddleware.from_config(
-            resolved_config,
-            local_tools=soleaux.surface.tool_names(),
-        )
-    )
+    server.add_middleware(metrics_middleware)
     return server
 
 

@@ -4,7 +4,7 @@ Startup, initialize, tools/list, and describe start no child. The first
 structural request lazily starts exactly one supervised Python worker. The
 parent owns bounded IPC, deadlines, output caps, cancellation,
 terminate/kill escalation, job and RSS accounting, and replacement after 64
-completed jobs, 512 MiB RSS, hard cancellation, or protocol failure.
+completed jobs, 256 MiB RSS, hard cancellation, or protocol failure.
 """
 
 from __future__ import annotations
@@ -105,6 +105,7 @@ class StructuralWorkerSupervisor:
         self._total_completed_jobs = 0
         self._last_rss_bytes: int | None = None
         self._last_replace_reason: str | None = None
+        self._last_replace_rss_bytes: int | None = None
         self._worker_epoch = 0
         self._tasks = TaskRegistry()
         self._cache = MemoryCache(
@@ -455,6 +456,7 @@ class StructuralWorkerSupervisor:
 
     async def _replace(self, reason: str, *, provision: bool = False) -> None:
         self._last_replace_reason = reason
+        self._last_replace_rss_bytes = self._last_rss_bytes
         proc = self._proc
         process_tree = self._process_tree
         self._proc = None
