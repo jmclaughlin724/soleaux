@@ -843,6 +843,7 @@ def test_installed_artifact_acceptance(
                         SAFE_BASELINE_ENVIRONMENT_NAMES
                     )
                     selected_environment["FASTMCP_MCP_CAMELCASE_COMPAT"] = "false"
+                    selected_environment["FASTMCP_CHECK_FOR_UPDATES"] = "off"
                     selected_environment["PYTHONDONTWRITEBYTECODE"] = "1"
                     selected_environment["PYTHONPATH"] = os.environ["PYTHONPATH"]
                     selected_environment["SOLEAUX_NETWORK_AUDIT_LOG"] = os.environ[
@@ -886,12 +887,12 @@ def test_installed_artifact_acceptance(
     stdio = _json_output(stdio_probe)
     assert stdio == {
         "zero_tools": 10,
-        "zero_resources": 8,
+        "zero_resources": 7,
         "zero_guide": True,
         "zero_search_rows": ["answer"],
         "configured_tools": 11,
         "mcp_tools": ["artifact_echo"],
-        "configured_resources": 8,
+        "configured_resources": 7,
         "configured_guide": True,
         "mcp_payload": {"echo": "installed"},
         "children": [],
