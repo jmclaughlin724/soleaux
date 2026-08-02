@@ -1,4 +1,5 @@
 name: Soleaux native wedge Phase 0 PR
+# Exact-commit Phase 0 validation; this comment intentionally triggers the PR gate.
 
 on:
   pull_request:
