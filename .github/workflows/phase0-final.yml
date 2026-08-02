@@ -9,6 +9,7 @@ on:
       - CONTEXT-PACKET-V2.md
       - contracts/phase0-identity.json
       - scripts/validate_phase0_contracts.py
+      - scripts/apply_phase0_native_overlay.py
       - .ci/phase0-contracts.part-*
       - .ci/native-wedge-source.part-*
       - .ci/native-overrides/**
@@ -71,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           cp -a .ci/phase0-native-overrides/files/. native-wedge/
-          patch --fuzz=0 -d native-wedge -p1 < .ci/phase0-native-overrides/patches/phase0-native.patch
+          python3 scripts/apply_phase0_native_overlay.py native-wedge | tee native-evidence/phase0-native-overlay.json
           cp UNIFIED-MCP-PROFILE.md CONTEXT-PACKET-V2.md native-wedge/
           mkdir -p native-wedge/contracts
           cp contracts/phase0-identity.json native-wedge/contracts/
