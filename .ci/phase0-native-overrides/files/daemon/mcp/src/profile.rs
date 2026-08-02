@@ -36,13 +36,14 @@ pub const OPTIONAL_TOOL_NAMES: [&str; 3] = [
     "next.get_routes",
 ];
 
-pub const UNIFIED_PROFILE_DOCUMENT: &str = include_str!("../../../UNIFIED-MCP-PROFILE.md");
-pub const CONTEXT_PACKET_DOCUMENT: &str = include_str!("../../../CONTEXT-PACKET-V2.md");
+pub const UNIFIED_PROFILE_DOCUMENT: &str = include_str!("../../../../UNIFIED-MCP-PROFILE.md");
+pub const CONTEXT_PACKET_DOCUMENT: &str = include_str!("../../../../CONTEXT-PACKET-V2.md");
 pub const PROFILE_MANIFEST_JSON: &str =
-    include_str!("../../../contracts/unified-mcp-profile-v2.json");
+    include_str!("../../../../contracts/unified-mcp-profile-v2.json");
 pub const CONTEXT_PACKET_SCHEMA_JSON: &str =
-    include_str!("../../../contracts/context-packet-v2.schema.json");
-pub const PHASE0_IDENTITY_JSON: &str = include_str!("../../../contracts/phase0-identity.json");
+    include_str!("../../../../contracts/context-packet-v2.schema.json");
+pub const PHASE0_IDENTITY_JSON: &str =
+    include_str!("../../../../contracts/phase0-identity.json");
 
 #[cfg(test)]
 mod tests {
