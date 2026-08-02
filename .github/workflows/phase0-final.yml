@@ -10,11 +10,9 @@ on:
       - contracts/phase0-identity.json
       - scripts/validate_phase0_contracts.py
       - .ci/phase0-contracts.part-*
-      - .ci/native-wedge-dev5-source.part-00
-      - .ci/native-wedge-dev5-source.part-02
-      - .ci/native-wedge-dev5-source.part-03
-      - .ci/native-wedge-dev5-source.part-04
-      - .ci/native-wedge-dev5-source.repair-*
+      - .ci/native-wedge-source.part-*
+      - .ci/native-overrides/**
+      - .ci/phase0-native-overrides/**
       - .github/workflows/phase0-final.yml
   workflow_dispatch:
 
@@ -51,76 +49,39 @@ jobs:
           cmp contracts/phase0-identity.json phase0-materialized/contracts/phase0-identity.json
           python3 scripts/validate_phase0_contracts.py 2>&1 | tee native-evidence/phase0-contract-test.json
 
-      - name: Verify reviewed native source chunks
+      - name: Materialize last green native base
         shell: bash
         run: |
           set -euo pipefail
-          check_blob() {
-            local expected="$1"
-            local path="$2"
-            local actual
-            actual="$(git hash-object "$path")"
-            test "$actual" = "$expected" || {
-              echo "blob mismatch: $path expected=$expected actual=$actual" >&2
-              exit 1
-            }
-          }
-          check_blob fb66d3a2243172bca8c09c730722e6350e367ebe .ci/native-wedge-dev5-source.part-00
-          check_blob 4ac859f81e3201d70d9b098bca4e601eb31cfccf .ci/native-wedge-dev5-source.repair-01a
-          check_blob e677d0eb14f1640d1b4645a73858926634e76ced .ci/native-wedge-dev5-source.repair-01b0
-          check_blob ddd8f77e56473994fb43c103e421f6ae01e41bad .ci/native-wedge-dev5-source.repair-01b1
-          check_blob e1c105eb27b1b142e7239f29e22a3412fa99d45f .ci/native-wedge-dev5-source.repair-01b2
-          check_blob 9467867669948e85eabe6a501af35b154cc72101 .ci/native-wedge-dev5-source.repair-01b3
-          check_blob 18b85e61125c054310ce7fc7af2263f691c94723 .ci/native-wedge-dev5-source.repair-01b4
-          check_blob 1e540c0d13ba41cb726cef3b7ebc2c2402802590 .ci/native-wedge-dev5-source.repair-01b5
-          check_blob 52c57f1479eee0d86564bc9a95f4331d71bbeb51 .ci/native-wedge-dev5-source.repair-01b6
-          check_blob 5ca5c5f9feb3ccedd97985ca9417cd1e001bb09a .ci/native-wedge-dev5-source.repair-01b7
-          check_blob 51939a16ba8da87f44e14026fc087a1d9674ec7a .ci/native-wedge-dev5-source.repair-01b8
-          check_blob 7aa2043817ecac18f64c8b2a958290ef123e7ba3 .ci/native-wedge-dev5-source.repair-01b9
-          check_blob 3719a089f53dea747164bcf11f5dd6e6a484ec93 .ci/native-wedge-dev5-source.repair-01c
-          check_blob 60fc91e96ffbb42faaf62b7796179505ed4844a4 .ci/native-wedge-dev5-source.repair-01d
-          check_blob 0695138268d818e77e859c3a85b09f78ac2f2adf .ci/native-wedge-dev5-source.part-02
-          check_blob d6a48e5f32dcda71fc4e1067b6c0b4e2571da42d .ci/native-wedge-dev5-source.part-03
-          check_blob 9b91a3a7ff17fb05f771908f033a7f024db56313 .ci/native-wedge-dev5-source.part-04
+          cat .ci/native-wedge-source.part-* | tr -d '\r\n' > /tmp/soleaux-native-base.tar.xz.b64
+          test "$(wc -c < /tmp/soleaux-native-base.tar.xz.b64)" -eq 49336
+          echo "c35307fd88284d43e991e4d98ae9ae569411e41afa17f29dc13a882204b1dbca  /tmp/soleaux-native-base.tar.xz.b64" | sha256sum -c -
+          base64 --decode /tmp/soleaux-native-base.tar.xz.b64 > /tmp/soleaux-native-base.tar.xz
+          echo "520b32d1223136b8a0dcaedd7b1438d3bb897c171b95884973e200ddf294dbfd  /tmp/soleaux-native-base.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/soleaux-native-base.tar.xz -C native-wedge
+          if [ -d .ci/native-overrides/files ]; then
+            cp -a .ci/native-overrides/files/. native-wedge/
+          fi
+          for patch_file in .ci/native-overrides/patches/*.patch; do
+            patch -d native-wedge -p1 < "$patch_file"
+          done
 
-      - name: Materialize reviewed native workspace
+      - name: Apply binding Phase 0 overlay
         shell: bash
         run: |
           set -euo pipefail
-          cat \
-            .ci/native-wedge-dev5-source.part-00 \
-            .ci/native-wedge-dev5-source.repair-01a \
-            .ci/native-wedge-dev5-source.repair-01b0 \
-            .ci/native-wedge-dev5-source.repair-01b1 \
-            .ci/native-wedge-dev5-source.repair-01b2 \
-            .ci/native-wedge-dev5-source.repair-01b3 \
-            .ci/native-wedge-dev5-source.repair-01b4 \
-            .ci/native-wedge-dev5-source.repair-01b5 \
-            .ci/native-wedge-dev5-source.repair-01b6 \
-            .ci/native-wedge-dev5-source.repair-01b7 \
-            .ci/native-wedge-dev5-source.repair-01b8 \
-            .ci/native-wedge-dev5-source.repair-01b9 \
-            .ci/native-wedge-dev5-source.repair-01c \
-            .ci/native-wedge-dev5-source.repair-01d \
-            .ci/native-wedge-dev5-source.part-02 \
-            .ci/native-wedge-dev5-source.part-03 \
-            .ci/native-wedge-dev5-source.part-04 \
-            | tr -d '\r\n' > /tmp/soleaux-native-dev5.tar.xz.b64
-          test "$(wc -c < /tmp/soleaux-native-dev5.tar.xz.b64)" -eq 95416
-          echo "af5ae5bf8cf8f5519ee5c454bcd969f2ed3130fae0c7bde7a0e5a81c10156187  /tmp/soleaux-native-dev5.tar.xz.b64" | sha256sum -c -
-          base64 --decode /tmp/soleaux-native-dev5.tar.xz.b64 > /tmp/soleaux-native-dev5.tar.xz
-          echo "2d615e9074221c8b24f6e8b0dd09d74d9c02ae4bb8e3ef694155875666d296ce  /tmp/soleaux-native-dev5.tar.xz" | sha256sum -c -
-          tar -xJf /tmp/soleaux-native-dev5.tar.xz -C native-wedge
+          cp -a .ci/phase0-native-overrides/files/. native-wedge/
+          patch --fuzz=0 -d native-wedge -p1 < .ci/phase0-native-overrides/patches/phase0-native.patch
           cp UNIFIED-MCP-PROFILE.md CONTEXT-PACKET-V2.md native-wedge/
           mkdir -p native-wedge/contracts
           cp contracts/phase0-identity.json native-wedge/contracts/
           cp phase0-materialized/contracts/unified-mcp-profile-v2.json native-wedge/contracts/
           cp phase0-materialized/contracts/context-packet-v2.schema.json native-wedge/contracts/
           grep -q 'version = "0.4.0-dev.5"' native-wedge/Cargo.toml
-          test -f native-wedge/daemon/intelligence/src/lib.rs
           test -f native-wedge/daemon/mcp/src/profile.rs
-          find native-wedge -type f | sort > native-evidence/materialized-files.txt
+          grep -q 'pub const HARD_CEILING: usize = 12;' native-wedge/daemon/mcp/src/profile.rs
           git rev-parse HEAD > native-evidence/git-head.txt
+          find native-wedge -type f | sort > native-evidence/materialized-files.txt
 
       - name: Install native build prerequisites
         shell: bash
@@ -140,44 +101,64 @@ jobs:
         with:
           workspaces: native-wedge -> target
 
+      - name: Record toolchain
+        shell: bash
+        run: |
+          rustc --version --verbose | tee native-evidence/rustc-version.txt
+          cargo --version --verbose | tee native-evidence/cargo-version.txt
+          rustfmt --version | tee native-evidence/rustfmt-version.txt
+          cargo clippy --version | tee native-evidence/clippy-version.txt
+
       - name: Generate lockfile
         working-directory: native-wedge
-        run: cargo generate-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile 2>&1 | tee ../native-evidence/cargo-generate-lockfile.txt
+          cp Cargo.lock ../native-evidence/Cargo.lock
 
       - name: Format
         working-directory: native-wedge
-        run: cargo fmt --all --check
+        shell: bash
+        run: cargo fmt --all --check 2>&1 | tee ../native-evidence/cargo-fmt-check.txt
 
       - name: Check
         working-directory: native-wedge
-        run: cargo check --workspace --all-targets --all-features
+        shell: bash
+        run: cargo check --workspace --all-targets --all-features 2>&1 | tee ../native-evidence/cargo-check.txt
 
       - name: Clippy
         working-directory: native-wedge
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        shell: bash
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee ../native-evidence/cargo-clippy.txt
 
       - name: Test
         working-directory: native-wedge
-        run: cargo test --workspace --all-features
+        shell: bash
+        run: cargo test --workspace --all-features 2>&1 | tee ../native-evidence/cargo-test.txt
 
       - name: Build release binaries
         working-directory: native-wedge
+        shell: bash
         run: |
-          cargo build --release --workspace --all-features
+          set -euo pipefail
+          cargo build --release --workspace --all-features 2>&1 | tee ../native-evidence/cargo-build-release.txt
           cp target/release/soleaux target/release/soleauxd ../native-evidence/
 
       - name: Binary smoke
         working-directory: native-wedge
+        shell: bash
         run: |
-          ./target/release/soleaux --help | tee ../native-evidence/soleaux-cli-help.txt
-          ./target/release/soleauxd --help | tee ../native-evidence/soleauxd-help.txt
+          ./target/release/soleaux --help 2>&1 | tee ../native-evidence/soleaux-cli-help.txt
+          ./target/release/soleauxd --help 2>&1 | tee ../native-evidence/soleauxd-help.txt
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
 
       - name: Audit
         working-directory: native-wedge
-        run: cargo audit --deny warnings | tee ../native-evidence/cargo-audit.txt
+        shell: bash
+        run: cargo audit --deny warnings 2>&1 | tee ../native-evidence/cargo-audit.txt
 
       - name: Collect evidence
         if: always()
@@ -185,8 +166,6 @@ jobs:
         run: |
           set -u
           cp native-wedge/Cargo.lock native-evidence/Cargo.lock 2>/dev/null || true
-          rustc --version --verbose > native-evidence/rustc-version.txt 2>&1 || true
-          cargo --version --verbose > native-evidence/cargo-version.txt 2>&1 || true
           cargo metadata --manifest-path native-wedge/Cargo.toml --format-version 1 > native-evidence/cargo-metadata.json 2> native-evidence/cargo-metadata.err || true
           tar --exclude='./target' -cJf native-evidence/native-wedge-phase0-source.tar.xz -C native-wedge . 2> native-evidence/archive.err || true
           sha256sum native-evidence/* > native-evidence/SHA256SUMS 2>/dev/null || true
