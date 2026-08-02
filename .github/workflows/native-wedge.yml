@@ -41,8 +41,13 @@ jobs:
           base64 --decode /tmp/soleaux-native.tar.xz.b64 > /tmp/soleaux-native.tar.xz
           echo "520b32d1223136b8a0dcaedd7b1438d3bb897c171b95884973e200ddf294dbfd  /tmp/soleaux-native.tar.xz" | sha256sum -c -
           tar -xJf /tmp/soleaux-native.tar.xz -C native-wedge
-          if [ -d .ci/native-overrides ]; then
-            cp -a .ci/native-overrides/. native-wedge/
+          if [ -d .ci/native-overrides/files ]; then
+            cp -a .ci/native-overrides/files/. native-wedge/
+          fi
+          if compgen -G '.ci/native-overrides/patches/*.patch' > /dev/null; then
+            for patch_file in .ci/native-overrides/patches/*.patch; do
+              patch -d native-wedge -p1 < "$patch_file"
+            done
           fi
           test -f native-wedge/Cargo.toml
           test -f native-wedge/daemon/intelligence/src/lib.rs
