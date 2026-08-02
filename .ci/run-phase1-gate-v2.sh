@@ -80,6 +80,8 @@ if [ -s "$OVERLAY/delete-paths.txt" ]; then
     rm -rf -- "$SOURCE/$relative_path"
   done < "$OVERLAY/delete-paths.txt"
 fi
+python3 scripts/apply_phase1_clippy_repairs.py "$SOURCE" \
+  2>&1 | tee "$EVIDENCE/phase1-clippy-repairs.txt"
 git rev-parse HEAD | tee "$EVIDENCE/git-head.txt"
 find "$SOURCE" -type f | sort > "$EVIDENCE/materialized-files.txt"
 cp "$OVERLAY/changed-files.txt" "$EVIDENCE/phase1-changed-files.txt"
