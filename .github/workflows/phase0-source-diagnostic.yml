@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   source:
@@ -53,9 +53,50 @@ jobs:
           find source-diagnostic/extracted -type f -print | sort > source-diagnostic/extracted-files.txt
 
       - name: Upload diagnostic
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: soleaux-phase0-source-diagnostic
           path: source-diagnostic
           if-no-files-found: error
           retention-days: 2
+
+      - name: Persist diagnostic receipt
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          DIAGNOSTIC_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          run_id = os.environ["GITHUB_RUN_ID"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          run_url = f"https://github.com/{repo}/actions/runs/{run_id}"
+          Path("PHASE0-SOURCE-DIAGNOSTIC-RECEIPT.json").write_text(
+              json.dumps(
+                  {
+                      "sourceCommit": os.environ["GITHUB_SHA"],
+                      "runId": int(run_id),
+                      "runUrl": run_url,
+                      "jobStatus": os.environ["DIAGNOSTIC_JOB_STATUS"],
+                      "artifactName": "soleaux-phase0-source-diagnostic",
+                      "artifactUrl": f"{run_url}#artifacts",
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PHASE0-SOURCE-DIAGNOSTIC-RECEIPT.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record Phase 0 source diagnostic receipt"
+            git push origin HEAD:native-wedge/0.4.0-dev.4
+          fi
