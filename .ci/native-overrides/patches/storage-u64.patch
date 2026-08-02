@@ -1,15 +1,15 @@
 --- a/daemon/storage/src/lib.rs
 +++ b/daemon/storage/src/lib.rs
-@@ -248,7 +248,7 @@
-         let rows = statement.query_map(
-             params![
-                 workspace_id.to_string(),
--                u64::try_from(limit).unwrap_or(u64::MAX)
-+                i64::try_from(limit).unwrap_or(i64::MAX)
-             ],
-             file_from_row,
+@@ -226,7 +226,7 @@
+             "SELECT workspace_id, path, content_hash, language, byte_length, engine, engine_version, indexed_at_unix_ms
+              FROM indexed_files WHERE workspace_id = ?1 ORDER BY path LIMIT ?2",
          )?;
-@@ -276,10 +276,10 @@
+-        let rows = statement.query_map(params![workspace_id.to_string(), u64::try_from(limit).unwrap_or(u64::MAX)], file_from_row)?;
++        let rows = statement.query_map(params![workspace_id.to_string(), i64::try_from(limit).unwrap_or(i64::MAX)], file_from_row)?;
+         rows.collect::<rusqlite::Result<Vec<_>>>().context("listing indexed files")
+     }
+ 
+@@ -249,10 +249,10 @@
              Ok(SymbolRecord {
                  name: row.get(0)?,
                  kind: row.get(1)?,
@@ -23,17 +23,17 @@
 +                end_row: read_u64(row, 5)?,
              })
          })?;
-         rows.collect::<rusqlite::Result<Vec<_>>>()
-@@ -313,7 +313,7 @@
-             params![
-                 expression,
-                 workspace_id.to_string(),
--                u64::try_from(limit).unwrap_or(u64::MAX)
-+                i64::try_from(limit).unwrap_or(i64::MAX)
-             ],
+         rows.collect::<rusqlite::Result<Vec<_>>>().context("reading file symbols")
+@@ -277,7 +277,7 @@
+              ORDER BY rank LIMIT ?3",
+         )?;
+         let rows = statement.query_map(
+-            params![expression, workspace_id.to_string(), u64::try_from(limit).unwrap_or(u64::MAX)],
++            params![expression, workspace_id.to_string(), i64::try_from(limit).unwrap_or(i64::MAX)],
              |row| {
                  let workspace: String = row.get(0)?;
-@@ -328,10 +328,10 @@
+                 Ok(SymbolHit {
+@@ -291,10 +291,10 @@
                      path: row.get(1)?,
                      name: row.get(2)?,
                      kind: row.get(3)?,
@@ -48,37 +48,36 @@
                      score: -row.get::<_, f64>(8)?,
                  })
              },
-@@ -348,7 +348,7 @@
+@@ -309,7 +309,7 @@
+                     previous_event_hash, event_hash, created_at_unix_ms
               FROM events WHERE sequence > ?1 ORDER BY sequence LIMIT ?2",
          )?;
-         let rows = statement.query_map(
--            params![sequence, u64::try_from(limit).unwrap_or(u64::MAX)],
-+            params![sequence, i64::try_from(limit).unwrap_or(i64::MAX)],
-             event_from_row,
-         )?;
-         rows.collect::<rusqlite::Result<Vec<_>>>()
-@@ -359,9 +359,10 @@
+-        let rows = statement.query_map(params![sequence, u64::try_from(limit).unwrap_or(u64::MAX)], event_from_row)?;
++        let rows = statement.query_map(params![sequence, i64::try_from(limit).unwrap_or(i64::MAX)], event_from_row)?;
+         rows.collect::<rusqlite::Result<Vec<_>>>().context("reading events")
+     }
+ 
+@@ -317,7 +317,10 @@
          let connection = self.reader()?;
          let count = |table: &str| -> Result<u64> {
              let sql = format!("SELECT COUNT(*) FROM {table}");
--            connection
+-            connection.query_row(&sql, [], |row| row.get(0)).with_context(|| format!("counting {table}"))
 +            let value: i64 = connection
-                 .query_row(&sql, [], |row| row.get(0))
--                .with_context(|| format!("counting {table}"))
++                .query_row(&sql, [], |row| row.get(0))
 +                .with_context(|| format!("counting {table}"))?;
 +            u64::try_from(value).with_context(|| format!("negative count returned for {table}"))
          };
          let schema_version = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-         let database_bytes = fs::metadata(self.path())
-@@ -563,6 +564,7 @@
-     symbols: &[SymbolRecord],
- ) -> Result<()> {
+         let database_bytes = fs::metadata(self.path()).map(|metadata| metadata.len()).unwrap_or(0);
+@@ -490,6 +493,7 @@
+ 
+ fn write_file(connection: &mut Connection, file: &IndexedFileRecord, symbols: &[SymbolRecord]) -> Result<()> {
      let transaction = connection.transaction()?;
 +    let byte_length = sql_i64(file.byte_length, "indexed_files.byte_length")?;
      transaction.execute(
          "INSERT INTO indexed_files(workspace_id, path, content_hash, language, byte_length, engine, engine_version, indexed_at_unix_ms)
           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-@@ -574,7 +576,7 @@
+@@ -501,7 +505,7 @@
              file.path,
              file.content_hash,
              file.language,
@@ -87,7 +86,7 @@
              file.engine,
              file.engine_version,
              file.indexed_at_unix_ms,
-@@ -590,15 +592,19 @@
+@@ -517,15 +521,19 @@
               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
          )?;
          for symbol in symbols {
@@ -111,7 +110,7 @@
              ])?;
          }
      }
-@@ -719,7 +725,7 @@
+@@ -644,7 +652,7 @@
          path: row.get(1)?,
          content_hash: row.get(2)?,
          language: row.get(3)?,
@@ -120,7 +119,7 @@
          engine: row.get(5)?,
          engine_version: row.get(6)?,
          indexed_at_unix_ms: row.get(7)?,
-@@ -752,6 +758,21 @@
+@@ -677,6 +685,21 @@
      })
  }
  
