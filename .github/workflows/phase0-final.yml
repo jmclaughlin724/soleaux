@@ -118,10 +118,13 @@ jobs:
           cargo generate-lockfile 2>&1 | tee ../native-evidence/cargo-generate-lockfile.txt
           cp Cargo.lock ../native-evidence/Cargo.lock
 
-      - name: Format
+      - name: Format and verify
         working-directory: native-wedge
         shell: bash
-        run: cargo fmt --all --check 2>&1 | tee ../native-evidence/cargo-fmt-check.txt
+        run: |
+          set -euo pipefail
+          cargo fmt --all 2>&1 | tee ../native-evidence/cargo-fmt-apply.txt
+          cargo fmt --all --check 2>&1 | tee ../native-evidence/cargo-fmt-check.txt
 
       - name: Check
         working-directory: native-wedge
