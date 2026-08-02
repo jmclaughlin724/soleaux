@@ -1,12 +1,12 @@
 {
-  "artifactName": "soleaux-native-wedge-phase0-evidence",
-  "artifactUrl": "https://github.com/jmclaughlin724/soleaux/actions/runs/30763417435#artifacts",
+  "artifactName": "soleaux-phase0-final-evidence",
+  "artifactUrl": "https://github.com/jmclaughlin724/soleaux/actions/runs/30764385250#artifacts",
   "jobStatus": "failure",
   "productVersion": "0.4.0-dev.5",
   "productionClaimAllowed": false,
-  "runId": 30763417435,
-  "runUrl": "https://github.com/jmclaughlin724/soleaux/actions/runs/30763417435",
+  "runId": 30764385250,
+  "runUrl": "https://github.com/jmclaughlin724/soleaux/actions/runs/30764385250",
   "schemaVersion": "soleaux.phase0.gate-receipt/v1",
-  "sourceCommit": "a05f1a5dc73d6ab96ce58daa1d5cd1ce1cda7ff2",
-  "workflow": "Soleaux native wedge Phase 0"
+  "sourceCommit": "0b7ec2cd06a20aea1f43e66a1a1df568f1f012c8",
+  "workflow": "Soleaux Phase 0 final gate"
 }
