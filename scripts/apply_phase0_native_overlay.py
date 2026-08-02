@@ -58,6 +58,24 @@ def main() -> None:
     )
     replace_exact(
         mcp,
+        '''        let mut tools = (*self.optional_tools).clone();
+        tools.insert(name.to_string());
+        self.optional_tools = Arc::new(tools);
+        if self.tools().len() > PUBLIC_ROOT_TOOL_MAX {
+            bail!("public MCP root tool ceiling exceeded");
+        }
+        Ok(self)''',
+        '''        let mut tools = (*self.optional_tools).clone();
+        tools.insert(name.to_string());
+        if PUBLIC_ROOT_TOOL_COUNT.saturating_add(tools.len()) > PUBLIC_ROOT_TOOL_MAX {
+            bail!("public MCP root tool ceiling exceeded");
+        }
+        self.optional_tools = Arc::new(tools);
+        Ok(self)''',
+        label="prospective optional tool ceiling guard",
+    )
+    replace_exact(
+        mcp,
         "async fn public_profile_is_eleven_by_default_and_fourteen_at_most()",
         "async fn transitional_profile_is_eleven_by_default_and_twelve_at_most()",
         label="profile test name",
