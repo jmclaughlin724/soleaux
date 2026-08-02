@@ -1,13 +1,16 @@
-name: Soleaux native wedge
-# Fail-closed Rust 1.97.1 compile gate for the 0.4.0-dev.4 intelligence wedge.
+name: Soleaux native wedge Phase 0
 
 on:
   push:
     branches:
       - native-wedge/0.4.0-dev.4
     paths:
-      - .ci/native-wedge-source.part-*
-      - .ci/native-overrides/**
+      - UNIFIED-MCP-PROFILE.md
+      - CONTEXT-PACKET-V2.md
+      - contracts/phase0-identity.json
+      - scripts/validate_phase0_contracts.py
+      - .ci/phase0-contracts.part-*
+      - .ci/native-wedge-dev5-source.part-*
       - .github/workflows/native-wedge.yml
   workflow_dispatch:
 
@@ -15,12 +18,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: soleaux-native-wedge-${{ github.ref }}
+  group: soleaux-native-wedge-phase0-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   rust:
-    name: Rust 1.97.1 native wedge
+    name: Rust 1.97.1 Phase 0
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -29,29 +32,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Materialize and validate Phase 0 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf phase0-materialized native-evidence
+          mkdir -p phase0-materialized native-evidence
+          cat .ci/phase0-contracts.part-* > /tmp/soleaux-phase0-contracts.tar.xz.b64
+          test "$(wc -c < /tmp/soleaux-phase0-contracts.tar.xz.b64)" -eq 26360
+          echo "ee4cfde3ce76b01737fa08498950af8288c9f3a585b72f452d2917d739e1e73a  /tmp/soleaux-phase0-contracts.tar.xz.b64" | sha256sum -c -
+          base64 --decode /tmp/soleaux-phase0-contracts.tar.xz.b64 > /tmp/soleaux-phase0-contracts.tar.xz
+          echo "6826368b15370b50f08e697e06ba9afb6b955455f2bb84cbd81088dc3bb2f564  /tmp/soleaux-phase0-contracts.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/soleaux-phase0-contracts.tar.xz -C phase0-materialized
+          test -f phase0-materialized/contracts/unified-mcp-profile-v2.json
+          test -f phase0-materialized/contracts/context-packet-v2.schema.json
+          cmp contracts/phase0-identity.json phase0-materialized/contracts/phase0-identity.json
+          python3 scripts/validate_phase0_contracts.py 2>&1 | tee native-evidence/phase0-contract-test.json
+
       - name: Materialize native workspace
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf native-wedge native-evidence
-          mkdir -p native-wedge native-evidence
-          cat .ci/native-wedge-source.part-* > /tmp/soleaux-native.tar.xz.b64
-          test "$(wc -c < /tmp/soleaux-native.tar.xz.b64)" -eq 49336
-          echo "c35307fd88284d43e991e4d98ae9ae569411e41afa17f29dc13a882204b1dbca  /tmp/soleaux-native.tar.xz.b64" | sha256sum -c -
-          base64 --decode /tmp/soleaux-native.tar.xz.b64 > /tmp/soleaux-native.tar.xz
-          echo "520b32d1223136b8a0dcaedd7b1438d3bb897c171b95884973e200ddf294dbfd  /tmp/soleaux-native.tar.xz" | sha256sum -c -
-          tar -xJf /tmp/soleaux-native.tar.xz -C native-wedge
-          if [ -d .ci/native-overrides/files ]; then
-            cp -a .ci/native-overrides/files/. native-wedge/
-          fi
-          if compgen -G '.ci/native-overrides/patches/*.patch' > /dev/null; then
-            for patch_file in .ci/native-overrides/patches/*.patch; do
-              patch -d native-wedge -p1 < "$patch_file"
-            done
-          fi
-          test -f native-wedge/Cargo.toml
+          rm -rf native-wedge
+          mkdir -p native-wedge
+          cat .ci/native-wedge-dev5-source.part-* > /tmp/soleaux-native-dev5.tar.xz.b64
+          test "$(wc -c < /tmp/soleaux-native-dev5.tar.xz.b64)" -eq 95416
+          echo "af5ae5bf8cf8f5519ee5c454bcd969f2ed3130fae0c7bde7a0e5a81c10156187  /tmp/soleaux-native-dev5.tar.xz.b64" | sha256sum -c -
+          base64 --decode /tmp/soleaux-native-dev5.tar.xz.b64 > /tmp/soleaux-native-dev5.tar.xz
+          echo "2d615e9074221c8b24f6e8b0dd09d74d9c02ae4bb8e3ef694155875666d296ce  /tmp/soleaux-native-dev5.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/soleaux-native-dev5.tar.xz -C native-wedge
+          cp UNIFIED-MCP-PROFILE.md CONTEXT-PACKET-V2.md native-wedge/
+          mkdir -p native-wedge/contracts
+          cp contracts/phase0-identity.json native-wedge/contracts/
+          cp phase0-materialized/contracts/unified-mcp-profile-v2.json native-wedge/contracts/
+          cp phase0-materialized/contracts/context-packet-v2.schema.json native-wedge/contracts/
+          grep -q 'version = "0.4.0-dev.5"' native-wedge/Cargo.toml
           test -f native-wedge/daemon/intelligence/src/lib.rs
+          test -f native-wedge/daemon/mcp/src/profile.rs
           find native-wedge -type f | sort > native-evidence/materialized-files.txt
+          git rev-parse HEAD > native-evidence/git-head.txt
 
       - name: Install native build prerequisites
         shell: bash
@@ -88,12 +107,11 @@ jobs:
           cargo generate-lockfile 2>&1 | tee ../native-evidence/cargo-generate-lockfile.txt
           cp Cargo.lock ../native-evidence/Cargo.lock
 
-      - name: Format and verify
+      - name: Format
         working-directory: native-wedge
         shell: bash
         run: |
           set -euo pipefail
-          cargo fmt --all 2>&1 | tee ../native-evidence/cargo-fmt-apply.txt
           cargo fmt --all --check 2>&1 | tee ../native-evidence/cargo-fmt-check.txt
 
       - name: Check
@@ -123,15 +141,15 @@ jobs:
         run: |
           set -euo pipefail
           cargo build --release --workspace --all-features 2>&1 | tee ../native-evidence/cargo-build-release.txt
-          find target/release -maxdepth 1 -type f -perm -111 -print -exec cp {} ../native-evidence/ \;
+          cp target/release/soleaux target/release/soleauxd ../native-evidence/
 
       - name: CLI smoke
         working-directory: native-wedge
         shell: bash
         run: |
           set -euo pipefail
-          cargo run -p soleaux-cli -- --help 2>&1 | tee ../native-evidence/soleaux-cli-help.txt
-          cargo run -p soleaux-engine --bin soleauxd -- --help 2>&1 | tee ../native-evidence/soleauxd-help.txt
+          ./target/release/soleaux --help 2>&1 | tee ../native-evidence/soleaux-cli-help.txt
+          ./target/release/soleauxd --help 2>&1 | tee ../native-evidence/soleauxd-help.txt
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
@@ -152,14 +170,14 @@ jobs:
           rustc --version --verbose > native-evidence/rustc-version.txt 2>&1 || true
           cargo --version --verbose > native-evidence/cargo-version.txt 2>&1 || true
           cargo metadata --manifest-path native-wedge/Cargo.toml --format-version 1 > native-evidence/cargo-metadata.json 2> native-evidence/cargo-metadata.err || true
-          tar --exclude='./target' -cJf native-evidence/native-wedge-formatted-source.tar.xz -C native-wedge . 2> native-evidence/archive.err || true
+          tar --exclude='./target' -cJf native-evidence/native-wedge-phase0-source.tar.xz -C native-wedge . 2> native-evidence/archive.err || true
           sha256sum native-evidence/* > native-evidence/SHA256SUMS 2>/dev/null || true
 
       - name: Upload native evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: soleaux-native-wedge-evidence
+          name: soleaux-native-wedge-phase0-evidence
           path: native-evidence
           if-no-files-found: error
           retention-days: 14
