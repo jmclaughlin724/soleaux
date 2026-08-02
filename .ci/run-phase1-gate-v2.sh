@@ -45,9 +45,21 @@ cp -a "$BASE/." "$SOURCE/"
 
 # Hash-bound repaired Phase 1 overlay.
 cat .ci/phase1-overlay.part-* | tr -d '\r\n' > /tmp/soleaux-phase1-overlay.tar.xz.b64
+{
+  printf 'encoded_size='
+  wc -c < /tmp/soleaux-phase1-overlay.tar.xz.b64
+  printf 'encoded_sha256='
+  sha256sum /tmp/soleaux-phase1-overlay.tar.xz.b64 | awk '{print $1}'
+} | tee "$EVIDENCE/phase1-overlay-encoded-integrity.txt"
 test "$(wc -c < /tmp/soleaux-phase1-overlay.tar.xz.b64)" -eq 73728
 echo "014e7cba3b044950df95e06723ab92e9d3a0c08b9188211ba7a1538947827fff  /tmp/soleaux-phase1-overlay.tar.xz.b64" | sha256sum -c -
 base64 --decode /tmp/soleaux-phase1-overlay.tar.xz.b64 > /tmp/soleaux-phase1-overlay.tar.xz
+{
+  printf 'decoded_size='
+  wc -c < /tmp/soleaux-phase1-overlay.tar.xz
+  printf 'decoded_sha256='
+  sha256sum /tmp/soleaux-phase1-overlay.tar.xz | awk '{print $1}'
+} | tee "$EVIDENCE/phase1-overlay-decoded-integrity.txt"
 test "$(wc -c < /tmp/soleaux-phase1-overlay.tar.xz)" -eq 55296
 echo "1ead562a7e8da9c26d097bbe3b30dd520df596cf22db8f0f9c30640dcb9c6c73  /tmp/soleaux-phase1-overlay.tar.xz" | sha256sum -c -
 tar -xJf /tmp/soleaux-phase1-overlay.tar.xz -C "$OVERLAY"
