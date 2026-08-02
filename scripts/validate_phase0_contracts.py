@@ -101,7 +101,11 @@ def contract_bundle_members() -> dict[str, bytes] | None:
             "Phase 0 contract bundle parts drifted: "
             f"expected {EXPECTED_BUNDLE_PART_NAMES}, got {names}"
         )
-    encoded = b"".join(path.read_bytes() for path in parts)
+    encoded = (
+        b"".join(path.read_bytes() for path in parts)
+        .replace(b"\r", b"")
+        .replace(b"\n", b"")
+    )
     if len(encoded) != EXPECTED_BUNDLE_B64_BYTES:
         raise AssertionError(
             "Phase 0 contract bundle encoded byte count drifted: "
