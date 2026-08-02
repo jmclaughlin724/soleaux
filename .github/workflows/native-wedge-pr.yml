@@ -1,5 +1,5 @@
 name: Soleaux native wedge Phase 0 PR
-# Exact-commit Phase 0 validation; this comment intentionally triggers the PR gate.
+# Exact-commit Phase 0 validation; text bundles are normalized before hashing.
 
 on:
   pull_request:
@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           rm -rf phase0-materialized native-evidence
           mkdir -p phase0-materialized native-evidence
-          cat .ci/phase0-contracts.part-* > /tmp/soleaux-phase0-contracts.tar.xz.b64
+          cat .ci/phase0-contracts.part-* | tr -d '\r\n' > /tmp/soleaux-phase0-contracts.tar.xz.b64
           test "$(wc -c < /tmp/soleaux-phase0-contracts.tar.xz.b64)" -eq 26360
           echo "ee4cfde3ce76b01737fa08498950af8288c9f3a585b72f452d2917d739e1e73a  /tmp/soleaux-phase0-contracts.tar.xz.b64" | sha256sum -c -
           base64 --decode /tmp/soleaux-phase0-contracts.tar.xz.b64 > /tmp/soleaux-phase0-contracts.tar.xz
@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           rm -rf native-wedge
           mkdir -p native-wedge
-          cat .ci/native-wedge-dev5-source.part-* > /tmp/soleaux-native-dev5.tar.xz.b64
+          cat .ci/native-wedge-dev5-source.part-* | tr -d '\r\n' > /tmp/soleaux-native-dev5.tar.xz.b64
           test "$(wc -c < /tmp/soleaux-native-dev5.tar.xz.b64)" -eq 95416
           echo "af5ae5bf8cf8f5519ee5c454bcd969f2ed3130fae0c7bde7a0e5a81c10156187  /tmp/soleaux-native-dev5.tar.xz.b64" | sha256sum -c -
           base64 --decode /tmp/soleaux-native-dev5.tar.xz.b64 > /tmp/soleaux-native-dev5.tar.xz
