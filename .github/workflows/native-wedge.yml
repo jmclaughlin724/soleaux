@@ -7,6 +7,7 @@ on:
       - native-wedge/0.4.0-dev.4
     paths:
       - .ci/native-wedge-source.part-*
+      - .ci/native-overrides/**
       - .github/workflows/native-wedge.yml
   workflow_dispatch:
 
@@ -21,7 +22,7 @@ jobs:
   rust:
     name: Rust 1.97.1 native wedge
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
@@ -32,23 +33,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf native-wedge
-          mkdir native-wedge
+          rm -rf native-wedge native-evidence
+          mkdir -p native-wedge native-evidence
           cat .ci/native-wedge-source.part-* > /tmp/soleaux-native.tar.xz.b64
           test "$(wc -c < /tmp/soleaux-native.tar.xz.b64)" -eq 49336
           echo "c35307fd88284d43e991e4d98ae9ae569411e41afa17f29dc13a882204b1dbca  /tmp/soleaux-native.tar.xz.b64" | sha256sum -c -
           base64 --decode /tmp/soleaux-native.tar.xz.b64 > /tmp/soleaux-native.tar.xz
           echo "520b32d1223136b8a0dcaedd7b1438d3bb897c171b95884973e200ddf294dbfd  /tmp/soleaux-native.tar.xz" | sha256sum -c -
           tar -xJf /tmp/soleaux-native.tar.xz -C native-wedge
+          if [ -d .ci/native-overrides ]; then
+            cp -a .ci/native-overrides/. native-wedge/
+          fi
           test -f native-wedge/Cargo.toml
           test -f native-wedge/daemon/intelligence/src/lib.rs
+          find native-wedge -type f | sort > native-evidence/materialized-files.txt
 
       - name: Install native build prerequisites
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+          sudo apt-get update 2>&1 | tee native-evidence/apt-update.txt
+          sudo apt-get install -y --no-install-recommends clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler 2>&1 | tee native-evidence/apt-install.txt
 
       - name: Install Rust 1.97.1
         uses: dtolnay/rust-toolchain@master
@@ -61,48 +66,89 @@ jobs:
         with:
           workspaces: native-wedge -> target
 
+      - name: Record toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose | tee native-evidence/rustc-version.txt
+          cargo --version --verbose | tee native-evidence/cargo-version.txt
+          rustfmt --version | tee native-evidence/rustfmt-version.txt
+          cargo clippy --version | tee native-evidence/clippy-version.txt
+
       - name: Generate lockfile
         working-directory: native-wedge
-        run: cargo generate-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile 2>&1 | tee ../native-evidence/cargo-generate-lockfile.txt
+          cp Cargo.lock ../native-evidence/Cargo.lock
 
-      - name: Format
+      - name: Format and verify
         working-directory: native-wedge
-        run: cargo fmt --all --check
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all 2>&1 | tee ../native-evidence/cargo-fmt-apply.txt
+          cargo fmt --all --check 2>&1 | tee ../native-evidence/cargo-fmt-check.txt
 
       - name: Check
         working-directory: native-wedge
-        run: cargo check --workspace --all-targets --all-features
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --workspace --all-targets --all-features 2>&1 | tee ../native-evidence/cargo-check.txt
 
       - name: Clippy
         working-directory: native-wedge
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee ../native-evidence/cargo-clippy.txt
 
       - name: Test
         working-directory: native-wedge
-        run: cargo test --workspace --all-features
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --workspace --all-features 2>&1 | tee ../native-evidence/cargo-test.txt
+
+      - name: Build release binaries
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace --all-features 2>&1 | tee ../native-evidence/cargo-build-release.txt
+          find target/release -maxdepth 1 -type f -perm -111 -print -exec cp {} ../native-evidence/ \;
 
       - name: CLI smoke
         working-directory: native-wedge
+        shell: bash
         run: |
-          cargo run -p soleaux-cli -- --help
-          cargo run -p soleaux-engine --bin soleauxd -- --help
+          set -euo pipefail
+          cargo run -p soleaux-cli -- --help 2>&1 | tee ../native-evidence/soleaux-cli-help.txt
+          cargo run -p soleaux-engine --bin soleauxd -- --help 2>&1 | tee ../native-evidence/soleauxd-help.txt
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
 
       - name: Audit
         working-directory: native-wedge
-        run: cargo audit --deny warnings
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo audit --deny warnings 2>&1 | tee ../native-evidence/cargo-audit.txt
 
       - name: Collect native evidence
         if: always()
         shell: bash
         run: |
-          mkdir -p native-evidence
+          set -u
           cp native-wedge/Cargo.lock native-evidence/Cargo.lock 2>/dev/null || true
           rustc --version --verbose > native-evidence/rustc-version.txt 2>&1 || true
           cargo --version --verbose > native-evidence/cargo-version.txt 2>&1 || true
           cargo metadata --manifest-path native-wedge/Cargo.toml --format-version 1 > native-evidence/cargo-metadata.json 2> native-evidence/cargo-metadata.err || true
+          tar --exclude='./target' -cJf native-evidence/native-wedge-formatted-source.tar.xz -C native-wedge . 2> native-evidence/archive.err || true
+          sha256sum native-evidence/* > native-evidence/SHA256SUMS 2>/dev/null || true
 
       - name: Upload native evidence
         if: always()
@@ -110,5 +156,5 @@ jobs:
         with:
           name: soleaux-native-wedge-evidence
           path: native-evidence
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
