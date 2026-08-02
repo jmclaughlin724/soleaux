@@ -43,25 +43,26 @@
          let temp = tempdir().expect("tempdir");
          fs::create_dir_all(temp.path().join("src")).expect("src");
          fs::write(
-@@ -874,12 +875,12 @@
+@@ -874,12 +875,15 @@
          let expanded = server
              .clone()
              .enable_optional_tool(OPTIONAL_POSTGRES)
 -            .expect("postgres")
-+            .expect("postgres");
-+        assert_eq!(expanded.tools().len(), PUBLIC_ROOT_TOOL_MAX);
-+        let overflow = expanded
-             .enable_optional_tool(OPTIONAL_TURBOREPO)
+-            .enable_optional_tool(OPTIONAL_TURBOREPO)
 -            .expect("turbo")
 -            .enable_optional_tool(OPTIONAL_NEXTJS)
 -            .expect("next");
--        assert_eq!(expanded.tools().len(), PUBLIC_ROOT_TOOL_MAX);
-+            .expect_err("a second optional tool must exceed the transitional ceiling");
++            .expect("postgres");
+         assert_eq!(expanded.tools().len(), PUBLIC_ROOT_TOOL_MAX);
++        let overflow = match expanded.enable_optional_tool(OPTIONAL_TURBOREPO) {
++            Ok(_) => panic!("a second optional tool must exceed the transitional ceiling"),
++            Err(error) => error,
++        };
 +        assert!(overflow.to_string().contains("ceiling exceeded"));
          assert!(
              !server
                  .tools()
-@@ -948,14 +949,13 @@
+@@ -948,14 +952,13 @@
              "export default function Page() { return null; }",
          )
          .expect("page");
@@ -83,7 +84,7 @@
              .call(OPTIONAL_TURBOREPO, &json!({}))
              .expect("packages");
          assert_eq!(
-@@ -966,7 +966,15 @@
+@@ -966,7 +969,15 @@
                  .map(Vec::len),
              Some(2)
          );
