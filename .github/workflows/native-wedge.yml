@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 concurrency:
@@ -182,6 +182,48 @@ jobs:
           path: native-evidence
           if-no-files-found: error
           retention-days: 14
+
+      - name: Persist Phase 0 run receipt
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          PHASE0_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          run_id = os.environ["GITHUB_RUN_ID"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          run_url = f"https://github.com/{repository}/actions/runs/{run_id}"
+          receipt = {
+              "schemaVersion": "soleaux.phase0.gate-receipt/v1",
+              "sourceCommit": os.environ["GITHUB_SHA"],
+              "runId": int(run_id),
+              "runUrl": run_url,
+              "workflow": os.environ["GITHUB_WORKFLOW"],
+              "jobStatus": os.environ["PHASE0_JOB_STATUS"],
+              "artifactName": "soleaux-native-wedge-phase0-evidence",
+              "artifactUrl": f"{run_url}#artifacts",
+              "productVersion": "0.4.0-dev.5",
+              "productionClaimAllowed": False,
+          }
+          Path("PHASE0-NATIVE-GATE-RECEIPT.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PHASE0-NATIVE-GATE-RECEIPT.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Record Phase 0 native gate receipt"
+          git push origin HEAD:native-wedge/0.4.0-dev.4
 
       - name: Report Phase 0 run receipt
         if: always()
