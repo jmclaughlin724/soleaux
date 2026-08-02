@@ -1,0 +1,108 @@
+name: Soleaux native wedge PR
+
+on:
+  pull_request:
+    paths:
+      - .ci/native-wedge-source.tar.xz.b64
+      - native-wedge/**
+      - .github/workflows/native-wedge-pr.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soleaux-native-wedge-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust 1.97.1 native wedge
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize native workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf native-wedge
+          mkdir native-wedge
+          base64 --decode .ci/native-wedge-source.tar.xz.b64 > /tmp/soleaux-native.tar.xz
+          tar -xJf /tmp/soleaux-native.tar.xz -C native-wedge
+          test -f native-wedge/Cargo.toml
+          test -f native-wedge/daemon/intelligence/src/lib.rs
+
+      - name: Install native build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+
+      - name: Install Rust 1.97.1
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native-wedge -> target
+
+      - name: Generate lockfile
+        working-directory: native-wedge
+        run: cargo generate-lockfile
+
+      - name: Format
+        working-directory: native-wedge
+        run: cargo fmt --all --check
+
+      - name: Check
+        working-directory: native-wedge
+        run: cargo check --workspace --all-targets --all-features
+
+      - name: Clippy
+        working-directory: native-wedge
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Test
+        working-directory: native-wedge
+        run: cargo test --workspace --all-features
+
+      - name: CLI smoke
+        working-directory: native-wedge
+        run: |
+          cargo run -p soleaux-cli -- --help
+          cargo run -p soleaux-engine --bin soleauxd -- --help
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Audit
+        working-directory: native-wedge
+        run: cargo audit --deny warnings
+
+      - name: Collect native evidence
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p native-evidence
+          cp native-wedge/Cargo.lock native-evidence/Cargo.lock 2>/dev/null || true
+          rustc --version --verbose > native-evidence/rustc-version.txt 2>&1 || true
+          cargo --version --verbose > native-evidence/cargo-version.txt 2>&1 || true
+          cargo metadata --manifest-path native-wedge/Cargo.toml --format-version 1 > native-evidence/cargo-metadata.json 2> native-evidence/cargo-metadata.err || true
+
+      - name: Upload native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-native-wedge-evidence
+          path: native-evidence
+          if-no-files-found: warn
+          retention-days: 14
