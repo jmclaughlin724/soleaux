@@ -110,7 +110,9 @@ def main() -> None:
     )
     replace_exact(
         mcp,
-        '        let routes = server.call(OPTIONAL_NEXTJS, &json!({})).expect("routes");',
+        '''        let routes = server
+            .call(OPTIONAL_NEXTJS, &json!({}))
+            .expect("routes");''',
         '''        let next_server =
             PublicMcpServer::with_store(temp.path(), temp.path().join("next-index.sqlite3"))
                 .expect("server")
