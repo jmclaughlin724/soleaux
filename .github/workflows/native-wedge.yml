@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: write
-  issues: write
 
 concurrency:
   group: soleaux-native-wedge-phase0-${{ github.ref }}
@@ -39,7 +38,7 @@ jobs:
           set -euo pipefail
           rm -rf phase0-materialized native-evidence
           mkdir -p phase0-materialized native-evidence
-          cat .ci/phase0-contracts.part-* > /tmp/soleaux-phase0-contracts.tar.xz.b64
+          cat .ci/phase0-contracts.part-* | tr -d '\r\n' > /tmp/soleaux-phase0-contracts.tar.xz.b64
           test "$(wc -c < /tmp/soleaux-phase0-contracts.tar.xz.b64)" -eq 26360
           echo "ee4cfde3ce76b01737fa08498950af8288c9f3a585b72f452d2917d739e1e73a  /tmp/soleaux-phase0-contracts.tar.xz.b64" | sha256sum -c -
           base64 --decode /tmp/soleaux-phase0-contracts.tar.xz.b64 > /tmp/soleaux-phase0-contracts.tar.xz
@@ -56,7 +55,7 @@ jobs:
           set -euo pipefail
           rm -rf native-wedge
           mkdir -p native-wedge
-          cat .ci/native-wedge-dev5-source.part-* > /tmp/soleaux-native-dev5.tar.xz.b64
+          cat .ci/native-wedge-dev5-source.part-* | tr -d '\r\n' > /tmp/soleaux-native-dev5.tar.xz.b64
           test "$(wc -c < /tmp/soleaux-native-dev5.tar.xz.b64)" -eq 95416
           echo "af5ae5bf8cf8f5519ee5c454bcd969f2ed3130fae0c7bde7a0e5a81c10156187  /tmp/soleaux-native-dev5.tar.xz.b64" | sha256sum -c -
           base64 --decode /tmp/soleaux-native-dev5.tar.xz.b64 > /tmp/soleaux-native-dev5.tar.xz
@@ -224,47 +223,3 @@ jobs:
           fi
           git commit -m "Record Phase 0 native gate receipt"
           git push origin HEAD:native-wedge/0.4.0-dev.4
-
-      - name: Report Phase 0 run receipt
-        if: always()
-        continue-on-error: true
-        uses: actions/github-script@v7
-        env:
-          PHASE0_JOB_STATUS: ${{ job.status }}
-        with:
-          script: |
-            const marker = '<!-- soleaux-phase0-native-gate -->';
-            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const artifactUrl = `${runUrl}#artifacts`;
-            const body = `${marker}
-            ## Phase 0 native gate receipt
-
-            - Run: [${context.runId}](${runUrl})
-            - Commit: \`${context.sha}\`
-            - Workflow: \`${process.env.GITHUB_WORKFLOW}\`
-            - Job status at receipt: \`${process.env.PHASE0_JOB_STATUS}\`
-            - Evidence: [soleaux-native-wedge-phase0-evidence](${artifactUrl})
-
-            This receipt is written by the branch-native fail-closed Phase 0 workflow. It does not assert Phase 1 completion.`;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: 3,
-              per_page: 100,
-            });
-            const existing = comments.find((comment) => comment.body?.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: 3,
-                body,
-              });
-            }
