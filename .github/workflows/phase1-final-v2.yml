@@ -7,6 +7,7 @@ on:
     paths:
       - .ci/phase1-overlay.part-*
       - .ci/run-phase1-gate-v2.sh
+      - scripts/apply_phase1_clippy_repairs.py
       - .github/workflows/phase1-final-v2.yml
   workflow_dispatch:
 
