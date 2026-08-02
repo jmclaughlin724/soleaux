@@ -5,7 +5,7 @@ on:
     branches:
       - native-wedge/0.4.0-dev.4
     paths:
-      - .ci/native-wedge-source.tar.xz.b64
+      - .ci/native-wedge-source.part-*
       - .github/workflows/native-wedge.yml
   workflow_dispatch:
 
@@ -33,7 +33,11 @@ jobs:
           set -euo pipefail
           rm -rf native-wedge
           mkdir native-wedge
-          base64 --decode .ci/native-wedge-source.tar.xz.b64 > /tmp/soleaux-native.tar.xz
+          cat .ci/native-wedge-source.part-* > /tmp/soleaux-native.tar.xz.b64
+          test "$(wc -c < /tmp/soleaux-native.tar.xz.b64)" -eq 49336
+          echo "c35307fd88284d43e991e4d98ae9ae569411e41afa17f29dc13a882204b1dbca  /tmp/soleaux-native.tar.xz.b64" | sha256sum -c -
+          base64 --decode /tmp/soleaux-native.tar.xz.b64 > /tmp/soleaux-native.tar.xz
+          echo "520b32d1223136b8a0dcaedd7b1438d3bb897c171b95884973e200ddf294dbfd  /tmp/soleaux-native.tar.xz" | sha256sum -c -
           tar -xJf /tmp/soleaux-native.tar.xz -C native-wedge
           test -f native-wedge/Cargo.toml
           test -f native-wedge/daemon/intelligence/src/lib.rs
