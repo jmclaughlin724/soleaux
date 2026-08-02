@@ -54,7 +54,11 @@ mod tests {
     fn canonical_profile_is_exactly_twelve_unique_ordered_slots() {
         assert_eq!(CANONICAL_TOOL_NAMES.len(), HARD_CEILING);
         assert_eq!(
-            CANONICAL_TOOL_NAMES.iter().copied().collect::<BTreeSet<_>>().len(),
+            CANONICAL_TOOL_NAMES
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .len(),
             HARD_CEILING
         );
         assert_eq!(CANONICAL_TOOL_NAMES[0], "context.compile");
@@ -65,7 +69,11 @@ mod tests {
     fn optional_candidates_are_unique_and_do_not_expand_the_ceiling() {
         assert_eq!(OPTIONAL_TOOL_NAMES.len(), 3);
         assert_eq!(
-            OPTIONAL_TOOL_NAMES.iter().copied().collect::<BTreeSet<_>>().len(),
+            OPTIONAL_TOOL_NAMES
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .len(),
             OPTIONAL_TOOL_NAMES.len()
         );
         assert!(
