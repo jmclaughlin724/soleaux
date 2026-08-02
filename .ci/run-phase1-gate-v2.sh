@@ -54,6 +54,7 @@ for part in .ci/phase1-overlay.part-*; do
     | tee -a "$EVIDENCE/phase1-overlay-part-integrity.txt"
 done
 cat .ci/phase1-overlay.part-* | tr -d '\r\n' > /tmp/soleaux-phase1-overlay.tar.xz.b64
+cp /tmp/soleaux-phase1-overlay.tar.xz.b64 "$EVIDENCE/phase1-overlay-committed.b64"
 {
   printf 'encoded_size='
   wc -c < /tmp/soleaux-phase1-overlay.tar.xz.b64
