@@ -1,0 +1,100 @@
+diff --git a/daemon/intelligence/src/context.rs b/daemon/intelligence/src/context.rs
+index 1ae5d76..20e0329 100644
+--- a/daemon/intelligence/src/context.rs
++++ b/daemon/intelligence/src/context.rs
+@@ -352,10 +352,7 @@ fn redact_prefixed_tokens(line: &str) -> (String, usize) {
+     let mut count = 0usize;
+     for (prefix, minimum_length) in PREFIXES {
+         let mut cursor = 0usize;
+-        loop {
+-            let Some(relative) = output[cursor..].find(prefix) else {
+-                break;
+-            };
++        while let Some(relative) = output[cursor..].find(prefix) {
+             let start = cursor + relative;
+             let mut end = start + prefix.len();
+             while let Some(byte) = output.as_bytes().get(end) {
+diff --git a/daemon/intelligence/src/index.rs b/daemon/intelligence/src/index.rs
+index 3786379..1a52d35 100644
+--- a/daemon/intelligence/src/index.rs
++++ b/daemon/intelligence/src/index.rs
+@@ -202,7 +202,7 @@ impl RepositoryIndex {
+                     continue;
+                 }
+             };
+-            if source.iter().any(|byte| *byte == 0)
++            if source.contains(&0)
+                 || source
+                     .split(|byte| *byte == b'\n')
+                     .any(|line| line.len() > self.config.maximum_minified_line_bytes)
+diff --git a/daemon/intelligence/src/lsp.rs b/daemon/intelligence/src/lsp.rs
+index 6c92534..1e7f284 100644
+--- a/daemon/intelligence/src/lsp.rs
++++ b/daemon/intelligence/src/lsp.rs
+@@ -507,10 +507,8 @@ pub fn discover_workspace_servers(root: &Path, languages: &[String]) -> Result<V
+             specs.push(server_spec("python", command, vec!["--stdio".to_string()], &root_uri, &workspace_folders));
+         }
+     }
+-    if has(&["bash"]) {
+-        if let Some(command) = find_executable("bash-language-server") {
+-            specs.push(server_spec("bash", command, vec!["start".to_string()], &root_uri, &workspace_folders));
+-        }
++    if has(&["bash"]) && let Some(command) = find_executable("bash-language-server") {
++        specs.push(server_spec("bash", command, vec!["start".to_string()], &root_uri, &workspace_folders));
+     }
+     Ok(specs)
+ }
+diff --git a/daemon/intelligence/src/nextjs.rs b/daemon/intelligence/src/nextjs.rs
+index a6805d0..64a3f06 100644
+--- a/daemon/intelligence/src/nextjs.rs
++++ b/daemon/intelligence/src/nextjs.rs
+@@ -59,17 +59,19 @@ pub fn index_nextjs(root: &Path) -> Result<NextIndex> {
+                 if let Some(route) = route_from_file(&root, application, &directory, router, path) {
+                     routes.push(route);
+                 }
+-                if let Ok(source) = fs::read_to_string(path) {
+-                    if source.contains("use server") || source.contains("'use server'") || source.contains("\"use server\"") {
+-                        for name in exported_function_names(&source) {
+-                            server_actions.push(ServerAction {
+-                                name,
+-                                file: relative_path(&root, path),
+-                                app_root: relative_path(&root, application),
+-                                source: "static-oxc-compatible-scan".to_string(),
+-                                confidence: "structural".to_string(),
+-                            });
+-                        }
++                if let Ok(source) = fs::read_to_string(path)
++                    && (source.contains("use server")
++                        || source.contains("'use server'")
++                        || source.contains("\"use server\""))
++                {
++                    for name in exported_function_names(&source) {
++                        server_actions.push(ServerAction {
++                            name,
++                            file: relative_path(&root, path),
++                            app_root: relative_path(&root, application),
++                            source: "static-oxc-compatible-scan".to_string(),
++                            confidence: "structural".to_string(),
++                        });
+                     }
+                 }
+             })?;
+diff --git a/daemon/intelligence/src/turborepo.rs b/daemon/intelligence/src/turborepo.rs
+index fefbf47..16a281e 100644
+--- a/daemon/intelligence/src/turborepo.rs
++++ b/daemon/intelligence/src/turborepo.rs
+@@ -200,10 +200,10 @@ fn apply_boundary_tags(packages: &mut [TurboPackage], boundaries: &Value) {
+     for package in packages {
+         for (pattern, values) in tags {
+             let prefix = pattern.trim_end_matches('*').trim_end_matches('/');
+-            if package.path == prefix || package.path.starts_with(&format!("{prefix}/")) {
+-                if let Some(values) = values.as_array() {
+-                    package.tags.extend(values.iter().filter_map(Value::as_str).map(str::to_string));
+-                }
++            if (package.path == prefix || package.path.starts_with(&format!("{prefix}/")))
++                && let Some(values) = values.as_array()
++            {
++                package.tags.extend(values.iter().filter_map(Value::as_str).map(str::to_string));
+             }
+         }
+         package.tags.sort();
