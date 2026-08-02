@@ -1,4 +1,5 @@
 name: Soleaux native wedge
+# Fail-closed Rust 1.97.1 compile gate for the 0.4.0-dev.4 intelligence wedge.
 
 on:
   push:
