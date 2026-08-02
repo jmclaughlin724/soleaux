@@ -1,0 +1,181 @@
+name: Soleaux native wedge Phase 0 PR
+
+on:
+  pull_request:
+    paths:
+      - UNIFIED-MCP-PROFILE.md
+      - CONTEXT-PACKET-V2.md
+      - contracts/phase0-identity.json
+      - scripts/validate_phase0_contracts.py
+      - .ci/phase0-contracts.part-*
+      - .ci/native-wedge-dev5-source.part-*
+      - .github/workflows/native-wedge-pr.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soleaux-native-wedge-phase0-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust 1.97.1 Phase 0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize and validate Phase 0 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf phase0-materialized native-evidence
+          mkdir -p phase0-materialized native-evidence
+          cat .ci/phase0-contracts.part-* > /tmp/soleaux-phase0-contracts.tar.xz.b64
+          test "$(wc -c < /tmp/soleaux-phase0-contracts.tar.xz.b64)" -eq 26360
+          echo "ee4cfde3ce76b01737fa08498950af8288c9f3a585b72f452d2917d739e1e73a  /tmp/soleaux-phase0-contracts.tar.xz.b64" | sha256sum -c -
+          base64 --decode /tmp/soleaux-phase0-contracts.tar.xz.b64 > /tmp/soleaux-phase0-contracts.tar.xz
+          echo "6826368b15370b50f08e697e06ba9afb6b955455f2bb84cbd81088dc3bb2f564  /tmp/soleaux-phase0-contracts.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/soleaux-phase0-contracts.tar.xz -C phase0-materialized
+          test -f phase0-materialized/contracts/unified-mcp-profile-v2.json
+          test -f phase0-materialized/contracts/context-packet-v2.schema.json
+          cmp contracts/phase0-identity.json phase0-materialized/contracts/phase0-identity.json
+          python3 scripts/validate_phase0_contracts.py 2>&1 | tee native-evidence/phase0-contract-test.json
+
+      - name: Materialize native workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf native-wedge
+          mkdir -p native-wedge
+          cat .ci/native-wedge-dev5-source.part-* > /tmp/soleaux-native-dev5.tar.xz.b64
+          test "$(wc -c < /tmp/soleaux-native-dev5.tar.xz.b64)" -eq 95416
+          echo "af5ae5bf8cf8f5519ee5c454bcd969f2ed3130fae0c7bde7a0e5a81c10156187  /tmp/soleaux-native-dev5.tar.xz.b64" | sha256sum -c -
+          base64 --decode /tmp/soleaux-native-dev5.tar.xz.b64 > /tmp/soleaux-native-dev5.tar.xz
+          echo "2d615e9074221c8b24f6e8b0dd09d74d9c02ae4bb8e3ef694155875666d296ce  /tmp/soleaux-native-dev5.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/soleaux-native-dev5.tar.xz -C native-wedge
+          cp UNIFIED-MCP-PROFILE.md CONTEXT-PACKET-V2.md native-wedge/
+          mkdir -p native-wedge/contracts
+          cp contracts/phase0-identity.json native-wedge/contracts/
+          cp phase0-materialized/contracts/unified-mcp-profile-v2.json native-wedge/contracts/
+          cp phase0-materialized/contracts/context-packet-v2.schema.json native-wedge/contracts/
+          grep -q 'version = "0.4.0-dev.5"' native-wedge/Cargo.toml
+          test -f native-wedge/daemon/intelligence/src/lib.rs
+          test -f native-wedge/daemon/mcp/src/profile.rs
+          find native-wedge -type f | sort > native-evidence/materialized-files.txt
+          git rev-parse HEAD > native-evidence/git-head.txt
+
+      - name: Install native build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update 2>&1 | tee native-evidence/apt-update.txt
+          sudo apt-get install -y --no-install-recommends clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler 2>&1 | tee native-evidence/apt-install.txt
+
+      - name: Install Rust 1.97.1
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native-wedge -> target
+
+      - name: Record toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose | tee native-evidence/rustc-version.txt
+          cargo --version --verbose | tee native-evidence/cargo-version.txt
+          rustfmt --version | tee native-evidence/rustfmt-version.txt
+          cargo clippy --version | tee native-evidence/clippy-version.txt
+
+      - name: Generate lockfile
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile 2>&1 | tee ../native-evidence/cargo-generate-lockfile.txt
+          cp Cargo.lock ../native-evidence/Cargo.lock
+
+      - name: Format
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check 2>&1 | tee ../native-evidence/cargo-fmt-check.txt
+
+      - name: Check
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --workspace --all-targets --all-features 2>&1 | tee ../native-evidence/cargo-check.txt
+
+      - name: Clippy
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee ../native-evidence/cargo-clippy.txt
+
+      - name: Test
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --workspace --all-features 2>&1 | tee ../native-evidence/cargo-test.txt
+
+      - name: Build release binaries
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace --all-features 2>&1 | tee ../native-evidence/cargo-build-release.txt
+          cp target/release/soleaux target/release/soleauxd ../native-evidence/
+
+      - name: CLI smoke
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./target/release/soleaux --help 2>&1 | tee ../native-evidence/soleaux-cli-help.txt
+          ./target/release/soleauxd --help 2>&1 | tee ../native-evidence/soleauxd-help.txt
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Audit
+        working-directory: native-wedge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo audit --deny warnings 2>&1 | tee ../native-evidence/cargo-audit.txt
+
+      - name: Collect native evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          cp native-wedge/Cargo.lock native-evidence/Cargo.lock 2>/dev/null || true
+          rustc --version --verbose > native-evidence/rustc-version.txt 2>&1 || true
+          cargo --version --verbose > native-evidence/cargo-version.txt 2>&1 || true
+          cargo metadata --manifest-path native-wedge/Cargo.toml --format-version 1 > native-evidence/cargo-metadata.json 2> native-evidence/cargo-metadata.err || true
+          tar --exclude='./target' -cJf native-evidence/native-wedge-phase0-source.tar.xz -C native-wedge . 2> native-evidence/archive.err || true
+          sha256sum native-evidence/* > native-evidence/SHA256SUMS 2>/dev/null || true
+
+      - name: Upload native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-native-wedge-phase0-evidence
+          path: native-evidence
+          if-no-files-found: error
+          retention-days: 14
