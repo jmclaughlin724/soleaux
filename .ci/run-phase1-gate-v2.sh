@@ -61,8 +61,8 @@ cp /tmp/soleaux-phase1-overlay.tar.xz.b64 "$EVIDENCE/phase1-overlay-committed.b6
   printf 'encoded_sha256='
   sha256sum /tmp/soleaux-phase1-overlay.tar.xz.b64 | awk '{print $1}'
 } | tee "$EVIDENCE/phase1-overlay-encoded-integrity.txt"
-test "$(wc -c < /tmp/soleaux-phase1-overlay.tar.xz.b64)" -eq 73728
-echo "014e7cba3b044950df95e06723ab92e9d3a0c08b9188211ba7a1538947827fff  /tmp/soleaux-phase1-overlay.tar.xz.b64" | sha256sum -c -
+test "$(wc -c < /tmp/soleaux-phase1-overlay.tar.xz.b64)" -eq 73624
+echo "8d64a68c0889d95e51148c3742f663eaf252ac4cc6b53b0c7fe670f332478c26  /tmp/soleaux-phase1-overlay.tar.xz.b64" | sha256sum -c -
 base64 --decode /tmp/soleaux-phase1-overlay.tar.xz.b64 > /tmp/soleaux-phase1-overlay.tar.xz
 {
   printf 'decoded_size='
@@ -70,8 +70,8 @@ base64 --decode /tmp/soleaux-phase1-overlay.tar.xz.b64 > /tmp/soleaux-phase1-ove
   printf 'decoded_sha256='
   sha256sum /tmp/soleaux-phase1-overlay.tar.xz | awk '{print $1}'
 } | tee "$EVIDENCE/phase1-overlay-decoded-integrity.txt"
-test "$(wc -c < /tmp/soleaux-phase1-overlay.tar.xz)" -eq 55296
-echo "1ead562a7e8da9c26d097bbe3b30dd520df596cf22db8f0f9c30640dcb9c6c73  /tmp/soleaux-phase1-overlay.tar.xz" | sha256sum -c -
+test "$(wc -c < /tmp/soleaux-phase1-overlay.tar.xz)" -eq 55216
+echo "dd3c9b6e24592b03e8c4ac69d6fccf5b3f0073581d5f03ded3b8f8d38fab255f  /tmp/soleaux-phase1-overlay.tar.xz" | sha256sum -c -
 tar -xJf /tmp/soleaux-phase1-overlay.tar.xz -C "$OVERLAY"
 cp -a "$OVERLAY/files/." "$SOURCE/"
 if [ -s "$OVERLAY/delete-paths.txt" ]; then
