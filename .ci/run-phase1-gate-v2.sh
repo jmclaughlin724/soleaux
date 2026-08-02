@@ -44,6 +44,15 @@ cp "$CONTRACTS/contracts/context-packet-v2.schema.json" "$BASE/contracts/"
 cp -a "$BASE/." "$SOURCE/"
 
 # Hash-bound repaired Phase 1 overlay.
+: > "$EVIDENCE/phase1-overlay-part-integrity.txt"
+for part in .ci/phase1-overlay.part-*; do
+  compact="$(tr -d '\r\n' < "$part")"
+  printf '%s size=%s sha256=%s\n' \
+    "$(basename "$part")" \
+    "${#compact}" \
+    "$(printf '%s' "$compact" | sha256sum | awk '{print $1}')" \
+    | tee -a "$EVIDENCE/phase1-overlay-part-integrity.txt"
+done
 cat .ci/phase1-overlay.part-* | tr -d '\r\n' > /tmp/soleaux-phase1-overlay.tar.xz.b64
 {
   printf 'encoded_size='
