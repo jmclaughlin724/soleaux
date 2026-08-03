@@ -140,4 +140,4 @@ See [CONTRIBUTING guidance in AGENTS.md](AGENTS.md) for the required validation 
 
 ## License
 
-The historical public package is MIT-licensed. Distribution and final licensing metadata for the unified native product must be reconfirmed during the canonical-source and release phases before external publication.
+The project is licensed under the MIT License. Distribution and final licensing metadata for the unified native product must still be reconfirmed during the canonical-source and release phases before external publication.
