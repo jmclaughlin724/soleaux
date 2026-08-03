@@ -42,5 +42,90 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
       - name: Validate documentation authority and claims
         run: python3 scripts/check_documentation_consistency.py
+
+      - name: Build validated documentation package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf documentation-package
+          mkdir -p documentation-package/soleaux-documentation
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import shutil
+          from pathlib import Path
+
+          root = Path.cwd()
+          destination = root / "documentation-package" / "soleaux-documentation"
+          manifest = json.loads(
+              (root / "docs" / "DOCUMENTATION-MANIFEST.json").read_text(encoding="utf-8")
+          )
+          files = set(manifest["required"])
+          files.update(
+              {
+                  "docs/DOCUMENTATION-MANIFEST.json",
+                  "contracts/unified-mcp-profile-v2.json",
+                  "contracts/context-packet-v2.schema.json",
+                  "PHASE0-NATIVE-GATE-RECEIPT.json",
+                  "PHASE1-NATIVE-GATE-RECEIPT.json",
+                  "PHASE2-NATIVE-GATE-RECEIPT.json",
+                  "PHASE2-CLOSURE-RECEIPT.json",
+                  "PHASE2-INDEPENDENT-VERIFICATION.json",
+                  "scripts/check_documentation_consistency.py",
+                  ".github/workflows/documentation-consistency.yml",
+                  ".github/pull_request_template.md",
+              }
+          )
+
+          inventory = []
+          for relative in sorted(files):
+              source = root / relative
+              if not source.is_file():
+                  raise SystemExit(f"documentation package source missing: {relative}")
+              target = destination / relative
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, target)
+              inventory.append(
+                  {
+                      "path": relative,
+                      "bytes": source.stat().st_size,
+                      "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                  }
+              )
+
+          package_manifest = {
+              "schemaVersion": "soleaux.documentation-package/v1",
+              "sourceCommit": "${{ github.sha }}",
+              "version": "0.4.0-dev.5",
+              "currentPhase": 3,
+              "phase3Status": "draft_blocked",
+              "productionClaimAllowed": False,
+              "publicToolCeiling": 12,
+              "files": inventory,
+          }
+          (destination / "DOCUMENTATION-PACKAGE-MANIFEST.json").write_text(
+              json.dumps(package_manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd documentation-package
+            zip -qr soleaux-unified-documentation-system-0.4.0-dev.5.zip soleaux-documentation
+            sha256sum soleaux-unified-documentation-system-0.4.0-dev.5.zip \
+              > SHA256SUMS
+          )
+
+      - name: Upload validated documentation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-unified-documentation-system
+          path: |
+            documentation-package/soleaux-unified-documentation-system-0.4.0-dev.5.zip
+            documentation-package/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
