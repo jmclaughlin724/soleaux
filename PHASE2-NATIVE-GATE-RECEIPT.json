@@ -1,0 +1,14 @@
+{
+  "artifactName": "soleaux-phase2-final-evidence",
+  "artifactUrl": "https://github.com/jmclaughlin724/soleaux/actions/runs/30779990562#artifacts",
+  "jobStatus": "failure",
+  "phase3Started": false,
+  "productVersion": "0.4.0-dev.5",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "runId": 30779990562,
+  "runUrl": "https://github.com/jmclaughlin724/soleaux/actions/runs/30779990562",
+  "schemaVersion": "soleaux.phase2.gate-receipt/v1",
+  "sourceCommit": "7fcebd3eebe02bfd7eca7788f6b33434d00accaa",
+  "workflow": "Soleaux Phase 2 exact final gate"
+}
