@@ -54,7 +54,11 @@ download_asset "SHA256SUMS"
 
 (
   cd "$TMP"
-  grep -E "soleaux(-d)?-${TARGET}$" SHA256SUMS | sha256sum -c -
+  if command -v sha256sum >/dev/null 2>&1; then
+    grep -E "soleaux(-d)?-${TARGET}$" SHA256SUMS | sha256sum -c -
+  else
+    grep -E "soleaux(-d)?-${TARGET}$" SHA256SUMS | shasum -a 256 -c -
+  fi
 )
 
 mkdir -p "$BIN_DIR"
