@@ -48,6 +48,8 @@ jobs:
 
       - name: Build validated documentation package
         shell: bash
+        env:
+          PACKAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           rm -rf documentation-package
@@ -57,6 +59,7 @@ jobs:
 
           import hashlib
           import json
+          import os
           import shutil
           from pathlib import Path
 
@@ -69,8 +72,6 @@ jobs:
           files.update(
               {
                   "docs/DOCUMENTATION-MANIFEST.json",
-                  "contracts/unified-mcp-profile-v2.json",
-                  "contracts/context-packet-v2.schema.json",
                   "PHASE0-NATIVE-GATE-RECEIPT.json",
                   "PHASE1-NATIVE-GATE-RECEIPT.json",
                   "PHASE2-NATIVE-GATE-RECEIPT.json",
@@ -100,12 +101,24 @@ jobs:
 
           package_manifest = {
               "schemaVersion": "soleaux.documentation-package/v1",
-              "sourceCommit": "${{ github.sha }}",
+              "sourceCommit": os.environ["PACKAGE_SOURCE_COMMIT"],
               "version": "0.4.0-dev.5",
               "currentPhase": 3,
               "phase3Status": "draft_blocked",
               "productionClaimAllowed": False,
               "publicToolCeiling": 12,
+              "lockedContracts": {
+                  "unifiedMcpProfileSha256": (
+                      "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+                  ),
+                  "contextPacketV2Sha256": (
+                      "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f"
+                  ),
+                  "sourceLayoutNote": (
+                      "Normative JSON bytes remain in the independently verified native source "
+                      "artifact until Phase 4 canonical-source consolidation."
+                  ),
+              },
               "files": inventory,
           }
           (destination / "DOCUMENTATION-PACKAGE-MANIFEST.json").write_text(
