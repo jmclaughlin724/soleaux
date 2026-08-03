@@ -22,7 +22,7 @@ unpack_one() {
   printf '%s  %s\n' "$b64_sha" "$source" | sha256sum -c -
   test "$(LC_ALL=C tr -cd '\r\n' < "$source" | wc -c | tr -d ' ')" = 0
 
-  base64 --decode "$source" > "$archive"
+  base64 --decode < "$source" > "$archive"
   test "$(wc -c < "$archive" | tr -d ' ')" = "$xz_size"
   printf '%s  %s\n' "$xz_sha" "$archive" | sha256sum -c -
   xz -t "$archive"
