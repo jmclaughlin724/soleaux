@@ -1,0 +1,50 @@
+{
+  "artifact": {
+    "id": 8858165328,
+    "name": "soleaux-phase2-final-evidence",
+    "sha256": "3fa99fa2de889c7eb081e8ff2a913e66cb7c2027a1696f6ad4eb1c0d0b963ebe",
+    "sizeBytes": 14053306
+  },
+  "closedAtUtc": "2026-08-03T13:51:20Z",
+  "closureBasis": [
+    "green_exact_commit_native_gate_receipt",
+    "downloaded_artifact_digest_match",
+    "zip_and_source_archive_integrity",
+    "embedded_checksums_match",
+    "locked_contracts_and_constants_match",
+    "binary_execution_passed",
+    "canonical_and_substituted_profiles_are_exactly_12",
+    "gateway_catalog_adopt_attach_governance_smoke_passed",
+    "cargo_clippy_and_cargo_audit_clean",
+    "independent_verification_passed"
+  ],
+  "forcePushPerformed": false,
+  "independentVerification": {
+    "commit": "57e1c2a207cff8624269f1d18be42e216b0c5512",
+    "gitBlob": "83edb71ec7c122eb0e49b6d9d9cd5b330c997323",
+    "passed": true,
+    "path": "PHASE2-INDEPENDENT-VERIFICATION.json",
+    "sha256": "959e39bf1d48966e99a9217ddc604f89f2db7044729b669d009d635c7b8a39e2"
+  },
+  "locked": {
+    "contextPacketV2Sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
+    "phase3Started": false,
+    "productVersion": "0.4.0-dev.5",
+    "productionClaimAllowed": false,
+    "publicToolCeiling": 12,
+    "unifiedMcpProfileSha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+  },
+  "mergeToMainPerformed": false,
+  "nativeGate": {
+    "conclusion": "success",
+    "jobId": 91703708339,
+    "receiptCommit": "8b4fc4f32969a6d55c2dc5dd714011102fbc5d86",
+    "runId": 30818963313,
+    "workflow": "Soleaux Phase 2 exact final gate"
+  },
+  "phase2Status": "CLOSED",
+  "phase3Status": "UNBLOCKED_NOT_STARTED",
+  "productionClaim": "PROHIBITED",
+  "schemaVersion": "soleaux.phase2.closure-receipt/v1",
+  "sourceCommit": "6768d9de2aa8a61ba90356409033c0d69b2d5afc"
+}
