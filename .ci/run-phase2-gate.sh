@@ -74,7 +74,13 @@ rustc --version --verbose | tee "$EVIDENCE/rustc-version.txt"
 cargo --version --verbose | tee "$EVIDENCE/cargo-version.txt"
 cargo generate-lockfile 2>&1 | tee "$EVIDENCE/cargo-generate-lockfile.txt"
 cp Cargo.lock "$EVIDENCE/Cargo.lock"
-cargo fmt --all --check 2>&1 | tee "$EVIDENCE/cargo-fmt-check.txt"
+if ! cargo fmt --all --check 2>&1 | tee "$EVIDENCE/cargo-fmt-check.txt"; then
+  cargo fmt --all
+  tar --exclude='./target' -cJf "$EVIDENCE/phase2-formatted-source.tar.xz" .
+  sha256sum "$EVIDENCE/phase2-formatted-source.tar.xz" > "$EVIDENCE/phase2-formatted-source.sha256"
+  echo "cargo fmt --check failed; exact formatted diagnostic source captured" >&2
+  exit 1
+fi
 cargo check --workspace --all-targets --all-features 2>&1 | tee "$EVIDENCE/cargo-check.txt"
 cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee "$EVIDENCE/cargo-clippy.txt"
 cargo test --workspace --all-features 2>&1 | tee "$EVIDENCE/cargo-test.txt"
