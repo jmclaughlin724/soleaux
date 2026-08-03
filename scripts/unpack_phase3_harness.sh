@@ -33,6 +33,7 @@ unpack_one() {
   python -m py_compile "$target"
 }
 
+# Primary harness (compressed carrier — required)
 unpack_one \
   phase3_live_wedge.py \
   18792 \
@@ -42,13 +43,26 @@ unpack_one \
   62001 \
   bf7a158811aa4e9efdc3d8c675fa7c3b1d3d8601ba104781f012f9c9eecd03bb
 
-unpack_one \
-  verify_phase3_artifact.py \
-  4640 \
-  d6c863d1270842dd810688eef6dd26f5f5101adab401f98f508d3f6cf43968d0 \
-  3480 \
-  c1c803ac048cef5021e92a9aef72e196f87cdd4ad6a07533112ac1e3c86a391b \
-  10865 \
-  560b5cfcae0f281326de5015ce031d4b75e6a492509d0885ab6a49d9a6bc4faf
+# Verifier: prefer plain source if present (avoids long-base64 transmission issues),
+# otherwise fall back to compressed carrier.
+VERIFY_PLAIN="$ROOT/phase3/carriers/verify_phase3_artifact.py"
+VERIFY_TARGET="$OUT/verify_phase3_artifact.py"
+if [[ -f "$VERIFY_PLAIN" ]]; then
+  test "$(wc -c < "$VERIFY_PLAIN" | tr -d ' ')" = "10865"
+  printf '%s  %s\n' "560b5cfcae0f281326de5015ce031d4b75e6a492509d0885ab6a49d9a6bc4faf" "$VERIFY_PLAIN" | sha256sum -c -
+  cp "$VERIFY_PLAIN" "$VERIFY_TARGET"
+  chmod 0755 "$VERIFY_TARGET"
+  python -m py_compile "$VERIFY_TARGET"
+  echo "verifier installed from plain source"
+else
+  unpack_one \
+    verify_phase3_artifact.py \
+    4640 \
+    d6c863d1270842dd810688eef6dd26f5f5101adab401f98f508d3f6cf43968d0 \
+    3480 \
+    c1c803ac048cef5021e92a9aef72e196f87cdd4ad6a07533112ac1e3c86a391b \
+    10865 \
+    560b5cfcae0f281326de5015ce031d4b75e6a492509d0885ab6a49d9a6bc4faf
+fi
 
 printf 'Phase 3 harness unpacked and verified in %s\n' "$OUT"
