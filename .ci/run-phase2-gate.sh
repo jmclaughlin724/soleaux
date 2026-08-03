@@ -40,7 +40,8 @@ while read -r name size blob; do
   test -f "$path"
   test "$(wc -c < "$path" | tr -d ' ')" = "$size"
   test "$(git hash-object "$path")" = "$blob"
-  if LC_ALL=C grep -q $'[\r\n]' "$path"; then exit 1; fi
+  test "$(LC_ALL=C tr -cd '\r' < "$path" | wc -c | tr -d ' ')" = 0
+  test "$(LC_ALL=C tr -cd '\n' < "$path" | wc -c | tr -d ' ')" = 0
   printf '%s size=%s blob=%s sha256=%s\n' "$name" "$size" "$blob" "$(sha256sum "$path" | awk '{print $1}')" \
     | tee -a "$EVIDENCE/phase2-overlay-part-integrity.txt"
   cat "$path" >> "$B64"
@@ -58,7 +59,7 @@ cp -a "$OVERLAY/files/." "$SRC/"
 if [ -s "$OVERLAY/delete-paths.txt" ]; then
   while IFS= read -r p; do [ -z "$p" ] || rm -rf -- "$SRC/$p"; done < "$OVERLAY/delete-paths.txt"
 fi
-[ ! -f scripts/apply_phase2_repairs.py ] || python3 scripts/apply_phase2_repairs.py "$SRC" | tee "$EVIDENCE/phase2-repairs.txt"
+bash .ci/apply-phase2-repairs.sh "$SRC" | tee "$EVIDENCE/phase2-repairs.txt"
 
 git rev-parse HEAD | tee "$EVIDENCE/git-head.txt"
 cd "$SRC"
