@@ -1,5 +1,5 @@
 name: Soleaux Phase 2 exact final gate
-# Formatted-source diagnostic gate trigger.
+# Pinned-rustfmt compile gate trigger.
 
 on:
   push:
