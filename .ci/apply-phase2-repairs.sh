@@ -57,4 +57,9 @@ replace_exact_line \
   'use serde_json::{Value, json};' \
   'use serde_json::json;'
 
-printf 'Phase 2 deterministic Clippy repairs applied\n'
+replace_exact_line \
+  'daemon/intelligence/src/governance.rs' \
+  '        trust: "verified_repository_governance".to_string(),' \
+  '        trust: "verified_repository_metadata".to_string(),'
+
+printf 'Phase 2 deterministic source repairs applied\n'
