@@ -1,0 +1,136 @@
+{
+  "experimentId": "soleaux-phase3-live-wedge-2026-08-03-a",
+  "schemaVersion": "soleaux.phase3.tasks/v1",
+  "sharedContextBudget": {
+    "baselineLimit": 50,
+    "maxBytes": 8192,
+    "tokenBudget": 2048
+  },
+  "tasks": [
+    {
+      "expected": {
+        "canonical_tools": [
+          "context.compile",
+          "code.search",
+          "memory.search",
+          "get_symbols",
+          "registry.list",
+          "registry.read",
+          "repo_info",
+          "navigate",
+          "inspect",
+          "preview",
+          "edit",
+          "restart_lsp"
+        ],
+        "hard_ceiling": 12
+      },
+      "id": "P3-T01-canonical-profile",
+      "objective": "Read daemon/mcp/src/profile.rs and report the hard public-tool ceiling and the complete canonical public tool order.",
+      "paths": [
+        "daemon/mcp/src/profile.rs"
+      ],
+      "requiredKeys": [
+        "hard_ceiling",
+        "canonical_tools"
+      ],
+      "unorderedListKeys": []
+    },
+    {
+      "expected": {
+        "context_schema": "soleaux.context/v2",
+        "product_version": "0.4.0-dev.5",
+        "production_claim_allowed": false
+      },
+      "id": "P3-T02-binding-identity",
+      "objective": "Read the binding profile constants and report the exact product version, whether production claims are allowed, and the Context Packet schema version.",
+      "paths": [
+        "daemon/mcp/src/profile.rs"
+      ],
+      "requiredKeys": [
+        "product_version",
+        "production_claim_allowed",
+        "context_schema"
+      ],
+      "unorderedListKeys": []
+    },
+    {
+      "expected": {
+        "may_append": false,
+        "optional_tools": [
+          "parse_and_validate_postgres_sql",
+          "turborepo.packages",
+          "next.get_routes"
+        ]
+      },
+      "id": "P3-T03-optional-substitution",
+      "objective": "Read daemon/mcp/src/profile.rs and report all optional public tool candidates in their declared order and whether they may be appended beyond the twelve-slot ceiling.",
+      "paths": [
+        "daemon/mcp/src/profile.rs"
+      ],
+      "requiredKeys": [
+        "optional_tools",
+        "may_append"
+      ],
+      "unorderedListKeys": []
+    },
+    {
+      "expected": {
+        "file": "daemon/intelligence/src/governance.rs",
+        "trust": "verified_repository_metadata"
+      },
+      "id": "P3-T04-governance-trust",
+      "objective": "Read daemon/intelligence/src/governance.rs and report the exact trust label assigned by the native governance edge constructor.",
+      "paths": [
+        "daemon/intelligence/src/governance.rs"
+      ],
+      "requiredKeys": [
+        "file",
+        "trust"
+      ],
+      "unorderedListKeys": []
+    },
+    {
+      "expected": {
+        "owners": [
+          "@team/mcp-core"
+        ],
+        "validation_commands": [
+          "cargo test --workspace --all-features",
+          "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+        ]
+      },
+      "id": "P3-T05-owner-validation",
+      "objective": "For daemon/mcp/src/profile.rs, report the matching CODEOWNERS owner and the two validation commands explicitly required by AGENTS.md.",
+      "paths": [
+        "daemon/mcp/src/profile.rs",
+        ".github/CODEOWNERS",
+        "AGENTS.md"
+      ],
+      "requiredKeys": [
+        "owners",
+        "validation_commands"
+      ],
+      "unorderedListKeys": [
+        "owners",
+        "validation_commands"
+      ]
+    },
+    {
+      "expected": {
+        "function": "publicLabel",
+        "returns": "safe-label"
+      },
+      "id": "P3-T06-secret-redaction",
+      "objective": "In phase3_fixture/secret.ts, report the exported function name and the safe string literal it returns. Do not include any credential or token.",
+      "paths": [
+        "phase3_fixture/secret.ts"
+      ],
+      "requiredKeys": [
+        "function",
+        "returns"
+      ],
+      "unorderedListKeys": []
+    }
+  ]
+}
