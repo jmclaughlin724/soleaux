@@ -1,0 +1,106 @@
+name: Soleaux native install release
+
+# Publishes verified native binaries as a GitHub pre-release so they can be installed
+# without digging through Actions artifacts. productionClaimAllowed remains false.
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase2_run_id:
+        description: "Successful Phase 2 workflow run ID that produced soleaux-phase2-final-evidence"
+        required: true
+        default: "30818963313"
+      tag:
+        description: "Release tag"
+        required: true
+        default: "native-v0.4.0-dev.5"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: soleaux-native-install-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package verified native binaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Phase 2 evidence artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: soleaux-phase2-final-evidence
+          run-id: ${{ inputs.phase2_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: evidence
+
+      - name: Verify binary identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f evidence/soleaux
+          test -f evidence/soleauxd
+          chmod +x evidence/soleaux evidence/soleauxd
+          ./evidence/soleaux --version | tee version-soleaux.txt
+          ./evidence/soleauxd --version | tee version-soleauxd.txt
+          grep -F '0.4.0-dev.5' version-soleaux.txt
+          grep -F '0.4.0-dev.5' version-soleauxd.txt
+          if ./evidence/soleaux --help 2>&1 | grep -qi 'productionClaimAllowed.*true'; then
+            echo "production claim must remain false" >&2
+            exit 1
+          fi
+
+      - name: Stage release assets (linux-x86_64 from ubuntu runner artifact)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp evidence/soleaux dist/soleaux-linux-x86_64
+          cp evidence/soleauxd dist/soleauxd-linux-x86_64
+          chmod 0755 dist/soleaux-linux-x86_64 dist/soleauxd-linux-x86_64
+          (
+            cd dist
+            sha256sum soleaux-linux-x86_64 soleauxd-linux-x86_64 > SHA256SUMS
+          )
+          cp scripts/install-native.sh dist/install-native.sh
+          chmod 0755 dist/install-native.sh
+          cat dist/SHA256SUMS
+
+      - name: Create or update pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: Soleaux native ${{ inputs.tag }}
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          body: |
+            Native Soleaux pre-production binaries.
+
+            - Product version: `0.4.0-dev.5`
+            - `productionClaimAllowed`: **false**
+            - Source: Phase 2 exact gate run `${{ inputs.phase2_run_id }}`
+            - Platform in this release: `linux-x86_64` (from the verified Phase 2 artifact)
+
+            ## Install
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/install-native.sh | bash
+            ```
+
+            Or download assets from this release and place `soleaux` / `soleauxd` on your `PATH`.
+
+            ## Host wiring
+
+            Point MCP hosts at the installed `soleaux` binary (stdio). Do not treat this as a production claim.
+          files: |
+            dist/soleaux-linux-x86_64
+            dist/soleauxd-linux-x86_64
+            dist/SHA256SUMS
+            dist/install-native.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
