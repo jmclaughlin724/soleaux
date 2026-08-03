@@ -1,0 +1,46 @@
+name: Soleaux documentation consistency
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - PROJECT-STATUS.md
+      - PROJECT-STATUS.json
+      - ROADMAP.md
+      - TASKS.md
+      - HANDOFF.md
+      - AGENTS.md
+      - CHANGELOG.md
+      - RELEASE-CHECKLIST.md
+      - docs/**
+      - scripts/check_documentation_consistency.py
+      - .github/workflows/documentation-consistency.yml
+  push:
+    branches:
+      - phase2/native-lineage-a-0.4.0-dev.5
+      - docs/unified-project-system-0.4.0-dev.5
+    paths:
+      - README.md
+      - PROJECT-STATUS.md
+      - PROJECT-STATUS.json
+      - ROADMAP.md
+      - TASKS.md
+      - HANDOFF.md
+      - AGENTS.md
+      - CHANGELOG.md
+      - RELEASE-CHECKLIST.md
+      - docs/**
+      - scripts/check_documentation_consistency.py
+      - .github/workflows/documentation-consistency.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  consistency:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate documentation authority and claims
+        run: python3 scripts/check_documentation_consistency.py
