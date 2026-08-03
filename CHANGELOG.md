@@ -48,3 +48,5 @@ All notable changes to the unified native Soleaux product are recorded here. Pha
 The Python/FastMCP lineage supplied important capabilities that were absorbed into the native product: typed context, LSP navigation/inspection, governance, gateway/OAuth behavior, skills, adopt, editor safety, framework discovery, and PostgreSQL analysis.
 
 Its complete change history remains available in Git history and is indexed in [`docs/history/PYTHON-LINEAGE.md`](docs/history/PYTHON-LINEAGE.md). It is not the current product/version authority.
+
+The project is licensed under MIT.
