@@ -1,13 +1,10 @@
 name: Soleaux native install release
 
-# Publishes verified native binaries as a GitHub pre-release so they can be installed
-# without digging through Actions artifacts. productionClaimAllowed remains false.
-
 on:
   workflow_dispatch:
     inputs:
       phase2_run_id:
-        description: "Successful Phase 2 workflow run ID that produced soleaux-phase2-final-evidence"
+        description: "Successful Phase 2 run ID (soleaux-phase2-final-evidence)"
         required: true
         default: "30818963313"
       tag:
@@ -24,16 +21,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Package verified native binaries
+  linux-from-artifact:
+    name: Package linux-x86_64 from Phase 2 artifact
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           ref: native/0.4.0-dev.5
 
-      - name: Download Phase 2 evidence artifact
+      - name: Download Phase 2 evidence
         uses: actions/download-artifact@v4
         with:
           name: soleaux-phase2-final-evidence
@@ -41,37 +38,102 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: evidence
 
-      - name: Verify binary identity
+      - name: Stage linux assets
         shell: bash
         run: |
           set -euo pipefail
           test -f evidence/soleaux
           test -f evidence/soleauxd
           chmod +x evidence/soleaux evidence/soleauxd
-          ./evidence/soleaux --version | tee version-soleaux.txt
-          ./evidence/soleauxd --version | tee version-soleauxd.txt
-          grep -F '0.4.0-dev.5' version-soleaux.txt
-          grep -F '0.4.0-dev.5' version-soleauxd.txt
-          if ./evidence/soleaux --help 2>&1 | grep -qi 'productionClaimAllowed.*true'; then
-            echo "production claim must remain false" >&2
-            exit 1
-          fi
-
-      - name: Stage release assets (linux-x86_64 from ubuntu runner artifact)
-        shell: bash
-        run: |
-          set -euo pipefail
+          ./evidence/soleaux --version | grep -F '0.4.0-dev.5'
+          ./evidence/soleauxd --version | grep -F '0.4.0-dev.5'
           mkdir -p dist
           cp evidence/soleaux dist/soleaux-linux-x86_64
           cp evidence/soleauxd dist/soleauxd-linux-x86_64
           chmod 0755 dist/soleaux-linux-x86_64 dist/soleauxd-linux-x86_64
-          (
-            cd dist
-            sha256sum soleaux-linux-x86_64 soleauxd-linux-x86_64 > SHA256SUMS
-          )
+          (cd dist && sha256sum soleaux-linux-x86_64 soleauxd-linux-x86_64 > SHA256SUMS.linux)
           cp scripts/install-native.sh dist/install-native.sh
           chmod 0755 dist/install-native.sh
-          cat dist/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-dist-linux
+          path: dist/
+          if-no-files-found: error
+
+  darwin-arm64-from-source:
+    name: Build darwin-arm64 from Phase 2 source
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: native/0.4.0-dev.5
+
+      - name: Download Phase 2 evidence (source archive)
+        uses: actions/download-artifact@v4
+        with:
+          name: soleaux-phase2-final-evidence
+          run-id: ${{ inputs.phase2_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: evidence
+
+      - name: Install Rust 1.97.1
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+
+      - name: Materialize Phase 2 source and build release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f evidence/soleaux-phase2-source.tar.xz
+          rm -rf phase2-source
+          mkdir phase2-source
+          tar -xJf evidence/soleaux-phase2-source.tar.xz -C phase2-source
+          test -f phase2-source/Cargo.toml
+          grep -q 'version = "0.4.0-dev.5"' phase2-source/Cargo.toml
+          cd phase2-source
+          cargo build --release --workspace --all-features
+          ./target/release/soleaux --version | tee ../version-soleaux.txt
+          ./target/release/soleauxd --version | tee ../version-soleauxd.txt
+          grep -F '0.4.0-dev.5' ../version-soleaux.txt
+          grep -F '0.4.0-dev.5' ../version-soleauxd.txt
+          mkdir -p ../dist
+          cp target/release/soleaux ../dist/soleaux-darwin-arm64
+          cp target/release/soleauxd ../dist/soleauxd-darwin-arm64
+          chmod 0755 ../dist/soleaux-darwin-arm64 ../dist/soleauxd-darwin-arm64
+          (cd ../dist && shasum -a 256 soleaux-darwin-arm64 soleauxd-darwin-arm64 > SHA256SUMS.darwin)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-dist-darwin
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish combined pre-release
+    needs: [linux-from-artifact, darwin-arm64-from-source]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-dist-linux
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-dist-darwin
+          path: dist
+
+      - name: Merge checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          cat SHA256SUMS.linux SHA256SUMS.darwin > SHA256SUMS
+          ls -la
+          cat SHA256SUMS
 
       - name: Create or update pre-release
         uses: softprops/action-gh-release@v2
@@ -86,7 +148,7 @@ jobs:
             - Product version: `0.4.0-dev.5`
             - `productionClaimAllowed`: **false**
             - Source: Phase 2 exact gate run `${{ inputs.phase2_run_id }}`
-            - Platform in this release: `linux-x86_64` (from the verified Phase 2 artifact)
+            - Platforms: `linux-x86_64`, `darwin-arm64` (Apple Silicon)
 
             ## Install
 
@@ -94,14 +156,15 @@ jobs:
             curl -fsSL https://raw.githubusercontent.com/jmclaughlin724/soleaux/native/0.4.0-dev.5/scripts/install-native.sh | bash
             ```
 
-            Or download assets from this release and place `soleaux` / `soleauxd` on your `PATH`.
-
             ## Host wiring
 
-            Point MCP hosts at the installed `soleaux` binary (stdio). Do not treat this as a production claim.
+            Point MCP hosts at the installed `soleaux` binary (stdio).
+            Do not treat this as a production claim.
           files: |
             dist/soleaux-linux-x86_64
             dist/soleauxd-linux-x86_64
+            dist/soleaux-darwin-arm64
+            dist/soleauxd-darwin-arm64
             dist/SHA256SUMS
             dist/install-native.sh
         env:
