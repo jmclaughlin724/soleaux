@@ -48,8 +48,8 @@ unpack_one \
 VERIFY_PLAIN="$ROOT/phase3/carriers/verify_phase3_artifact.py"
 VERIFY_TARGET="$OUT/verify_phase3_artifact.py"
 if [[ -f "$VERIFY_PLAIN" ]]; then
-  test "$(wc -c < "$VERIFY_PLAIN" | tr -d ' ')" = "10865"
-  printf '%s  %s\n' "560b5cfcae0f281326de5015ce031d4b75e6a492509d0885ab6a49d9a6bc4faf" "$VERIFY_PLAIN" | sha256sum -c -
+  test "$(wc -c < "$VERIFY_PLAIN" | tr -d ' ')" = "10610"
+  printf '%s  %s\n' "32133300925af3ec108b7eb3f76d07785faad68e22ac2dd19195a5247c2f3340" "$VERIFY_PLAIN" | sha256sum -c -
   cp "$VERIFY_PLAIN" "$VERIFY_TARGET"
   chmod 0755 "$VERIFY_TARGET"
   python -m py_compile "$VERIFY_TARGET"
