@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -30,14 +29,15 @@ EXPECTED_TOOLS = [
     "edit",
     "restart_lsp",
 ]
-FORBIDDEN_PUBLIC = [
-    r"\bSoleaux is an agent operating system\b",
-    r"\bSoleaux is production[- ]ready\b",
-    r"\bSoleaux is generally available\b",
-    r"\b1\.0\.0-rc\.1\b",
-    r"\bfixed local catalog is ten tools\b",
-    r"\bVersion `0\.1\.0`\b",
-    r"\bSoleaux is a local FastMCP server\b",
+FORBIDDEN_PUBLIC_PHRASES = [
+    "soleaux is an agent operating system",
+    "soleaux is production-ready",
+    "soleaux is production ready",
+    "soleaux is generally available",
+    "1.0.0-rc.1",
+    "fixed local catalog is ten tools",
+    "version `0.1.0`",
+    "soleaux is a local fastmcp server",
 ]
 
 JsonObject = dict[str, Any]
@@ -152,11 +152,11 @@ def main() -> int:
         "docs/marketing/FAQ.md",
     ]
     for path in public_files:
-        content = (ROOT / path).read_text(encoding="utf-8")
-        for pattern in FORBIDDEN_PUBLIC:
+        content = (ROOT / path).read_text(encoding="utf-8").casefold()
+        for phrase in FORBIDDEN_PUBLIC_PHRASES:
             require(
-                re.search(pattern, content, flags=re.IGNORECASE) is None,
-                f"prohibited public claim in {path}: {pattern}",
+                phrase not in content,
+                f"prohibited public claim in {path}: {phrase}",
             )
 
     status_md = (ROOT / "PROJECT-STATUS.md").read_text(encoding="utf-8")
