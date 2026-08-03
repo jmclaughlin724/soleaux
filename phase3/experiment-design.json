@@ -1,1 +1,180 @@
-PLACEHOLDER
+{
+  "artifact": {
+    "artifactId": 8858165328,
+    "artifactName": "soleaux-phase2-final-evidence",
+    "artifactSha256": "3fa99fa2de889c7eb081e8ff2a913e66cb7c2027a1696f6ad4eb1c0d0b963ebe",
+    "phase2ClosureCommit": "fd79662af4e2c80f0f731df65cb509bc7efe7d4e",
+    "phase2GateReceiptCommit": "8b4fc4f32969a6d55c2dc5dd714011102fbc5d86",
+    "phase2RunId": 30818963313,
+    "sourceArchiveSha256": "4603eb31297645c1bc9b96ab0449835e56e07e2a475f3b2e613796e5b27b1804"
+  },
+  "baseline": {
+    "contextTool": "context",
+    "description": "Prior Python/FastMCP 0.1.0 lineage",
+    "launch": "<baseline-python> -m soleaux.server --root <workspace>",
+    "sourceCommit": "5e77a0c00d12efb8a63bbad1195f58bf50c5f9ef",
+    "version": "0.1.0"
+  },
+  "bindingInvariants": {
+    "canonicalTools": [
+      "context.compile",
+      "code.search",
+      "memory.search",
+      "get_symbols",
+      "registry.list",
+      "registry.read",
+      "repo_info",
+      "navigate",
+      "inspect",
+      "preview",
+      "edit",
+      "restart_lsp"
+    ],
+    "contextPacketV2Sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
+    "hardCeiling": 12,
+    "productVersion": "0.4.0-dev.5",
+    "productionClaimAllowed": false,
+    "unifiedMcpProfileSha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+  },
+  "correctness": {
+    "aggregateRequirement": "treatment correct-task count must be greater than or equal to baseline and at least 5 of 6",
+    "extraKeysFail": true,
+    "oracle": "exact task-level JSON object comparison",
+    "taskPass": "all required keys and values match the pre-registered expected object",
+    "unorderedLists": "only keys explicitly named by each task are sorted before comparison"
+  },
+  "execution": {
+    "armOrder": "AB for even-index tasks; BA for odd-index tasks",
+    "freshWorkspacePerArmTask": true,
+    "inferenceRetries": 0,
+    "mcpProtocolVersion": "2025-11-25",
+    "modelCalls": 12,
+    "postHocFiltering": false,
+    "taskSetChangesAfterFirstInference": false
+  },
+  "experimentId": "soleaux-phase3-live-wedge-2026-08-03-a",
+  "fixture": {
+    "path": "phase3/fixture-overlay.json",
+    "prohibitedValueSha256": "a704ebb1d0a38d8f8007b031073b63519d209486857fa5c0d571509892aa39cb",
+    "sha256": "4728a1969db35289ebec894305edf63bf6ce74ddffbdf3f7a49ad5fcf568774f"
+  },
+  "gates": {
+    "allTasksExecuted": true,
+    "allTreatmentNative": true,
+    "allTreatmentPacketsValid": true,
+    "allTreatmentToolListsExactlyTwelve": true,
+    "noSecretLeakage": true,
+    "productionClaimRemainedFalse": true,
+    "treatmentContextBytesLower": true,
+    "treatmentCorrectnessAtLeastBaseline": true,
+    "treatmentCorrectnessAtLeastFiveOfSix": true,
+    "treatmentPromptTokensLower": true
+  },
+  "limitations": [
+    "This is a controlled single-turn evidence-to-answer comparison, not a multi-step autonomous coding-agent benchmark.",
+    "Tool schemas are measured independently; only the compiled context packet and fixed task prompt are submitted to the model.",
+    "The fixed target repository is the exact Phase 2 source plus a deterministic governance and redaction fixture.",
+    "A provider or credential failure makes the run inconclusive and cannot be converted into fabricated or retried evidence within this experiment."
+  ],
+  "measurement": {
+    "contextEconomy": [
+      "canonical serialized context bytes",
+      "ceil(bytes/4) conservative context-token estimate",
+      "actual provider-reported prompt tokens",
+      "typed item counts across seven Context Packet sections",
+      "gap counts",
+      "secret redaction counts"
+    ],
+    "latency": [
+      "context retrieval milliseconds",
+      "model inference milliseconds"
+    ],
+    "surface": [
+      "tools/list count",
+      "tool-schema bytes",
+      "ceil(tool-schema-bytes/4) estimate"
+    ]
+  },
+  "model": {
+    "apiVersion": "2026-03-10",
+    "endpoint": "https://models.github.ai/inference/chat/completions",
+    "id": "openai/gpt-4.1",
+    "maxOutputTokens": 512,
+    "provider": "GitHub Models",
+    "responseFormat": "json_object",
+    "seed": 20260803,
+    "stream": false,
+    "temperature": 0.0,
+    "topP": 1.0
+  },
+  "preRegistration": {
+    "carriers": {
+      "phase3_live_wedge.py": {
+        "base64Path": "phase3/carriers/phase3_live_wedge.py.xz.b64",
+        "base64Sha256": "d3fe7021fcf80fd7cbb1cac02f77802fcffde4bcaffa97c8243b270f842f27b2",
+        "base64Size": 18792,
+        "decodedSha256": "bf7a158811aa4e9efdc3d8c675fa7c3b1d3d8601ba104781f012f9c9eecd03bb",
+        "decodedSize": 62001,
+        "xzSha256": "500b805a2eef6cc266a1756e37c5d88e302427b7378020f0dc46664369f795f4",
+        "xzSize": 14092
+      },
+      "verify_phase3_artifact.py": {
+        "base64Path": "phase3/carriers/verify_phase3_artifact.py.xz.b64",
+        "base64Sha256": "d6c863d1270842dd810688eef6dd26f5f5101adab401f98f508d3f6cf43968d0",
+        "base64Size": 4640,
+        "decodedSha256": "560b5cfcae0f281326de5015ce031d4b75e6a492509d0885ab6a49d9a6bc4faf",
+        "decodedSize": 10865,
+        "xzSha256": "c1c803ac048cef5021e92a9aef72e196f87cdd4ad6a07533112ac1e3c86a391b",
+        "xzSize": 3480
+      }
+    },
+    "commit": "pinned by the workflow after this file set is committed",
+    "files": {
+      "phase3/carriers/phase3_live_wedge.py.xz.b64": "d3fe7021fcf80fd7cbb1cac02f77802fcffde4bcaffa97c8243b270f842f27b2",
+      "phase3/carriers/verify_phase3_artifact.py.xz.b64": "d6c863d1270842dd810688eef6dd26f5f5101adab401f98f508d3f6cf43968d0",
+      "phase3/fixture-overlay.json": "4728a1969db35289ebec894305edf63bf6ce74ddffbdf3f7a49ad5fcf568774f",
+      "phase3/tasks.json": "d53c24d6dcd5b8cf62a10cd17e83459c9922f93629ab007bf6108f32c278d1c8",
+      "scripts/unpack_phase3_harness.sh": "f0bd04976b228fa3ce01b281d81cd445be6a34c1298f2da82859b714fe2d7114"
+    }
+  },
+  "schemaVersion": "soleaux.phase3.experiment-design/v1",
+  "stopPolicy": {
+    "hard": [
+      "more than twelve treatment tools",
+      "locked contract, version, ceiling, or productionClaimAllowed drift",
+      "non-native parser or LSP selection",
+      "Context Packet V2 validation failure or missing typed section",
+      "fixture secret serialized into context, prompt, response, or evidence",
+      "task set or fixed methodology drift"
+    ],
+    "soft": [
+      "GitHub Models API unavailable",
+      "models:read credential unavailable",
+      "pre-registered model unavailable"
+    ]
+  },
+  "taskSet": {
+    "count": 6,
+    "path": "phase3/tasks.json",
+    "sha256": "d53c24d6dcd5b8cf62a10cd17e83459c9922f93629ab007bf6108f32c278d1c8",
+    "sharedContextBudget": {
+      "baselineLimit": 50,
+      "maxBytes": 8192,
+      "tokenBudget": 2048
+    }
+  },
+  "treatment": {
+    "contextTool": "context.compile",
+    "description": "Locked native Rust 12-tool Soleaux surface",
+    "launch": "<artifact>/soleaux serve <workspace>",
+    "sourceCommit": "6768d9de2aa8a61ba90356409033c0d69b2d5afc",
+    "version": "0.4.0-dev.5"
+  },
+  "amendments": [
+    {
+      "date": "2026-08-03",
+      "reason": "Original verify_phase3_artifact.py.xz.b64 was referenced in pre-registration but never committed. Independent verifier was recreated and digests re-frozen.",
+      "carrier": "verify_phase3_artifact.py"
+    }
+  ]
+}
