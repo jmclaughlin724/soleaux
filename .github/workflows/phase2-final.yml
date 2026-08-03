@@ -1,5 +1,5 @@
 name: Soleaux Phase 2 exact final gate
-# Pinned-rustfmt compile gate trigger.
+# Locked-schema governance trust repair trigger.
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
     paths:
       - .ci/phase2-overlay-v3.part-*
       - .ci/run-phase2-gate.sh
+      - .ci/apply-phase2-repairs.sh
       - scripts/apply_phase2_repairs.py
       - .github/workflows/phase2-final.yml
   workflow_dispatch:
