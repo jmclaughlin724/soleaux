@@ -2,7 +2,7 @@
 
 <!-- soleaux-docs:status current_phase=4 phase2=closed phase3=deferred phase4=in_progress version=0.4.0-dev.5 production_claim_allowed=false -->
 
-**As of:** 2026-08-03  
+**As of:** 2026-08-03
 **Machine-readable owner:** [`PROJECT-STATUS.json`](PROJECT-STATUS.json)
 
 ## Executive state

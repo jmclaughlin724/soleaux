@@ -120,7 +120,6 @@ faulthandler_exit_on_timeout = true
 faulthandler_timeout = "60"
 filterwarnings = [
   "error",
-  # ResourceWarning emission rides garbage-collection timing, so erroring on it is nondeterministic.
   "ignore::ResourceWarning",
 ]
 pythonpath = [".", "src"]

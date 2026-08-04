@@ -1,7 +1,7 @@
 # Soleaux Release Checklist
 
-**Current version:** `0.4.0-dev.5`  
-**Current release posture:** development only  
+**Current version:** `0.4.0-dev.5`
+**Current release posture:** development only
 **productionClaimAllowed:** `false`
 
 This checklist controls release eligibility. A completed development phase does not imply a signed release.
