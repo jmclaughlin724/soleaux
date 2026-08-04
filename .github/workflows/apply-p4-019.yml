@@ -1,3 +1,4 @@
+# Connector-triggered after workflow creation; removed by the workflow on success.
 name: Apply P4-019 transactional edit rollback
 
 on:
