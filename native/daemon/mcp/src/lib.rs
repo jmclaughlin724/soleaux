@@ -196,19 +196,30 @@ impl PublicMcpServer {
 
     async fn refresh_repository_read_state(&self) -> Result<IndexReport> {
         let _guard = self.repository_read_refresh.lock().await;
+        let report = self.index.refresh_incremental().await?;
+        *self
+            .last_index_report
+            .write()
+            .expect("index report lock poisoned") = Some(report.clone());
+        Ok(report)
+    }
+
+    fn refresh_registry_read_state(&self) -> Result<()> {
+        let registry = scan_registry(self.root(), &self.index)?;
+        *self.registry.write().expect("registry lock poisoned") = registry;
+        Ok(())
+    }
+
+    pub async fn prepare(&self) -> Result<IndexReport> {
+        validate_active_profile(&self.active_tools)?;
+        let guard = self.repository_read_refresh.lock().await;
         let report = self.index.refresh().await?;
         *self
             .last_index_report
             .write()
             .expect("index report lock poisoned") = Some(report.clone());
-        *self.registry.write().expect("registry lock poisoned") =
-            scan_registry(self.root(), &self.index)?;
-        Ok(report)
-    }
-
-    pub async fn prepare(&self) -> Result<IndexReport> {
-        validate_active_profile(&self.active_tools)?;
-        let report = self.refresh_repository_read_state().await?;
+        self.refresh_registry_read_state()?;
+        drop(guard);
         let languages = self.index.languages()?;
         let specs = discover_workspace_servers(self.root(), &languages)?;
         let mut routes = HashMap::new();
@@ -281,11 +292,14 @@ impl PublicMcpServer {
     }
 
     pub async fn call_async(&self, name: &str, arguments: &Value) -> Result<ToolEnvelopeV2> {
+        let started = Instant::now();
         self.validate_tool_arguments(name, arguments)?;
         if requires_fresh_repository_state(name) {
             self.refresh_repository_read_state().await?;
         }
-        let started = Instant::now();
+        if requires_fresh_registry_state(name) {
+            self.refresh_registry_read_state()?;
+        }
         match name {
             "context.compile" => self.call_context(arguments, started).await,
             "code.search" => self.call_search(arguments, started).await,
@@ -1138,10 +1152,24 @@ impl PublicMcpServer {
     ) -> Result<SearchMatchesResult> {
         let mut matches = Vec::new();
         let mut observed = BTreeSet::new();
+        let mut stale_paths = BTreeSet::new();
         let mut gaps = Vec::new();
         let structural_limit = limit.saturating_mul(4).clamp(1, 800);
         for hit in self.index.search_symbols(query, structural_limit)? {
             if !path_allowed(&hit.path, paths) || !kind_allowed(&hit.kind, kinds) {
+                continue;
+            }
+            if !self.index.validate_indexed_file(&hit.path)? {
+                if stale_paths.insert(hit.path.clone()) {
+                    gaps.push(gap(
+                        "stale_structural_index",
+                        "The indexed file changed during structural lookup; stale evidence was omitted and the next refresh will reindex it.",
+                        "warning",
+                        true,
+                        Some("repository.search"),
+                        Some(&hit.path),
+                    ));
+                }
                 continue;
             }
             observed.insert(hit.path.clone());
@@ -1171,6 +1199,7 @@ impl PublicMcpServer {
                     Ok(value) => value,
                     Err(_) => continue,
                 };
+                let current_hash = blake3::hash(source.as_bytes()).to_hex().to_string();
                 let lowercase = source.to_ascii_lowercase();
                 let Some(start) = lowercase.find(&needle) else {
                     continue;
@@ -1214,7 +1243,7 @@ impl PublicMcpServer {
                         Some(self.workspace_id()),
                         None,
                         Some(&file.path),
-                        Some(&file.content_hash),
+                        Some(&current_hash),
                         "utf8-bytes-zero-based",
                     ),
                 }));
@@ -1265,6 +1294,17 @@ impl PublicMcpServer {
         let mut gaps = Vec::new();
         let mut observed = Vec::new();
         for file in &files {
+            if !self.index.validate_indexed_file(&file.path)? {
+                gaps.push(gap(
+                    "stale_structural_index",
+                    "The indexed file changed during symbol lookup; stale symbols were omitted and the next refresh will reindex it.",
+                    "warning",
+                    true,
+                    Some("repository.symbols"),
+                    Some(&file.path),
+                ));
+                continue;
+            }
             observed.push(file.path.clone());
             let file_symbols = self.index.symbols_for_file(&file.path)?;
             file_rows.push(json!({
@@ -1438,10 +1478,16 @@ fn requires_fresh_repository_state(tool: &str) -> bool {
         "context.compile"
             | "code.search"
             | "get_symbols"
-            | "registry.list"
             | "registry.read"
             | "repo_info"
+            | "navigate"
+            | "inspect"
+            | "preview"
     )
+}
+
+fn requires_fresh_registry_state(tool: &str) -> bool {
+    matches!(tool, "registry.list" | "registry.read" | "repo_info")
 }
 
 fn is_supported_rpc_method(method: &str) -> bool {
@@ -1891,6 +1937,64 @@ mod tests {
         );
         assert!(left_result.is_ok());
         assert!(right_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn stale_structural_hits_are_never_returned_as_verified_evidence() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("src");
+        let source_path = temp.path().join("src/state.ts");
+        fs::write(&source_path, "export function oldState() { return 'old'; }").expect("fixture");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        server.prepare().await.expect("prepare");
+        fs::write(&source_path, "export function newState() { return 'new'; }")
+            .expect("external mutation");
+
+        let (old_matches, _, old_gaps, _) = server
+            .search_matches("oldState", &[], &[], 20)
+            .expect("old search");
+        assert!(old_matches.is_empty());
+        assert!(old_gaps.iter().any(|value| {
+            value.get("code").and_then(Value::as_str) == Some("stale_structural_index")
+        }));
+
+        let (new_matches, _, _, _) = server
+            .search_matches("newState", &[], &[], 20)
+            .expect("new text fallback");
+        assert!(new_matches.iter().any(|value| {
+            value.get("trust").and_then(Value::as_str) == Some("retrieved_code_data")
+        }));
+    }
+
+    #[test]
+    fn index_backed_semantic_operations_use_the_freshness_barrier() {
+        for tool in ["navigate", "inspect", "preview"] {
+            assert!(
+                requires_fresh_repository_state(tool),
+                "{tool} must refresh index-backed semantic targets"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn malformed_registry_does_not_disable_structural_search() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("src");
+        fs::write(
+            temp.path().join("src/state.ts"),
+            "export function currentState() { return true; }",
+        )
+        .expect("fixture");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        server.prepare().await.expect("prepare");
+        fs::write(temp.path().join("soleaux.toml"), "[mcp.invalid\n").expect("invalid registry");
+        let search = server
+            .call_async("code.search", &json!({"query": "currentState"}))
+            .await
+            .expect("structural search remains available");
+        assert_eq!(search.status, "ok");
     }
 
     #[tokio::test]

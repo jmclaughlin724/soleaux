@@ -21,10 +21,12 @@ import pathlib
 import ssl
 import typing
 
+import anyio
 import fastmcp
 import fastmcp.client.auth.oauth
 import fastmcp.client.logging
 import fastmcp.client.transports
+import fastmcp.server.dependencies
 import fastmcp.server.providers.proxy
 import httpx2
 
@@ -85,6 +87,31 @@ class _FreshTransportStatefulProxyClient(
             self._soleaux_transport_factory,
             self._soleaux_client_options,
         )
+
+    def new_stateful(self) -> fastmcp.Client[McpTransport]:
+        """Bind one backend client to the front connection with durable cleanup."""
+        session = fastmcp.server.dependencies.get_context().session
+        connection = getattr(session, "_connection", None)
+        if connection is None:
+            raise RuntimeError(
+                "Stateful proxy requires a per-connection server session; "
+                "no connection is available on the current context."
+            )
+        proxy_client = self._caches.get(connection)
+        if proxy_client is None:
+            proxy_client = self.new()
+            self._caches[connection] = proxy_client
+
+            async def disconnect_on_connection_exit() -> None:
+                self._caches.pop(connection, None)
+                # A front-session cancellation initiates exit-stack unwinding.
+                # Shield the forced backend disconnect so its stdio process and
+                # asyncio child waiter are reaped before the connection exits.
+                with anyio.CancelScope(shield=True):
+                    await proxy_client._disconnect(force=True)
+
+            connection.exit_stack.push_async_callback(disconnect_on_connection_exit)
+        return proxy_client
 
 
 def _required_environment_value(name: str, *, purpose: str) -> str:

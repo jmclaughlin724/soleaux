@@ -324,12 +324,17 @@ pub fn compile_v2(index: &RepositoryIndex, request: &CompileRequestV2) -> Result
 
     if sources.is_empty() && !request.paths.is_empty() {
         for path in request.paths.iter().take(request.limit) {
-            if let Some(item) =
-                file_summary_item(index, &snapshot_id, path, request.relation_depth)?
-            {
-                engines.insert(item.provenance.engine.clone());
-                observed_paths.insert(path.clone());
-                sources.push(item);
+            match file_summary_item(index, &snapshot_id, path, request.relation_depth) {
+                Ok(Some(item)) => {
+                    engines.insert(item.provenance.engine.clone());
+                    observed_paths.insert(path.clone());
+                    sources.push(item);
+                }
+                Ok(None) => {}
+                Err(error) => excluded_paths.push(ExcludedPath {
+                    path: path.clone(),
+                    reason: clamp_string(&error.to_string(), 512),
+                }),
             }
         }
     }
@@ -693,6 +698,9 @@ fn file_summary_item(
     let Some(file) = index.indexed_file(path)? else {
         return Ok(None);
     };
+    if !index.validate_indexed_file(path)? {
+        bail!("indexed file changed before structural outline hydration: {path}");
+    }
     let symbols = index.symbols_for_file(path)?;
     let data = json!({
         "language": file.language,
