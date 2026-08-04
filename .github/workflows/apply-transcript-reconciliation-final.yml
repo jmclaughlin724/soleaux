@@ -1,0 +1,67 @@
+name: Apply final Soleaux transcript reconciliation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .ci/apply-transcript-reconciliation.py
+      - .ci/augment-transcript-tasks.py
+      - .ci/check-transcript-reconciliation.py
+      - .github/workflows/apply-transcript-reconciliation-final.yml
+  push:
+    branches:
+      - docs/transcript-gap-reconciliation-final-0.4.0-dev.5
+    paths:
+      - .ci/apply-transcript-reconciliation.py
+      - .ci/augment-transcript-tasks.py
+      - .ci/check-transcript-reconciliation.py
+      - .github/workflows/apply-transcript-reconciliation-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: transcript-reconciliation-final-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/transcript-gap-reconciliation-final-0.4.0-dev.5
+          fetch-depth: 0
+
+      - name: Apply synchronized documentation authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i '/^import_reviewed("TASKS.md")$/d' .ci/apply-transcript-reconciliation.py
+          python3 .ci/apply-transcript-reconciliation.py
+          python3 .ci/augment-transcript-tasks.py
+          cp .ci/check-transcript-reconciliation.py scripts/check_documentation_consistency.py
+          chmod +x scripts/check_documentation_consistency.py
+          python3 scripts/check_documentation_consistency.py
+          python3 -m json.tool PROJECT-STATUS.json >/dev/null
+          python3 -m json.tool docs/DOCUMENTATION-MANIFEST.json >/dev/null
+          python3 -m json.tool docs/audits/TRANSCRIPT-GAP-REGISTRY.json >/dev/null
+          git diff --check
+
+      - name: Commit normal documentation and remove one-shot files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .ci/apply-transcript-reconciliation.py
+          git rm .ci/augment-transcript-tasks.py
+          git rm .ci/check-transcript-reconciliation.py
+          git rm .github/workflows/apply-transcript-reconciliation-final.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "docs: reconcile transcript requirements with the finish-line roadmap"
+          git push origin HEAD:docs/transcript-gap-reconciliation-final-0.4.0-dev.5
