@@ -1,0 +1,46 @@
+name: Locate P4-017 legacy test callers
+
+on:
+  push:
+    branches:
+      - fix/mcp-input-schema-validation-0.4.0-dev.5
+    paths:
+      - .github/workflows/locate-p4-017-test-callers.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  locate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mcp-input-schema-validation-0.4.0-dev.5
+      - name: Print exact legacy test callers and surrounding context
+        shell: bash
+        run: |
+          set -euo pipefail
+          tests=(
+            parity_for_previously_python_only_tools
+            semantic_lsp_tools_use_live_or_pending_behavior
+            restart_lsp_restarts_selected_session
+            lsp_unavailable_semantic_tools_fail_closed
+            lsp_capability_advertisement_is_truthful
+            lsp_range_capabilities_remain_unadvertised
+            preview_and_edit_reject_stale_preimages
+            edit_validates_preview_workspace_scope
+            edit_consumes_preview_once
+            tools_emit_v2_envelopes_and_provenance
+          )
+          for test_name in "${tests[@]}"; do
+            echo "===== ${test_name} ====="
+            while IFS=: read -r file line _; do
+              [ -n "$file" ] || continue
+              start=$((line > 45 ? line - 45 : 1))
+              end=$((line + 90))
+              echo "--- ${file}:${line} (${start}-${end}) ---"
+              sed -n "${start},${end}p" "$file"
+            done < <(grep -RIn --exclude-dir=target --exclude='*.lock' "$test_name" native || true)
+          done
