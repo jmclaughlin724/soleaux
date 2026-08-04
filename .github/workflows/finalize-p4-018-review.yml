@@ -1,3 +1,4 @@
+# Connector-triggered after workflow creation; removed by the workflow on success.
 name: Finalize P4-018 review fixes
 
 on:
