@@ -112,7 +112,23 @@ soleaux / soleauxd (Rust + Tokio)
 
 Python remains permitted for fixtures and conformance scripts only; clients do not choose between Python and Rust product modes.
 
-## Documentation
+## Run the product stack
+
+Build the native workspace and the dashboard export once, then one command starts everything:
+
+```bash
+cargo build --release --manifest-path native/Cargo.toml
+pnpm install && pnpm --dir telemetry/dashboard run build:export
+./native/target/release/soleaux up .
+```
+
+`soleaux up` supervises the full stack and stops every child on Ctrl-C or SIGTERM:
+
+- telemetry daemon API on `http://127.0.0.1:43120` (bearer token generated into `~/.soleaux/telemetry/daemon.token`; `/api/v1/health` stays open for probes)
+- dashboard served same-origin from the static export on `http://127.0.0.1:43121`
+- authenticated MCP Streamable HTTP on `http://127.0.0.1:37432/mcp` (per-run bearer token printed at startup)
+
+The startup banner also prints the stdio MCP host configuration; `soleauxd serve <repo>` remains the direct stdio entry point.
 
 Start here:
 

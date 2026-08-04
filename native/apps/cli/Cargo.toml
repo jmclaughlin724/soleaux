@@ -12,7 +12,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 soleaux-mcp = { path = "../../daemon/mcp" }
 tokio.workspace = true
+uuid.workspace = true

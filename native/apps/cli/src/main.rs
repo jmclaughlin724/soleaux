@@ -13,6 +13,8 @@ use std::{
     process::{Command, Stdio},
 };
 
+mod up;
+
 #[derive(Debug, Parser)]
 #[command(
     name = "soleaux",
@@ -70,6 +72,10 @@ enum SoleauxCommand {
         #[arg(long)]
         yes: bool,
     },
+    #[command(
+        about = "Start the product stack: telemetry daemon, dashboard, and authenticated MCP HTTP"
+    )]
+    Up(up::UpArguments),
 }
 
 #[derive(Debug, Clone, Args)]
@@ -331,5 +337,6 @@ async fn main() -> Result<()> {
                 print_json(apply_attach(&repo)?)
             }
         }
+        SoleauxCommand::Up(arguments) => up::run(&daemon, arguments).await,
     }
 }
