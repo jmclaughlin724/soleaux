@@ -7,7 +7,7 @@ use serde_json::json;
 use subtle::ConstantTimeEq;
 use sysinfo::{Pid, System};
 use tokio::{sync::RwLock, time};
-use tower_http::{cors::{AllowOrigin, CorsLayer}, trace::TraceLayer};
+use tower_http::{cors::{AllowOrigin, CorsLayer}, services::ServeDir, trace::TraceLayer};
 
 const TOKEN_ENV: &str = "SOLEAUX_DAEMON_TOKEN";
 const TOKEN_FILE_ENV: &str = "SOLEAUX_DAEMON_TOKEN_FILE";
@@ -20,13 +20,6 @@ const DEFAULT_DASHBOARD_ORIGINS: [&str; 3] = ["http://127.0.0.1:43121", "http://
 struct SecurityConfig {
     bearer_token: Arc<String>,
     allowed_origins: Arc<BTreeSet<String>>,
-}
-
-#[derive(Debug, Default, PartialEq)]
-struct DaemonOptions {
-    token: Option<String>,
-    token_file: Option<PathBuf>,
-    allowed_origins: Vec<String>,
 }
 
 #[derive(Clone, Default)]
@@ -246,11 +239,68 @@ struct SnapshotEvent {
     recent_usage: Vec<UsageEvent>,
 }
 
+const DEFAULT_DASHBOARD_PORT: u16 = 43_121;
+
+struct DaemonOptions {
+    token: Option<String>,
+    token_file: Option<PathBuf>,
+    allowed_origins: Vec<String>,
+    dashboard_dist: Option<PathBuf>,
+    dashboard_port: u16,
+}
+
+fn parse_daemon_options(
+    args: &[String],
+    env_dist: Option<String>,
+    env_port: Option<String>,
+) -> Result<DaemonOptions, String> {
+    let mut options = DaemonOptions {
+        token: None,
+        token_file: None,
+        allowed_origins: Vec::new(),
+        dashboard_dist: env_dist.filter(|value| !value.is_empty()).map(PathBuf::from),
+        dashboard_port: match env_port.filter(|value| !value.is_empty()) {
+            Some(value) => value.parse().map_err(|_| format!("invalid SOLEAUX_DASHBOARD_PORT: {value}"))?,
+            None => DEFAULT_DASHBOARD_PORT,
+        },
+    };
+    let mut index = 0;
+    while index < args.len() {
+        let argument = args[index].as_str();
+        let (flag, mut inline) = match argument.split_once('=') {
+            Some((flag, value)) => (flag, Some(value.to_string())),
+            None => (argument, None),
+        };
+        if !matches!(flag, "--token" | "--token-file" | "--allowed-origin" | "--dashboard-dist" | "--dashboard-port") {
+            return Err(format!("unknown argument: {flag}"));
+        }
+        let value = match inline.take() {
+            Some(value) => value,
+            None => {
+                index += 1;
+                args.get(index).cloned().ok_or_else(|| format!("{flag} requires a value"))?
+            }
+        };
+        match flag {
+            "--token" => options.token = Some(value),
+            "--token-file" => options.token_file = Some(PathBuf::from(value)),
+            "--allowed-origin" => options.allowed_origins.push(value),
+            "--dashboard-dist" => options.dashboard_dist = Some(PathBuf::from(value)),
+            _ => options.dashboard_port = value.parse().map_err(|_| format!("invalid --dashboard-port: {value}"))?,
+        }
+        index += 1;
+    }
+    Ok(options)
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "soleaux_daemon=info,tower_http=info".into())).init();
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let options = match parse_arguments(&arguments) {
+    let options = match parse_daemon_options(
+        &std::env::args().skip(1).collect::<Vec<_>>(),
+        std::env::var("SOLEAUX_DASHBOARD_DIST").ok(),
+        std::env::var("SOLEAUX_DASHBOARD_PORT").ok(),
+    ) {
         Ok(options) => options,
         Err(message) => { eprintln!("soleaux-daemon: {message}"); std::process::exit(2); }
     };
@@ -260,7 +310,19 @@ async fn main() {
     };
     let allowed_origins = security.allowed_origins.iter().cloned().collect::<Vec<_>>().join(", ");
     tracing::info!(%token_source, %allowed_origins, "daemon API requires a bearer token; /api/v1/health stays open");
-    let app = secure_api_router(build_router(AppState::default()), security);
+    let state = AppState::default();
+    let app = secure_api_router(build_router(state.clone()), security);
+
+    if let Some(dist) = options.dashboard_dist {
+        assert!(dist.is_dir(), "dashboard dist directory not found: {}", dist.display());
+        let dashboard = build_dashboard_router(state, &dist);
+        let dashboard_address = SocketAddr::from(([127, 0, 0, 1], options.dashboard_port));
+        let dashboard_listener = tokio::net::TcpListener::bind(dashboard_address).await.expect("failed to bind Soleaux dashboard");
+        tracing::info!(%dashboard_address, dist = %dist.display(), "serving Soleaux dashboard");
+        tokio::spawn(async move {
+            axum::serve(dashboard_listener, dashboard).with_graceful_shutdown(shutdown_signal()).await.expect("Soleaux dashboard server failed");
+        });
+    }
 
     let address = SocketAddr::from(([127, 0, 0, 1], 43_120));
     tracing::info!(%address, "starting Soleaux daemon");
@@ -268,33 +330,8 @@ async fn main() {
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await.expect("Soleaux daemon failed");
 }
 
-fn parse_arguments(arguments: &[String]) -> Result<DaemonOptions, String> {
-    let mut options = DaemonOptions::default();
-    let mut index = 0;
-    while index < arguments.len() {
-        let argument = arguments[index].as_str();
-        let (flag, mut inline) = match argument.split_once('=') {
-            Some((flag, value)) => (flag, Some(value.to_string())),
-            None => (argument, None),
-        };
-        if !matches!(flag, "--token" | "--token-file" | "--allowed-origin") {
-            return Err(format!("unsupported argument {flag}; expected --token, --token-file, or --allowed-origin"));
-        }
-        let value = match inline.take() {
-            Some(value) => value,
-            None => {
-                index += 1;
-                arguments.get(index).cloned().ok_or_else(|| format!("{flag} requires a value"))?
-            }
-        };
-        match flag {
-            "--token" => options.token = Some(value),
-            "--token-file" => options.token_file = Some(PathBuf::from(value)),
-            _ => options.allowed_origins.push(value),
-        }
-        index += 1;
-    }
-    Ok(options)
+fn build_dashboard_router(state: AppState, dist: &std::path::Path) -> Router {
+    build_router(state).fallback_service(ServeDir::new(dist))
 }
 
 fn resolve_security(options: &DaemonOptions) -> Result<(SecurityConfig, String), String> {
@@ -1029,6 +1066,88 @@ mod tests {
         assert_eq!(percentile(&sorted, 0.95), Some(10.0));
     }
 
+    #[test]
+    fn daemon_options_default_to_api_only() {
+        let options = parse_daemon_options(&[], None, None).expect("defaults should parse");
+        assert_eq!(options.dashboard_dist, None);
+        assert_eq!(options.dashboard_port, DEFAULT_DASHBOARD_PORT);
+    }
+
+    #[test]
+    fn daemon_options_read_environment_fallbacks() {
+        let options = parse_daemon_options(&[], Some("/srv/out".into()), Some("50000".into()))
+            .expect("environment options should parse");
+        assert_eq!(options.dashboard_dist, Some(PathBuf::from("/srv/out")));
+        assert_eq!(options.dashboard_port, 50_000);
+    }
+
+    #[test]
+    fn daemon_options_prefer_flags_over_environment() {
+        let args: Vec<String> = ["--dashboard-dist", "/flag/out", "--dashboard-port", "43221"]
+            .map(str::to_string)
+            .into();
+        let options = parse_daemon_options(&args, Some("/env/out".into()), Some("50000".into()))
+            .expect("flag options should parse");
+        assert_eq!(options.dashboard_dist, Some(PathBuf::from("/flag/out")));
+        assert_eq!(options.dashboard_port, 43_221);
+    }
+
+    #[test]
+    fn daemon_options_reject_invalid_input() {
+        assert!(parse_daemon_options(&["--dashboard-dist".into()], None, None).is_err());
+        assert!(parse_daemon_options(&["--dashboard-port".into(), "portless".into()], None, None).is_err());
+        assert!(parse_daemon_options(&["--unknown".into()], None, None).is_err());
+        assert!(parse_daemon_options(&[], None, Some("portless".into())).is_err());
+    }
+
+    #[tokio::test]
+    async fn dashboard_router_serves_static_export_and_same_origin_api() {
+        let dist = std::env::temp_dir().join(format!("soleaux-dashboard-dist-{}", std::process::id()));
+        std::fs::remove_dir_all(&dist).ok();
+        std::fs::create_dir_all(dist.join("mcp")).expect("dist directories should create");
+        std::fs::write(dist.join("index.html"), "<html>overview shell</html>").expect("index should write");
+        std::fs::write(dist.join("mcp").join("index.html"), "<html>mcp shell</html>").expect("mcp index should write");
+
+        let app = build_dashboard_router(AppState::default(), &dist);
+
+        for (path, expected) in [("/", "overview shell"), ("/mcp/", "mcp shell")] {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(path).body(Body::empty()).expect("request should build"))
+                .await
+                .expect("router should respond");
+            assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+            let body = to_bytes(response.into_body(), usize::MAX).await.expect("body should read");
+            assert!(String::from_utf8_lossy(&body).contains(expected), "GET {path}");
+        }
+
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/mcp").body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(response.headers()["location"], "/mcp/");
+
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/api/v1/health").body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("body should read");
+        let health: serde_json::Value = serde_json::from_slice(&body).expect("health should deserialize");
+        assert_eq!(health["service"], "soleaux-daemon");
+
+        let response = app
+            .oneshot(Request::builder().uri("/missing.txt").body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        std::fs::remove_dir_all(&dist).ok();
+    }
+
     const TEST_TOKEN: &str = "0123456789abcdef0123456789abcdef";
     const TEST_ORIGIN: &str = "http://127.0.0.1:43121";
 
@@ -1187,14 +1306,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_arguments_supports_token_and_origin_flags() {
+    fn daemon_options_support_token_and_origin_flags() {
         let arguments = ["--token".to_string(), "a".repeat(32), "--allowed-origin".to_string(), "http://127.0.0.1:43121".to_string(), "--allowed-origin=http://localhost:43121".to_string(), "--token-file=/tmp/example.token".to_string()];
-        let options = parse_arguments(&arguments).expect("arguments should parse");
+        let options = parse_daemon_options(&arguments, None, None).expect("arguments should parse");
         assert_eq!(options.token.as_deref(), Some("a".repeat(32).as_str()));
         assert_eq!(options.token_file.as_deref(), Some(FilePath::new("/tmp/example.token")));
         assert_eq!(options.allowed_origins, vec!["http://127.0.0.1:43121".to_string(), "http://localhost:43121".to_string()]);
-        assert!(parse_arguments(&["--unknown".to_string()]).is_err());
-        assert!(parse_arguments(&["--token".to_string()]).is_err());
+        assert!(parse_daemon_options(&["--unknown".to_string()], None, None).is_err());
+        assert!(parse_daemon_options(&["--token".to_string()], None, None).is_err());
     }
 
     #[test]

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev --port 43121",
     "build": "next build",
+    "build:export": "NODE_ENV=production SOLEAUX_DASHBOARD_EXPORT=1 next build",
     "start": "next start --port 43121",
     "check:ci": "next typegen && tsc --noEmit",
     "typecheck": "next typegen && tsc --noEmit"

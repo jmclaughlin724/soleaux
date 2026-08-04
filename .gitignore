@@ -14,6 +14,7 @@ node_modules/
 .turbo/
 .next/
 .pnpm-store/
+telemetry/dashboard/out/
 
 # Machine-local tool output
 .playwright-mcp/
@@ -38,3 +39,4 @@ src/soleaux/resources/build_identity.json
 .phase3-tools/
 .tmp/
 .evidence/
+.claude/worktrees/
