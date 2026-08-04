@@ -32,6 +32,15 @@ jobs:
           ref: fix/stale-index-read-freshness-0.4.0-dev.5
           fetch-depth: 0
 
+      - name: Synchronize the exact current main lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit origin/main
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.97.1
@@ -52,13 +61,13 @@ jobs:
           cargo test -p soleaux-mcp --all-features --locked structural_reads_refresh_external_mutations_and_deletions
           cargo test -p soleaux-mcp --all-features --locked concurrent_structural_reads_share_a_serial_refresh_barrier
           cargo test -p soleaux-mcp --all-features --locked canonical_profile_is_exactly_twelve_in_locked_order
+          cargo test -p soleaux-mcp --all-features --locked invalid_tool_arguments
+          cargo test -p soleaux-mcp --all-features --locked json_rpc_invalid_tool_arguments
 
       - name: Commit normal source and remove one-shot workflow
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .ci/apply-p4-018.py
           git rm .github/workflows/apply-p4-018.yml
           git add native/daemon/mcp/src/lib.rs
