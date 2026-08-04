@@ -86,13 +86,11 @@ def main() -> int:
     audit_path = "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md"
     require(manifest.get("auditOwner") == audit_path, "audit owner drift")
     require(
-        manifest.get("gapRegistry")
-        == "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
+        manifest.get("gapRegistry") == "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
         "gap registry owner drift",
     )
     require(
-        manifest.get("capabilityAbsorptionMap")
-        == "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
+        manifest.get("capabilityAbsorptionMap") == "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
         "capability absorption owner drift",
     )
 
