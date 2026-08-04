@@ -83,16 +83,16 @@ def main() -> int:
             continue
         require((ROOT / path).is_file(), f"required documentation missing: {path}")
 
+    audit_path = "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md"
+    require(manifest.get("auditOwner") == audit_path, "audit owner drift")
     require(
-        manifest.get("auditOwner") == "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md",
-        "audit owner drift",
-    )
-    require(
-        manifest.get("gapRegistry") == "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
+        manifest.get("gapRegistry")
+        == "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
         "gap registry owner drift",
     )
     require(
-        manifest.get("capabilityAbsorptionMap") == "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
+        manifest.get("capabilityAbsorptionMap")
+        == "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
         "capability absorption owner drift",
     )
 
@@ -105,14 +105,23 @@ def main() -> int:
     branches = cast(JsonObject, status["branches"])
 
     require(status["version"] == EXPECTED_VERSION, "status version drift")
-    require(status["productionClaimAllowed"] is False, "production claim must remain false")
+    require(
+        status["productionClaimAllowed"] is False,
+        "production claim must remain false",
+    )
     require(current_phase["number"] == 4, "current phase must be 4")
     require(current_phase["status"] == "in_progress", "Phase 4 status drift")
     require(branches["canonical"] == "main", "canonical branch drift")
     require(public_mcp["hardCeiling"] == 12, "public tool ceiling drift")
     require(public_mcp["canonicalTools"] == EXPECTED_TOOLS, "canonical tool drift")
-    require(profile_contract["sha256"] == EXPECTED_PROFILE_SHA, "profile digest declaration drift")
-    require(context_contract["sha256"] == EXPECTED_CONTEXT_SHA, "context digest declaration drift")
+    require(
+        profile_contract["sha256"] == EXPECTED_PROFILE_SHA,
+        "profile digest declaration drift",
+    )
+    require(
+        context_contract["sha256"] == EXPECTED_CONTEXT_SHA,
+        "context digest declaration drift",
+    )
 
     if (ROOT / "contracts/unified-mcp-profile-v2.json").is_file():
         require(
@@ -128,14 +137,21 @@ def main() -> int:
     gap_registry = load_json("docs/audits/TRANSCRIPT-GAP-REGISTRY.json")
     gaps = cast(list[JsonObject], gap_registry["gaps"])
     require(len(gaps) >= 16, "transcript gap registry is incomplete")
-    require(gap_registry["schemaVersion"] == "soleaux.transcript-gap-registry/v4", "gap schema drift")
+    require(
+        gap_registry["schemaVersion"] == "soleaux.transcript-gap-registry/v4",
+        "gap schema drift",
+    )
     native_correctness = next(
         (item for item in gaps if item.get("area") == "native-correctness"),
         None,
     )
     require(native_correctness is not None, "native correctness gap missing")
+    closed_tasks = cast(
+        list[str],
+        cast(JsonObject, native_correctness).get("closedTasks", []),
+    )
     require(
-        "P4-025" in cast(list[str], cast(JsonObject, native_correctness).get("closedTasks", [])),
+        "P4-025" in closed_tasks,
         "PR #7/P4-025 closure is not represented",
     )
 
@@ -145,17 +161,32 @@ def main() -> int:
         phase3["status"] == "deferred_reconciliation_required",
         "Phase 3 must remain deferred and require reconciliation",
     )
-    require(phase3["phase3Started"] is False, "Phase 3 must not be marked started")
-    require(phase3["productionClaimAllowed"] is False, "Phase 3 cannot change production claim")
-    require(run_authorization["allowed"] is False, "live Phase 3 runs cannot be authorized")
+    require(
+        phase3["phase3Started"] is False,
+        "Phase 3 must not be marked started",
+    )
+    require(
+        phase3["productionClaimAllowed"] is False,
+        "Phase 3 cannot change production claim",
+    )
+    require(
+        run_authorization["allowed"] is False,
+        "live Phase 3 runs cannot be authorized",
+    )
     for arm in ("control", "historicalBaseline", "treatment"):
         require(arm in phase3, f"Phase 3 arm missing: {arm}")
 
     tasks_json = load_json("docs/experiments/phase3/TASKS.json")
     task_records = cast(list[JsonObject], tasks_json["tasks"])
     task_ids = [cast(str, item["id"]) for item in task_records]
-    require(tasks_json["frozen"] is True, "Phase 3 task registry must remain frozen")
-    require(task_ids == ["P3-T01", "P3-T02", "P3-T03"], "Phase 3 task IDs drift")
+    require(
+        tasks_json["frozen"] is True,
+        "Phase 3 task registry must remain frozen",
+    )
+    require(
+        task_ids == ["P3-T01", "P3-T02", "P3-T03"],
+        "Phase 3 task IDs drift",
+    )
     require(len(set(task_ids)) == 3, "duplicate Phase 3 task ID")
 
     require_text(
@@ -173,15 +204,26 @@ def main() -> int:
     for path in public_files:
         content = (ROOT / path).read_text(encoding="utf-8").casefold()
         for phrase in FORBIDDEN_PUBLIC_PHRASES:
-            require(phrase not in content, f"prohibited public claim in {path}: {phrase}")
+            require(
+                phrase not in content,
+                f"prohibited public claim in {path}: {phrase}",
+            )
 
-    require_text("PROJECT-STATUS.md", "Phase 2:                     CLOSED", "human Phase 2 status drift")
+    require_text(
+        "PROJECT-STATUS.md",
+        "Phase 2:                     CLOSED",
+        "human Phase 2 status drift",
+    )
     require_text(
         "PROJECT-STATUS.md",
         "Phase 3:                     DEFERRED — RECONCILIATION REQUIRED BEFORE USE",
         "human Phase 3 status drift",
     )
-    require_text("PROJECT-STATUS.md", "Phase 4:                     IN PROGRESS", "human Phase 4 status drift")
+    require_text(
+        "PROJECT-STATUS.md",
+        "Phase 4:                     IN PROGRESS",
+        "human Phase 4 status drift",
+    )
     require_text(
         "PROJECT-STATUS.md",
         "productionClaimAllowed:      false",
@@ -211,8 +253,15 @@ def main() -> int:
         "P8-008",
     ]:
         require(task in tasks_md, f"task registry missing {task}")
-    require("P4-017" in handoff, "handoff must identify P4-017 as the next implementation task")
-    require("P4-001" not in handoff.split("## Exact next work", maxsplit=1)[-1], "handoff still points to completed P4-001")
+    require(
+        "P4-017" in handoff,
+        "handoff must identify P4-017 as the next implementation task",
+    )
+    next_work = handoff.split("## Exact next work", maxsplit=1)[-1]
+    require(
+        "P4-001" not in next_work,
+        "handoff still points to completed P4-001",
+    )
 
     summary = {
         "status": "pass",
