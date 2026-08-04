@@ -1,0 +1,116 @@
+name: Apply cancellation-safe gateway cleanup
+
+on:
+  push:
+    branches:
+      - fix/stale-index-read-freshness-0.4.0-dev.5
+    paths:
+      - .github/workflows/apply-gateway-cancellation-shield.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stale-index-read-freshness-0.4.0-dev.5
+          fetch-depth: 0
+
+      - name: Patch the connection-owned proxy cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/soleaux/gateway.py")
+          text = path.read_text(encoding="utf-8")
+          old_imports = '''import typing
+
+import fastmcp
+'''
+          new_imports = '''import typing
+
+import anyio
+import fastmcp
+'''
+          if text.count(old_imports) != 1:
+              raise SystemExit(f"gateway import match count: {text.count(old_imports)}")
+          text = text.replace(old_imports, new_imports, 1)
+
+          old_dependency_import = '''import fastmcp.server.providers.proxy
+import httpx2
+'''
+          new_dependency_import = '''import fastmcp.server.dependencies
+import fastmcp.server.providers.proxy
+import httpx2
+'''
+          if text.count(old_dependency_import) != 1:
+              raise SystemExit(
+                  "gateway dependency import match count: "
+                  f"{text.count(old_dependency_import)}"
+              )
+          text = text.replace(old_dependency_import, new_dependency_import, 1)
+
+          old_class_tail = '''    def new(self) -> _FreshTransportStatefulProxyClient:
+        return _FreshTransportStatefulProxyClient(
+            self._soleaux_transport_factory,
+            self._soleaux_client_options,
+        )
+
+
+'''
+          new_class_tail = '''    def new(self) -> _FreshTransportStatefulProxyClient:
+        return _FreshTransportStatefulProxyClient(
+            self._soleaux_transport_factory,
+            self._soleaux_client_options,
+        )
+
+    def new_stateful(self) -> fastmcp.Client[McpTransport]:
+        """Bind one backend client to the front connection with durable cleanup."""
+        session = fastmcp.server.dependencies.get_context().session
+        connection = getattr(session, "_connection", None)
+        if connection is None:
+            raise RuntimeError(
+                "Stateful proxy requires a per-connection server session; "
+                "no connection is available on the current context."
+            )
+        proxy_client = self._caches.get(connection)
+        if proxy_client is None:
+            proxy_client = self.new()
+            self._caches[connection] = proxy_client
+
+            async def disconnect_on_connection_exit() -> None:
+                self._caches.pop(connection, None)
+                # A front-session cancellation initiates exit-stack unwinding.
+                # Shield the forced backend disconnect so its stdio process and
+                # asyncio child waiter are reaped before the connection exits.
+                with anyio.CancelScope(shield=True):
+                    await proxy_client._disconnect(force=True)
+
+            connection.exit_stack.push_async_callback(disconnect_on_connection_exit)
+        return proxy_client
+
+
+'''
+          if text.count(old_class_tail) != 1:
+              raise SystemExit(f"gateway class match count: {text.count(old_class_tail)}")
+          path.write_text(text.replace(old_class_tail, new_class_tail, 1), encoding="utf-8")
+          PY
+          python3 -m py_compile src/soleaux/gateway.py
+
+      - name: Commit normal source and remove applicator
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-gateway-cancellation-shield.yml
+          git add src/soleaux/gateway.py
+          git diff --cached --check
+          git commit -m "fix(gateway): shield session backend cleanup from cancellation"
+          git push origin HEAD:fix/stale-index-read-freshness-0.4.0-dev.5
