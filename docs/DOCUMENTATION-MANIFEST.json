@@ -1,5 +1,8 @@
 {
+  "auditOwner": "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md",
+  "capabilityAbsorptionMap": "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
   "claimsOwner": "docs/governance/CLAIMS-POLICY.md",
+  "gapRegistry": "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
   "required": [
     "README.md",
     "PROJECT-STATUS.md",
@@ -17,6 +20,9 @@
     "docs/governance/CLAIMS-POLICY.md",
     "docs/architecture/PRODUCT-DEFINITION.md",
     "docs/architecture/SYSTEM-ARCHITECTURE.md",
+    "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
+    "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md",
+    "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
     "docs/testing/TEST-STRATEGY.md",
     "docs/testing/TEST-MATRIX.md",
     "docs/release/RELEASE-GATES.md",
@@ -38,7 +44,7 @@
     "docs/experiments/phase3/RESULTS.md"
   ],
   "roadmapOwner": "ROADMAP.md",
-  "schemaVersion": "soleaux.documentation-manifest/v1",
+  "schemaVersion": "soleaux.documentation-manifest/v2",
   "statusOwner": "PROJECT-STATUS.json",
   "taskOwner": "TASKS.md"
 }
