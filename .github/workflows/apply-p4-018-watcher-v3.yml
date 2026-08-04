@@ -35,13 +35,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(wc -c < .ci/p4-018-watcher-v3.patch.xz.b64 | tr -d ' ')" = "3292"
-          echo '4791de99c1ff648ed6c3a96e39789f1c1db4917a51013d523d0d5eb76a5f1941  .ci/p4-018-watcher-v3.patch.xz.b64' | sha256sum -c -
+          test "$(wc -c < .ci/p4-018-watcher-v3.patch.xz.b64 | tr -d ' ')" = "3336"
+          echo '3d13cd51b30e00285ee0e6e54c53477166794e0214e6953636b293e638b8cc7b  .ci/p4-018-watcher-v3.patch.xz.b64' | sha256sum -c -
           base64 --decode .ci/p4-018-watcher-v3.patch.xz.b64 > /tmp/p4-018-watcher-v3.patch.xz
-          echo '082f50e8b564061927211487d84ea97ade2db5a24de1aaca962530f0087a6c63  /tmp/p4-018-watcher-v3.patch.xz' | sha256sum -c -
+          echo 'd8a5984e38d045f9740bc3106ddbcfe4d6a64e49c7ca92768a8c178293ee7d07  /tmp/p4-018-watcher-v3.patch.xz' | sha256sum -c -
           xz -t /tmp/p4-018-watcher-v3.patch.xz
           xz --decompress --stdout /tmp/p4-018-watcher-v3.patch.xz > /tmp/p4-018-watcher-v3.patch
-          echo '5a7c8b3e16c60764d25d459e6bdfb16a46f388833f6d0ba88f6c61ae14282588  /tmp/p4-018-watcher-v3.patch' | sha256sum -c -
+          echo 'e3b21af58176d3a87fdf0272eb3cd7282822a4f3cf7c726684e1aa76e0a18912  /tmp/p4-018-watcher-v3.patch' | sha256sum -c -
           python3 - <<'PY'
           from collections import defaultdict
           from pathlib import Path
