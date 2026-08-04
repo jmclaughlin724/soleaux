@@ -54,13 +54,24 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           test ! -e .ci/apply-p4-018.py
+          test ! -e .ci/p4-018-freshness-v2.patch.xz.b64
+          test ! -e .ci/p4-018-watcher-v3.patch.xz.b64
           test ! -e .github/workflows/apply-p4-018.yml
           test ! -e .github/workflows/apply-p4-018-final-review.yml
           test ! -e .github/workflows/apply-gateway-cancellation-shield.yml
+          test ! -e .github/workflows/apply-p4-018-freshness-v2.yml
+          test ! -e .github/workflows/apply-p4-018-watcher-v3.yml
           grep -R 'refresh_repository_read_state' native/daemon/mcp/src/lib.rs
           grep -R 'let registry = scan_registry' native/daemon/mcp/src/lib.rs
+          grep -R 'validate_indexed_file' native/daemon/intelligence/src/index.rs
+          grep -R 'RecommendedWatcher' native/daemon/intelligence/src/index.rs
+          grep -R 'WATCH_RECONCILE_INTERVAL' native/daemon/intelligence/src/index.rs
           grep -R 'structural_reads_refresh_external_mutations_and_deletions' \
             native/daemon/mcp/src/lib.rs
+          grep -R 'stale_structural_hits_are_never_returned_as_verified_evidence' \
+            native/daemon/mcp/src/lib.rs
+          grep -R 'watcher_drives_incremental_reconciliation_without_per_read_walks' \
+            native/daemon/intelligence/src/index.rs
           grep -R 'with anyio.CancelScope(shield=True)' src/soleaux/gateway.py
           grep -R '"restart_lsp", {"path": "src/context.ts", "reason": "phase1 smoke"}' \
             native/scripts/phase1_mcp_smoke.py
@@ -123,6 +134,9 @@ jobs:
               "productionClaimAllowed": False,
               "publicToolCeiling": 12,
               "gates": [
+                  "watcher-backed-incremental-refresh",
+                  "content-hash-revalidation",
+                  "stale-result-rejection",
                   "fresh-read-regressions",
                   "serialized-refresh-barrier",
                   "registry-lock-scope",
