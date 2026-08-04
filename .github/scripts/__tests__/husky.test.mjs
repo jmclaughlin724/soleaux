@@ -22,8 +22,7 @@ const huskyCli = join(packageDirectory, "bin.js");
 const executableMode = 0o755;
 const hookFailureExitCode = 17;
 const successExitCode = 0;
-const preCommitCommand = "pnpm exec turbo run check:ci --affected";
-const postCommitCommand = "pnpm exec turbo run typecheck test:unit --affected";
+const preCommitCommand = "TURBO_SCM_BASE=HEAD pnpm exec turbo run check:ci --affected";
 
 function run(command, arguments_, options = {}) {
   return spawnSync(command, arguments_, {
@@ -59,9 +58,7 @@ test("package scripts and tracked hooks give Husky sole Git-hook ownership", () 
   expect(readFileSync(join(repoRoot, ".husky", "pre-commit"), "utf-8")).toBe(
     `${preCommitCommand}\n`
   );
-  expect(readFileSync(join(repoRoot, ".husky", "post-commit"), "utf-8")).toBe(
-    `${postCommitCommand}\n`
-  );
+  expect(existsSync(join(repoRoot, ".husky", "post-commit"))).toBe(false);
   expect(existsSync(join(repoRoot, ".husky", "pre-push"))).toBe(false);
 });
 
@@ -77,7 +74,7 @@ test("CI invokes the hooks lane that verifies Husky", () => {
   expect(packageManifest.scripts["check:hooks"]).toBe("pnpm run husky:test");
 });
 
-test("installed Husky wrappers execute both tracked hooks and propagate failure", (context) => {
+test("the installed Husky wrapper executes the tracked hook and propagates failure", (context) => {
   const fixture = mkdtempSync(join(tmpdir(), "soleaux-husky-"));
   context.onTestFinished(() =>
     rmSync(fixture, { force: true, recursive: true })
@@ -89,10 +86,6 @@ test("installed Husky wrappers execute both tracked hooks and propagate failure"
   copyFileSync(
     join(repoRoot, ".husky", "pre-commit"),
     join(fixtureHooks, "pre-commit")
-  );
-  copyFileSync(
-    join(repoRoot, ".husky", "post-commit"),
-    join(fixtureHooks, "post-commit")
   );
 
   const install = run(process.execPath, [huskyCli], { cwd: fixture });
@@ -131,19 +124,8 @@ test("installed Husky wrappers execute both tracked hooks and propagate failure"
   expect(preCommit.status, preCommit.stderr || preCommit.stdout).toBe(
     successExitCode
   );
-  const postCommit = run("sh", [join(fixtureHooks, "_", "post-commit")], {
-    cwd: fixture,
-    env: environment,
-  });
-  expect(postCommit.status, postCommit.stderr || postCommit.stdout).toBe(
-    successExitCode
-  );
   expect(readFileSync(witness, "utf-8")).toBe(
-    [
-      "exec turbo run check:ci --affected",
-      "exec turbo run typecheck test:unit --affected",
-      "",
-    ].join("\n")
+    ["exec turbo run check:ci --affected", ""].join("\n")
   );
 
   const failure = run("sh", [join(fixtureHooks, "_", "pre-commit")], {
