@@ -13,6 +13,7 @@ pub mod memory;
 pub mod profile;
 pub mod provisioning;
 pub mod registry;
+mod schema;
 pub mod semantic;
 
 use anyhow::{Context, Result, bail};
@@ -259,10 +260,20 @@ impl PublicMcpServer {
         self.active_tools.iter().any(|active| active == name)
     }
 
-    pub async fn call_async(&self, name: &str, arguments: &Value) -> Result<ToolEnvelopeV2> {
+    fn validate_tool_arguments(&self, name: &str, arguments: &Value) -> Result<()> {
         if !self.is_public_tool(name) {
             bail!("tool is not active in the binding Soleaux public profile: {name}");
         }
+        let definitions = all_tool_definitions();
+        let definition = definitions
+            .get(name)
+            .with_context(|| format!("binding profile omitted active tool definition: {name}"))?;
+        schema::validate_json_schema(&definition.input_schema, arguments)
+            .with_context(|| format!("invalid arguments for {name}"))
+    }
+
+    pub async fn call_async(&self, name: &str, arguments: &Value) -> Result<ToolEnvelopeV2> {
+        self.validate_tool_arguments(name, arguments)?;
         let started = Instant::now();
         match name {
             "context.compile" => self.call_context(arguments, started).await,
@@ -927,6 +938,9 @@ impl PublicMcpServer {
                     .pointer("/params/arguments")
                     .cloned()
                     .unwrap_or_else(|| json!({}));
+                if let Err(error) = self.validate_tool_arguments(name, &arguments) {
+                    return Some(json_rpc_error(id, -32602, error.to_string()));
+                }
                 let started = Instant::now();
                 let envelope = match self.call_async(name, &arguments).await {
                     Ok(value) => value,
@@ -1673,6 +1687,89 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn locked_tool_input_schemas_are_supported_and_closed() {
+        for definition in all_tool_definitions().values() {
+            schema::validate_schema_definition(&definition.input_schema).unwrap_or_else(|error| {
+                panic!("{} has unsupported input schema: {error}", definition.name)
+            });
+            assert_eq!(
+                definition.input_schema.get("type").and_then(Value::as_str),
+                Some("object"),
+                "{} input schema must be an object",
+                definition.name
+            );
+            assert_eq!(
+                definition
+                    .input_schema
+                    .get("additionalProperties")
+                    .and_then(Value::as_bool),
+                Some(false),
+                "{} input schema must reject unknown arguments",
+                definition.name
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_tool_arguments_fail_before_dispatch() {
+        let temp = tempdir().expect("tempdir");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        let invalid = [
+            ("context.compile", json!({})),
+            ("repo_info", json!({"unknown": true})),
+            ("code.search", json!({"query": "x", "limit": 0})),
+            ("repo_info", json!([])),
+        ];
+        for (name, arguments) in invalid {
+            let error = server
+                .call_async(name, &arguments)
+                .await
+                .err()
+                .unwrap_or_else(|| panic!("{name} unexpectedly accepted invalid arguments"));
+            assert!(
+                error.to_string().contains("invalid arguments for"),
+                "unexpected validation error for {name}: {error}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn json_rpc_invalid_tool_arguments_return_invalid_params() {
+        let temp = tempdir().expect("tempdir");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        for arguments in [
+            json!({}),
+            json!({"objective": "inspect", "unknown": true}),
+            json!({"objective": "inspect", "limit": 0}),
+        ] {
+            let response = server
+                .handle_json_rpc_async(&json!({
+                    "jsonrpc": "2.0",
+                    "id": 17,
+                    "method": "tools/call",
+                    "params": {"name": "context.compile", "arguments": arguments}
+                }))
+                .await
+                .expect("response");
+            assert_eq!(
+                response.pointer("/error/code").and_then(Value::as_i64),
+                Some(-32602)
+            );
+            assert!(
+                response
+                    .pointer("/error/message")
+                    .and_then(Value::as_str)
+                    .is_some_and(
+                        |message| message.contains("invalid arguments for context.compile")
+                    )
+            );
+            assert!(response.get("result").is_none());
+        }
+    }
 
     #[tokio::test]
     async fn canonical_profile_is_exactly_twelve_in_locked_order() {
