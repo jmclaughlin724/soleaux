@@ -1,0 +1,80 @@
+name: Apply P4-018 contract-valid smoke
+
+on:
+  push:
+    branches:
+      - fix/stale-index-read-freshness-0.4.0-dev.5
+    paths:
+      - .github/workflows/apply-p4-018-smoke-contract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-p4-018-smoke-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stale-index-read-freshness-0.4.0-dev.5
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+
+      - name: Use a contract-valid restart request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("native/scripts/phase1_mcp_smoke.py")
+          text = path.read_text(encoding="utf-8")
+          old = '        restart, is_error = mcp.tool("restart_lsp", {})\n'
+          new = (
+              '        restart, is_error = mcp.tool(\n'
+              '            "restart_lsp", {"path": "src/context.ts", "reason": "phase1 smoke"}\n'
+              '        )\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one legacy restart call, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          python3 -m py_compile native/scripts/phase1_mcp_smoke.py
+
+      - name: Verify the complete canonical smoke
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace --all-features --locked
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . /tmp/phase1-smoke.json
+          python3 -m json.tool /tmp/phase1-smoke.json >/dev/null
+
+      - name: Commit normal source and remove this one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-p4-018-smoke-contract.yml
+          git add native/scripts/phase1_mcp_smoke.py
+          git diff --cached --check
+          git commit -m "test(mcp): call restart_lsp with locked-schema arguments"
+          git push origin HEAD:fix/stale-index-read-freshness-0.4.0-dev.5
