@@ -149,8 +149,8 @@
       "url": "https://docs.rs/sysinfo/latest/sysinfo/struct.Process.html",
       "statement": "The sysinfo Process API defines the process CPU, memory, command, parent, runtime, and start-time fields used by the collector.",
       "affectedPaths": [
-        "telemetry/daemon/src/main.rs",
-        "telemetry/daemon/Cargo.toml",
+        "native/daemon/telemetry/src/main.rs",
+        "native/daemon/telemetry/Cargo.toml",
         "telemetry/docs/LOCAL_IMPLEMENTATION.md"
       ],
       "volatility": "medium",

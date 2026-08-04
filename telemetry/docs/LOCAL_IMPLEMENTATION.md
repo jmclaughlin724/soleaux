@@ -29,7 +29,7 @@ From the repository root:
 
 ```bash
 pnpm install
-cargo fetch --manifest-path tools/soleaux/telemetry/daemon/Cargo.toml
+cargo fetch --manifest-path native/daemon/telemetry/Cargo.toml
 ```
 
 ## 3. Validate the current scaffold
@@ -91,7 +91,7 @@ The current daemon uses `sysinfo` and rebuilds a full system snapshot on each re
 Recommended modules:
 
 ```text
-tools/soleaux/telemetry/daemon/src/
+native/daemon/telemetry/src/
   config.rs
   state.rs
   api.rs

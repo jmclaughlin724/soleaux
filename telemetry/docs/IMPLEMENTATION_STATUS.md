@@ -5,7 +5,7 @@ Status of the telemetry surface as consolidated into the soleaux product tree (`
 ## Wired and verified
 
 - provider-neutral TypeScript protocol (`@soleaux/protocol`)
-- loopback Rust daemon on port 43120 (`telemetry/daemon`)
+- loopback Rust daemon on port 43120 (`native/daemon/telemetry`)
 - system and per-process CPU/memory collection
 - stable process identity using PID plus process start time
 - session registration and explicit root process records
