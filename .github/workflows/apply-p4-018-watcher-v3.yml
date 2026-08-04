@@ -43,19 +43,17 @@ jobs:
           xz --decompress --stdout /tmp/p4-018-watcher-v3.patch.xz > /tmp/p4-018-watcher-v3.patch
           echo '5a7c8b3e16c60764d25d459e6bdfb16a46f388833f6d0ba88f6c61ae14282588  /tmp/p4-018-watcher-v3.patch' | sha256sum -c -
           python3 - <<'PY'
+          from collections import defaultdict
           from pathlib import Path
 
           patch_lines = Path('/tmp/p4-018-watcher-v3.patch').read_text(encoding='utf-8').splitlines(keepends=True)
           current_path = None
           old_lines = []
           new_lines = []
-          changed = 0
-          texts = {}
-          cursors = {}
-          dirty_paths = set()
+          hunks = defaultdict(list)
 
           def flush_hunk():
-              global old_lines, new_lines, changed
+              global old_lines, new_lines
               if current_path is None or (not old_lines and not new_lines):
                   old_lines = []
                   new_lines = []
@@ -66,23 +64,7 @@ jobs:
               new_lines = []
               if not old:
                   raise SystemExit(f'{current_path}: empty replacement anchor is not allowed')
-              path = Path(current_path)
-              text = texts.setdefault(path, path.read_text(encoding='utf-8'))
-              cursor = cursors.get(path, 0)
-              position = text.find(old, cursor)
-              if position < 0:
-                  raise SystemExit(
-                      f'{path}: ordered replacement anchor not found after byte {cursor}; '
-                      f'total matches={text.count(old)}'
-                  )
-              if old != new:
-                  text = text[:position] + new + text[position + len(old):]
-                  texts[path] = text
-                  dirty_paths.add(path)
-                  changed += 1
-                  cursors[path] = position + len(new)
-              else:
-                  cursors[path] = position + len(old)
+              hunks[Path(current_path)].append((old, new))
 
           for line in patch_lines:
               if line.startswith('diff --git '):
@@ -107,13 +89,42 @@ jobs:
               else:
                   old_lines.append(line)
                   new_lines.append(line)
-
           flush_hunk()
+
+          changed = 0
+          changed_files = 0
+          for path, file_hunks in hunks.items():
+              original = path.read_text(encoding='utf-8')
+              cursor = 0
+              replacements = []
+              for index, (old, new) in enumerate(file_hunks, start=1):
+                  position = original.find(old, cursor)
+                  if position < 0:
+                      raise SystemExit(
+                          f'{path}: original-source anchor {index} not found after byte {cursor}; '
+                          f'total matches={original.count(old)}'
+                      )
+                  if old != new:
+                      replacements.append((position, position + len(old), new, index))
+                      changed += 1
+                  cursor = position + len(old)
+
+              previous_end = -1
+              for start, end, _, index in replacements:
+                  if start < previous_end:
+                      raise SystemExit(f'{path}: replacement hunk {index} overlaps a prior hunk')
+                  previous_end = end
+
+              updated = original
+              for start, end, new, _ in reversed(replacements):
+                  updated = updated[:start] + new + updated[end:]
+              if updated != original:
+                  path.write_text(updated, encoding='utf-8')
+                  changed_files += 1
+
           if changed == 0:
               raise SystemExit('watcher repair made no source replacements')
-          for path in sorted(dirty_paths):
-              path.write_text(texts[path], encoding='utf-8')
-          print(f'applied {changed} ordered source replacements across {len(dirty_paths)} files')
+          print(f'applied {changed} source replacements across {changed_files} files')
           PY
 
       - name: Resolve and lock the pinned watcher dependency
