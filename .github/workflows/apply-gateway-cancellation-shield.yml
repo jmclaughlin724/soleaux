@@ -1,3 +1,4 @@
+# Connector-triggered after workflow creation; removed on success.
 name: Apply cancellation-safe gateway cleanup
 
 on:
