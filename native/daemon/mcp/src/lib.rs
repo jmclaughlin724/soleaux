@@ -201,8 +201,8 @@ impl PublicMcpServer {
             .last_index_report
             .write()
             .expect("index report lock poisoned") = Some(report.clone());
-        *self.registry.write().expect("registry lock poisoned") =
-            scan_registry(self.root(), &self.index)?;
+        let registry = scan_registry(self.root(), &self.index)?;
+        *self.registry.write().expect("registry lock poisoned") = registry;
         Ok(report)
     }
 
