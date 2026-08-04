@@ -1,0 +1,43 @@
+name: Apply Soleaux transcript audit documentation
+
+on:
+  push:
+    branches:
+      - audit/transcript-reconciliation-v2-0.4.0-dev.5
+    paths:
+      - .ci/transcript-audit-docs.tar.xz.b64
+      - .ci/apply-transcript-audit-docs.sh
+      - .github/workflows/apply-transcript-audit-docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: soleaux-transcript-audit-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify and apply documentation package
+        run: bash .ci/apply-transcript-audit-docs.sh
+
+      - name: Commit normal documentation files and remove one-shot carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .ci/transcript-audit-docs.tar.xz.b64
+          git rm .ci/apply-transcript-audit-docs.sh
+          git rm .github/workflows/apply-transcript-audit-docs.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "docs: reconcile transcripts with native roadmap"
+          git push origin HEAD:audit/transcript-reconciliation-v2-0.4.0-dev.5
