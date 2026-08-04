@@ -25,44 +25,37 @@ jobs:
         with:
           ref: fix/mcp-input-schema-validation-0.4.0-dev.5
           fetch-depth: 0
-      - name: Capture package inventory, module includes and test callers
+      - name: Capture exact locked schemas and smoke call sites
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .ci
-          output=.ci/p4-017-test-callers.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path('native/contracts/unified-mcp-profile-v2.json').read_text())
+          selected = {'context.compile', 'navigate', 'inspect', 'preview', 'edit', 'restart_lsp'}
+          tools = {}
+          for item in [*manifest['tools'], *manifest.get('optionalDefinitions', [])]:
+              if item['name'] in selected:
+                  tools[item['name']] = item['inputSchema']
+          Path('.ci/p4-017-selected-schemas.json').write_text(
+              json.dumps(tools, indent=2, sort_keys=True) + '\n'
+          )
+          PY
           {
-            echo '===== PACKAGE FILES ====='
-            find native/daemon/mcp -type f -not -path '*/target/*' -print | sort
-            echo '===== RUST MODULE / INCLUDE REFERENCES ====='
-            git grep -n -E 'include!|include_str!|mod tests|cfg\(test\)|\[\[test\]\]' -- native/daemon/mcp native/Cargo.toml || true
-            echo '===== ALL CALL_ASYNC TEST CALLERS ====='
-            git grep -n -C 8 'call_async(' -- native/daemon/mcp || true
-            echo '===== ALL HANDLE_JSON_RPC TEST CALLERS ====='
-            git grep -n -C 8 'handle_json_rpc' -- native/daemon/mcp || true
-            echo '===== TEST NAME SEARCH ACROSS FULL HISTORY ====='
-            for name in \
-              parity_for_previously_python_only_tools \
-              semantic_lsp_tools_use_live_or_pending_behavior \
-              restart_lsp_restarts_selected_session \
-              lsp_unavailable_semantic_tools_fail_closed \
-              lsp_capability_advertisement_is_truthful \
-              lsp_range_capabilities_remain_unadvertised \
-              preview_and_edit_reject_stale_preimages \
-              edit_validates_preview_workspace_scope \
-              edit_consumes_preview_once \
-              tools_emit_v2_envelopes_and_provenance
-            do
-              echo "--- $name ---"
-              git log --all -S"$name" --format='%H %s' --name-only || true
-            done
-          } > "$output"
+            echo '===== PHASE 1 TOOL CALLS ====='
+            grep -n -C 10 -E 'context.compile|navigate|inspect|preview|edit|restart_lsp' native/scripts/phase1_mcp_smoke.py || true
+            echo '===== PHASE 2 TOOL CALLS ====='
+            grep -n -C 10 -E 'context.compile|navigate|inspect|preview|edit|restart_lsp' native/scripts/phase2_capability_smoke.py || true
+          } > .ci/p4-017-smoke-callers.txt
       - name: Commit diagnostic snapshot
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .ci/p4-017-test-callers.txt
-          git commit -m "ci: trace P4-017 generated test callers"
+          git add .ci/p4-017-selected-schemas.json .ci/p4-017-smoke-callers.txt
+          git commit -m "ci: capture locked P4-017 schemas and smoke callers"
           git push origin HEAD:fix/mcp-input-schema-validation-0.4.0-dev.5
