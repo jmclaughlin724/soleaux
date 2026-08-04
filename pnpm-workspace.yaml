@@ -4,19 +4,23 @@ packages:
   - "telemetry/*"
 
 allowBuilds:
+  "@ast-grep/cli": true
   "@ast-grep/lang-json": true
   "@ast-grep/lang-python": true
   "@ast-grep/napi": true
+  "@launchql/protobufjs": false
   esbuild: true
   sharp: true
   unrs-resolver: true
 
 autoInstallPeers: false
+preferSymlinkedExecutables: true
 
 catalog:
+  "@ast-grep/cli": 0.45.0
   "@ast-grep/lang-json": 0.0.7
   "@ast-grep/lang-python": 0.0.6
-  "@ast-grep/napi": 0.44.1
+  "@ast-grep/napi": 0.45.0
   "astro": "7.1.1"
   "blume": "1.1.4"
   "@tailwindcss/postcss": "^4"
@@ -34,6 +38,7 @@ catalog:
   "typescript": "7.0.2"
   "vitest": "4.1.10"
   "yaml": "2.9.0"
+  "@libpg-query/parser": 17.6.10
 catalogMode: strict
 overrides:
   "enhanced-resolve": "5.24.2"

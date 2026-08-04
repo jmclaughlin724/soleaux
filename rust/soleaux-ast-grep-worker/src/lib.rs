@@ -2,7 +2,7 @@
 //!
 //! Protocol: one JSON request per stdin line, one JSON response per stdout
 //! line, logs on stderr only. Matching and rewriting reuse the ast-grep
-//! 0.44.1 crates end to end: `SerializableRuleConfig` deserialization,
+//! 0.45.0 crates end to end: `SerializableRuleConfig` deserialization,
 //! `RuleCore` matching (including metavariable transforms), and the `Fixer`
 //! template plus expansion machinery.
 
@@ -22,8 +22,8 @@ use bit_set::BitSet;
 use serde_json::{Map, Value, json};
 
 pub const ENGINE: &str = "rust";
-/// Mirrors the exact `=0.44.1` pin in `Cargo.toml`.
-pub const ENGINE_VERSION: &str = "0.44.1";
+/// Mirrors the exact `=0.45.0` pin in `Cargo.toml`.
+pub const ENGINE_VERSION: &str = "0.45.0";
 /// The exact Soleaux structural protocol implemented by this worker.
 pub const CAPABILITIES: [&str; 1] = ["soleaux.structural/v1"];
 /// One JSONL frame may not exceed 8 MiB, matching the Python worker.

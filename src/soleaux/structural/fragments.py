@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 PROJECTION_SCHEMA_VERSION = "soleaux.projection/v1"
 EXTRACTOR_VERSION = "3"
-AST_GREP_VERSION = "0.44.1"
+AST_GREP_VERSION = "0.45.0"
 STRUCTURAL_WORKER_CAPABILITIES = ("soleaux.structural/v1",)
 LIBCST_VERSION = version("libcst")
 AST_GREP_ANALYZER_ID = "structural:ast-grep"

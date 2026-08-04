@@ -120,6 +120,20 @@ const safeSocketLstat = (path) => {
   });
 };
 
+test("package manifest exposes the runbook service commands", async () => {
+  const manifest = JSON.parse(
+    await readFile(resolve(repoRoot, "package.json"), "utf-8")
+  );
+
+  expect(manifest.scripts).toMatchObject({
+    "service:install": "node scripts/soleaux/service.mjs install",
+    "service:restart": "node scripts/soleaux/service.mjs restart",
+    "service:status": "node scripts/soleaux/service.mjs status",
+    "service:uninstall": "node scripts/soleaux/service.mjs uninstall",
+    "service:verify": "node scripts/soleaux/service.mjs verify",
+  });
+});
+
 const createInstallRuntime = ({
   bootstrapFailureMessage = null,
   securityCalls = null,

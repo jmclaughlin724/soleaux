@@ -1,0 +1,50 @@
+id: r074-untyped-mcp-tool
+valid:
+  - |
+      @fastmcp.tools.tool(name="lookup")
+      def lookup(query: str, limit: int = 10) -> list[str]:
+          return [query]
+  - |
+      def helper(value):
+          return value
+  - |
+      @mcp.tool(output_schema={"type": "object"})
+      def lookup(query: str):
+          return {"query": query}
+  - |
+      @mcp.tool
+      def lookup(*args: str, **kwargs: int) -> list[str]:
+          return [*args, *kwargs]
+  - |
+      @tool
+      def lookup(*, query: str) -> str:
+          return query
+invalid:
+  - |
+      @mcp.tool()
+      def lookup(query: str):
+          return query
+  - |
+      @server.tool
+      async def lookup(query, limit: int = 10) -> list[str]:
+          return [query]
+  - |
+      @fastmcp.tools.tool(name="lookup")
+      def lookup(limit=10) -> int:
+          return limit
+  - |
+      @mcp.tool(output_schema={"type": "object"})
+      def lookup(query):
+          return {"query": query}
+  - |
+      @mcp.tool(output_schema=None)
+      def lookup(query: str):
+          return {"query": query}
+  - |
+      @mcp.tool
+      def lookup(*args) -> list[str]:
+          return list(args)
+  - |
+      @mcp.tool
+      def lookup(**kwargs) -> dict[str, object]:
+          return kwargs

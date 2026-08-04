@@ -33,7 +33,7 @@ fn ping_reports_engine_identity() {
             "id": 7,
             "ok": true,
             "engine": "rust",
-            "engine_version": "0.44.1",
+            "engine_version": "0.45.0",
             "capabilities": ["soleaux.structural/v1"],
         })
     );
@@ -107,7 +107,7 @@ fn pattern_findings_report_utf8_byte_offsets() {
     }));
     assert_eq!(response["id"], 21);
     assert_eq!(response["engine"], "rust");
-    assert_eq!(response["engine_version"], "0.44.1");
+    assert_eq!(response["engine_version"], "0.45.0");
     assert_eq!(response["truncated"], false);
     assert_eq!(response["errors"], json!([]));
     let findings = response["findings"].as_array().expect("findings");

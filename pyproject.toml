@@ -23,10 +23,8 @@ classifiers = [
   "Topic :: Text Editors :: Integrated Development Environments (IDE)",
 ]
 dependencies = [
-  "ast-grep-py==0.44.1",
+  "ast-grep-py==0.45.0",
   "fastmcp==4.0.0b1",
-  # FastMCP v4 beta's split runtime graph contains pre-release dependencies.
-  # Pin each one explicitly for uv's default pre-release policy.
   "fastmcp-slim==4.0.0b1",
   "httpx2>=2.9.1",
   "libcst>=1.8.6",
@@ -89,6 +87,7 @@ exclude = [
   "/docs/dist",
   "/docs/node_modules",
   "/rust/target",
+  "/soleaux.toml",
   "/telemetry/daemon/target",
   "/scripts",
   "/tests",
@@ -103,7 +102,12 @@ path = "scripts/build_identity_hook.py"
 [tool.pyright]
 typeCheckingMode = "strict"
 include = ["scripts", "src", "tests"]
-exclude = ["scripts/soleaux/__tests__"]
+exclude = [
+  "scripts/apply_phase0_native_overlay.py",
+  "scripts/apply_phase1_clippy_repairs.py",
+  "scripts/soleaux/__tests__",
+  "scripts/validate_phase0_contracts.py",
+]
 extraPaths = [".", "src"]
 pythonVersion = "3.14"
 venvPath = "."
@@ -128,6 +132,11 @@ asyncio_default_fixture_loop_scope = "function"
 line-length = 100
 required-version = "==0.15.22"
 target-version = "py314"
+extend-exclude = [
+  "scripts/apply_phase0_native_overlay.py",
+  "scripts/apply_phase1_clippy_repairs.py",
+  "scripts/validate_phase0_contracts.py",
+]
 
 [tool.ruff.format]
 docstring-code-format = true

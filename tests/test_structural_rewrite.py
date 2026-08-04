@@ -35,7 +35,7 @@ async def test_structural_rewrite_previews_and_applies_across_files(tmp_path: pa
         assert payload is not None
         assert payload["origin"] == "structural"
         assert payload["provider_name"] == "structural:python"
-        assert payload["engine_version"] == "0.44.1"
+        assert payload["engine_version"] == "0.45.0"
         assert sorted(payload["affected_paths"]) == ["src/a.ts", "src/b.ts"]
         assert "debug.trace(alpha)" in payload["diff"]
 

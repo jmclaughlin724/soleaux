@@ -185,7 +185,7 @@ def test_memory_cache_weighted_lru() -> None:
         language="Python",
         sgconfig_hash="s",
         rule_digest="r",
-        analyzer_version="0.44.1",
+        analyzer_version="0.45.0",
     )
     second = soleaux.structural.cache.StructuralCacheKey(
         workspace_id="w",
@@ -194,7 +194,7 @@ def test_memory_cache_weighted_lru() -> None:
         language="Python",
         sgconfig_hash="s",
         rule_digest="r",
-        analyzer_version="0.44.1",
+        analyzer_version="0.45.0",
     )
     cache.put(first, b"one")
     cache.put(second, b"two")
@@ -206,7 +206,7 @@ def test_memory_cache_weighted_lru() -> None:
         language="Python",
         sgconfig_hash="s",
         rule_digest="r",
-        analyzer_version="0.44.1",
+        analyzer_version="0.45.0",
     )
     cache.put(third, b"three")
     assert cache.get(second) is None
@@ -224,7 +224,7 @@ def test_off_cache_never_stores() -> None:
         language="Python",
         sgconfig_hash="s",
         rule_digest="r",
-        analyzer_version="0.44.1",
+        analyzer_version="0.45.0",
     )
     cache.put(key, b"bytes")
     assert cache.get(key) is None
@@ -284,7 +284,7 @@ def test_cache_key_binds_rows_to_the_analyzer_that_made_them() -> None:
         )
 
     cache = soleaux.structural.cache.MemoryCache(max_entries=4, max_bytes=1024)
-    cache.put(key("0.44.1"), b"from-ast-grep")
+    cache.put(key("0.45.0"), b"from-ast-grep")
     assert cache.get(key("7.18")) is None
-    assert cache.get(key("0.44.1")) == b"from-ast-grep"
+    assert cache.get(key("0.45.0")) == b"from-ast-grep"
     assert analyzer_version_for("Python") == LIBCST_VERSION

@@ -1,0 +1,14 @@
+id: r074-python
+language: Python
+severity: error
+metadata:
+  heuristic: "false"
+message: print() in FastMCP server code — use structured logging (r074)
+note: "Replace print() in library or server code with a module logger from logging.getLogger(__name__); emit command output through the CLI stdout interface."
+files:
+  - src/soleaux/**
+ignores:
+  - src/soleaux/__main__.py
+  - src/soleaux/cli.py
+rule:
+  pattern: print($$$)

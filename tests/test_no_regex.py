@@ -10,8 +10,8 @@ from typing import cast
 import yaml
 
 PACKAGE_ROOT = Path(__file__).parents[1]
-PYTHON_ROOTS = ("scripts", "src", "tests")
-ECMASCRIPT_ROOTS = ("docs", "scripts", "src", "tests")
+PYTHON_ROOTS = ("scripts", "src", "tests", "tools")
+ECMASCRIPT_ROOTS = ("docs", "scripts", "src", "tests", "tools")
 ECMASCRIPT_LANGUAGES = {
     ".cjs": "javascript",
     ".js": "javascript",
@@ -141,7 +141,7 @@ def test_maintained_soleaux_surfaces_never_use_regular_expressions() -> None:
             f"{path.relative_to(PACKAGE_ROOT)}: {detail}" for detail in _ecmascript_violations(path)
         )
     for path in _maintained_files(
-        ("src", "tests"),
+        ("src", "tests", "tools"),
         frozenset({".yaml", ".yml"}),
     ):
         for document in yaml.safe_load_all(path.read_text(encoding="utf-8")):
