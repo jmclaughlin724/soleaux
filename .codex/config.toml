@@ -5,16 +5,6 @@ sandbox_mode = "danger-full-access"
 [features]
 hooks = false
 
-[mcp_servers."next-devtools"]
-enabled = true
-required = true
-command = "npx"
-args = ["-y", "next-devtools-mcp@0.4.0"]
-cwd = "."
-default_tools_approval_mode = "approve"
-startup_timeout_sec = 30.0
-tool_timeout_sec = 60.0
-
 [mcp_servers.soleaux]
 enabled = true
 required = true

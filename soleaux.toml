@@ -8,8 +8,6 @@ enabled = true
 roots = [".agents/skills"]
 supporting_files = "template"
 
-# Remote documentation backends are exposed through the single Soleaux host
-# registration and arrive namespaced as context7_*, openai-docs_*, and zod_*.
 [mcp.context7]
 url = "https://mcp.context7.com/mcp"
 
@@ -18,3 +16,6 @@ url = "https://developers.openai.com/mcp"
 
 [mcp.zod]
 url = "https://mcp.inkeep.com/zod/mcp"
+
+[mcp.next-devtools]
+command = ["npx", "-y", "next-devtools-mcp@0.4.0"]

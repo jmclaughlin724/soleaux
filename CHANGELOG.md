@@ -9,7 +9,8 @@ All notable changes to the unified native Soleaux product are recorded here. Pha
 - Consolidated every lineage into one branch bound for `main` through a single reviewed merge-commit pull request: the native phase lineage, the unified documentation system, the Python-lineage Stage D attach onboarding and Stage E1 machine service registry, the ast-grep 0.45.0 rule catalog, and the Codex hooks-to-rules migration.
 - Deferred the Phase 3 live same-model experiment by owner direction; it remains a frozen optional claims-gate and no longer blocks source consolidation, release work, or the merge to `main`. Removed the superseded Grok-era Phase 3 fixture harness, its unpacker, and the executed one-shot phase gate workflows; receipts and annotated tags preserve exact-commit provenance.
 - Preserved the independently verified Phase 2 evidence artifact (`8858165328`, SHA-256 `3fa99fa2de889c7eb081e8ff2a913e66cb7c2027a1696f6ad4eb1c0d0b963ebe`) ahead of its 2026-08-17 retention expiry as the Phase 4 materialization source.
-- Scoped the local pre-commit gate to the change under commit and removed the full-suite post-commit hook; continuous integration remains the full-suite owner.
+- Scoped the local pre-commit gate to the change under commit and removed the full-suite post-commit hook; continuous integration remains the full-suite owner. Retired the local Claude bash-policy guard scripts by owner direction.
+- Routed the next-devtools MCP backend through the soleaux gateway in `soleaux.toml`; host configurations register only the single soleaux server.
 
 ### Documentation and governance
 
