@@ -39,3 +39,4 @@ src/soleaux/resources/build_identity.json
 .phase3-tools/
 .tmp/
 .evidence/
+.claude/worktrees/
