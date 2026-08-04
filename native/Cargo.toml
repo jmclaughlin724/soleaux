@@ -39,6 +39,7 @@ http = "=1.4.2"
 ignore = "=0.4.31"
 libc = "0.2"
 moka = { version = "=0.12.15", features = ["future"] }
+notify = "=8.2.0"
 oxc_allocator = "=0.142.0"
 oxc_parser = "=0.142.0"
 oxc_span = "=0.142.0"
