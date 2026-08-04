@@ -1,6 +1,6 @@
 # Soleaux Roadmap
 
-<!-- soleaux-docs:roadmap current_phase=3 version=0.4.0-dev.5 -->
+<!-- soleaux-docs:roadmap current_phase=4 version=0.4.0-dev.5 -->
 
 This roadmap is the sole phase model for the unified native product. Historical Python task stages and earlier 18-stage plans are mapped into this sequence rather than maintained as competing roadmaps.
 
@@ -23,14 +23,20 @@ Deliver one local-first repository-intelligence product that:
 | 0 | Contract lock and native foundation | **Closed** | `0.4.0-dev.5` | Exact native gate receipt |
 | 1 | Unified public surface and Context Packet V2 | **Closed** | `0.4.0-dev.5` | Exact 12-tool smoke + schema validation |
 | 2 | Gateway, catalog, provisioning, governance | **Closed** | `0.4.0-dev.5` | Exact native gate + independent artifact verification |
-| 3 | Live same-model / same-task product proof | **Unblocked, not started** | `0.4.0-dev.5` | Equal-or-better correctness + lower context waste |
-| 4 | Canonical source consolidation and alpha foundation | Blocked | eligible for `0.4.0-alpha.x` after gate | Normal native source tree + reviewed default-branch PR |
+| 3 | Live same-model / same-task product proof | **Deferred** (optional claims-gate) | `0.4.0-dev.5` | Equal-or-better correctness + lower context waste |
+| 4 | Canonical source consolidation and alpha foundation | **In progress** | eligible for `0.4.0-alpha.x` after gate | Normal native source tree + reviewed default-branch PR |
 | 5 | Shared service, live adapters, and consumer onboarding | Blocked | alpha/beta | Live client/repository matrix |
 | 6 | Desktop, mobile, installers, and operations | Blocked | beta | Signed development distributions and device flows |
 | 7 | Assurance and cross-platform parity | Blocked | beta/RC | Benchmarks, security, privacy, accessibility, OS matrix |
 | 8 | RC and GA rollout | Blocked | `1.0.0-rc.x` → `1.0.0` | Signed release, external reviews, rollout evidence |
 
 ## Phase 3 — live product proof
+
+**Status: DEFERRED by owner direction (2026-08-03).** The live comparison is
+an optional experiment that gates efficacy claims only. It no longer blocks
+Phase 4 or any later phase, and no phase may be re-blocked on it without an
+explicit owner decision. The pre-registered package under
+`docs/experiments/phase3/` is retained unchanged for optional later execution.
 
 **Purpose:** verify the product's central promise rather than adding more surface area.
 

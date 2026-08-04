@@ -15,14 +15,15 @@ This branch contains:
 
 ## Rules Going Forward
 
-1. All new native work, Phase 3 harness execution, comparison artifacts, and receipts land only on this branch (or short-lived PR branches that merge back into it).
+1. All new native work lands only on this branch until the merge to `main`, after which `main` is the single branch.
 2. Do not create additional long-lived `phaseN/...` or `native-wedge/...` branches.
-3. Do not merge this lineage into `main` until Phase 3 (live same-model wedge) successfully closes and `productionClaimAllowed` can be reconsidered.
-4. Historical branches (`native-wedge/0.4.0-dev.4`, `phase2/native-lineage-a-0.4.0-dev.5`, `phase3/live-wedge-0.4.0-dev.5`) are retained for exact-commit receipt provenance only.
+3. Amended 2026-08-03 by owner direction: the merge into `main` proceeds through one reviewed merge-commit pull request. The Phase 3 live wedge is deferred as an optional claims-gate and no longer blocks the merge.
+4. Historical branches (`native-wedge/0.4.0-dev.4`, `phase2/native-lineage-a-0.4.0-dev.5`, `phase3/live-wedge-0.4.0-dev.5`, `docs/unified-project-system-0.4.0-dev.5`) are deleted after their exact receipt commits are preserved through annotated `receipts/*` and `archive/*` tags; any branch is recreatable from its archive tag.
 
-## Status at Consolidation
+## Status at Consolidation (amended 2026-08-03)
 
 - Phase 2: CLOSED
-- Phase 3: UNBLOCKED (design + harness carrier present; execution not yet complete)
+- Phase 3: DEFERRED (optional claims-gate; the Grok-era fixture harness is removed from the tree)
+- Phase 4: IN PROGRESS (canonical source consolidation)
 - productionClaimAllowed: false
 - publicToolCeiling: 12

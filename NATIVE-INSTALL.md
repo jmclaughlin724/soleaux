@@ -5,7 +5,7 @@
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jmclaughlin724/soleaux/native/0.4.0-dev.5/scripts/install-native.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jmclaughlin724/soleaux/main/scripts/install-native.sh | bash
 ```
 
 Supported targets:

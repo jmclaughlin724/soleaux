@@ -95,10 +95,10 @@ def main() -> int:
         status["productionClaimAllowed"] is False,
         "production claim must remain false",
     )
-    require(current_phase["number"] == 3, "current phase must be 3")
+    require(current_phase["number"] == 4, "current phase must be 4")
     require(
-        current_phase["status"] == "unblocked_not_started",
-        "Phase 3 status drift",
+        current_phase["status"] == "in_progress",
+        "Phase 4 status drift",
     )
     require(public_mcp["hardCeiling"] == 12, "public tool ceiling drift")
     require(public_mcp["canonicalTools"] == EXPECTED_TOOLS, "canonical tool drift")
@@ -125,8 +125,8 @@ def main() -> int:
     phase3 = load_json("docs/experiments/phase3/STATUS.json")
     run_authorization = cast(JsonObject, phase3["runAuthorization"])
     require(
-        phase3["status"] == "draft_blocked",
-        "Phase 3 must remain draft_blocked before model lock",
+        phase3["status"] == "deferred",
+        "Phase 3 must remain deferred unless the owner reactivates it",
     )
     require(phase3["phase3Started"] is False, "Phase 3 must not be marked started")
     require(
@@ -143,7 +143,7 @@ def main() -> int:
     require(len(set(task_ids)) == 3, "duplicate Phase 3 task ID")
 
     results = (ROOT / "docs/experiments/phase3/RESULTS.md").read_text(encoding="utf-8")
-    require("Status: NOT RUN" in results, "Phase 3 results must remain NOT RUN")
+    require("Status: DEFERRED" in results, "Phase 3 results must remain DEFERRED")
 
     public_files = [
         "README.md",
@@ -165,8 +165,12 @@ def main() -> int:
         "human status Phase 2 drift",
     )
     require(
-        "Phase 3:                     UNBLOCKED, NOT STARTED" in status_md,
+        "Phase 3:                     DEFERRED (optional claims-gate)" in status_md,
         "human status Phase 3 drift",
+    )
+    require(
+        "Phase 4:                     IN PROGRESS" in status_md,
+        "human status Phase 4 drift",
     )
     require(
         "productionClaimAllowed:      false" in status_md,
@@ -179,12 +183,12 @@ def main() -> int:
     for phase in range(3, 9):
         require(f"Phase {phase}" in roadmap, f"roadmap missing Phase {phase}")
         require(f"Phase {phase}" in tasks_md, f"tasks missing Phase {phase}")
-    require("P3-005" in handoff, "handoff must identify the exact next task")
+    require("P4-001" in handoff, "handoff must identify the exact next task")
 
     summary = {
         "status": "pass",
         "version": EXPECTED_VERSION,
-        "currentPhase": 3,
+        "currentPhase": 4,
         "productionClaimAllowed": False,
         "publicToolCount": len(EXPECTED_TOOLS),
         "requiredDocuments": len(required_documents),

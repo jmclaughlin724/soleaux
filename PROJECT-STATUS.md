@@ -1,6 +1,6 @@
 # Soleaux Project Status
 
-<!-- soleaux-docs:status current_phase=3 phase2=closed phase3=unblocked_not_started version=0.4.0-dev.5 production_claim_allowed=false -->
+<!-- soleaux-docs:status current_phase=4 phase2=closed phase3=deferred phase4=in_progress version=0.4.0-dev.5 production_claim_allowed=false -->
 
 **As of:** 2026-08-03  
 **Machine-readable owner:** [`PROJECT-STATUS.json`](PROJECT-STATUS.json)
@@ -14,13 +14,16 @@ Version:                     0.4.0-dev.5
 Phase 0:                     CLOSED
 Phase 1:                     CLOSED
 Phase 2:                     CLOSED
-Phase 3:                     UNBLOCKED, NOT STARTED
+Phase 3:                     DEFERRED (optional claims-gate)
+Phase 4:                     IN PROGRESS
 Public MCP ceiling:          12
 productionClaimAllowed:      false
 Production readiness:        prohibited
 ```
 
-The immediate product gate is a live same-model, same-task comparison. No additional implementation phase may be treated as a substitute for that evidence.
+By owner direction on 2026-08-03, the live same-model comparison no longer
+blocks the program. It remains available as an optional experiment that gates
+efficacy claims only. The immediate work is canonical source consolidation.
 
 ## Proven phases
 
@@ -68,24 +71,22 @@ edit
 restart_lsp
 ```
 
-## Current gate: Phase 3
+## Current gate: Phase 4
 
-Phase 3 must prove that Soleaux produces equal-or-better final task correctness with measurable context/tool reduction under the same model, client, tasks, budgets, and scoring method.
+Phase 4 materializes the independently verified Phase 2 native source as a
+normal in-tree Rust workspace, replaces carrier-only assembly with
+direct-checkout native CI, archives the Python lineage as history and
+conformance fixtures, and produces a reproducible unsigned alpha package.
 
-The experiment package is under:
-
-```text
-docs/experiments/phase3/
-```
-
-The first live call is blocked until the model ID, client build, sampling parameters, credentials, and oracle dry-run are recorded and the experiment status changes from `draft_blocked` to `frozen_ready`.
+The verified source is preserved from CI artifact `8858165328`
+(SHA-256 `3fa99fa2de889c7eb081e8ff2a913e66cb7c2027a1696f6ad4eb1c0d0b963ebe`).
 
 ## Remaining program
 
 | Phase | Purpose | Current dependency |
 |---:|---|---|
-| 3 | Live product-proof experiment | Model/client lock and execution |
-| 4 | Canonical native source and default-branch consolidation; alpha foundation | Phase 3 |
+| 3 | Live product-proof experiment (optional; efficacy claims only) | Owner reactivation |
+| 4 | Canonical native source and default-branch consolidation; alpha foundation | In progress |
 | 5 | Shared service, live adapters, memory/handoff depth, consumer onboarding | Phase 4 |
 | 6 | Desktop/mobile/installers and operational UX | Phase 5 |
 | 7 | Compatibility, benchmark, security, privacy, accessibility, OS parity | Phase 6 |
@@ -95,9 +96,14 @@ See [ROADMAP.md](ROADMAP.md) and [TASKS.md](TASKS.md).
 
 ## Branch and release state
 
-The historical default branch still contains the Python/FastMCP `0.1.0` lineage. The proven native implementation and receipts live on `phase2/native-lineage-a-0.4.0-dev.5`. The documentation consolidation is being prepared on `docs/unified-project-system-0.4.0-dev.5`.
+All lineages consolidate into `main` through one reviewed merge-commit pull
+request. Receipt provenance is preserved through annotated tags
+(`receipts/*`, `archive/*`) before the historical phase branches are deleted.
+The native binaries remain published as pre-release `native-v0.4.0-dev.5`.
 
-This documentation change does not merge the native source to `main` and does not authorize a production release. Canonical-source consolidation is Phase 4.
+This consolidation does not authorize a production release.
+`productionClaimAllowed` remains false until an explicit reviewed owner
+decision.
 
 ## Update rule
 

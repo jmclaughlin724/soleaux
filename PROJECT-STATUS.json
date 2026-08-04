@@ -1,17 +1,27 @@
 {
   "asOfDate": "2026-08-03",
   "branches": {
-    "documentationConsolidation": "docs/unified-project-system-0.4.0-dev.5",
-    "historicalDefault": "main",
-    "mergePolicy": "No force-push or merge to main without reviewed source consolidation and release evidence.",
-    "nativePhase2": "phase2/native-lineage-a-0.4.0-dev.5"
+    "canonical": "main",
+    "consolidation": "All native, documentation, and provisioning lineages merge into main through one reviewed merge-commit pull request; historical phase branches are deleted after receipt tags are pushed.",
+    "mergePolicy": "No force-push. No squash of the consolidation merge: committed receipts pin exact commits that must stay reachable from main.",
+    "receiptTags": [
+      "receipts/phase0-source-diagnostic",
+      "receipts/phase0-gate",
+      "receipts/phase1-gate",
+      "receipts/phase2-gate-source",
+      "receipts/phase2-gate-receipt",
+      "receipts/phase2-verification",
+      "archive/native-wedge-0.4.0-dev.4",
+      "archive/phase2-native-lineage-a-0.4.0-dev.5",
+      "archive/phase3-live-wedge-0.4.0-dev.5"
+    ]
   },
   "currentPhase": {
-    "name": "Live same-model / same-task product proof",
-    "number": 3,
-    "plan": "docs/experiments/phase3/EXPERIMENT-PLAN.md",
-    "primaryBlocker": "A model/client identity and credentials must be locked before the first live run.",
-    "status": "unblocked_not_started"
+    "name": "Canonical source consolidation and alpha foundation",
+    "number": 4,
+    "plan": "ROADMAP.md",
+    "primaryBlocker": "The verified Phase 2 native source must be materialized as a normal in-tree Rust workspace with direct-checkout CI before any release-facing work.",
+    "status": "in_progress"
   },
   "lockedContracts": {
     "contextPacketV2": {
@@ -24,10 +34,10 @@
     }
   },
   "nextActions": [
-    "Review and merge the documentation consolidation into the native Phase 2 branch.",
-    "Fill and freeze the Phase 3 model/client fields before the first live call.",
-    "Run the pre-registered baseline and treatment arms without changing tasks or budgets.",
-    "Independently verify all Phase 3 artifacts before closing the phase."
+    "Merge the consolidated working branch into main through one reviewed merge-commit pull request.",
+    "Push the receipt and archive tags, then delete the historical phase branches.",
+    "Materialize the verified Phase 2 native source at native/ and verify parity against the evidence artifact (P4-001, P4-002).",
+    "Replace carrier assembly with direct-checkout native CI (P4-004)."
   ],
   "phases": [
     {
@@ -59,13 +69,14 @@
     {
       "exitGate": "Equal-or-better correctness with measurable context/tool reduction, exact receipt, and independent verification.",
       "name": "Live same-model / same-task product proof",
+      "note": "Deferred as an optional claims-gate by owner direction on 2026-08-03. It gates efficacy claims only and no longer blocks any later phase.",
       "number": 3,
-      "status": "unblocked_not_started"
+      "status": "deferred"
     },
     {
       "name": "Canonical source consolidation and alpha foundation",
       "number": 4,
-      "status": "blocked_by_phase_3"
+      "status": "in_progress"
     },
     {
       "name": "Shared service, live adapters, and consumer onboarding",

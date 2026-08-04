@@ -1,12 +1,13 @@
 # Phase 3 Results
 
 ```text
-Status: NOT RUN
-Phase 3: OPEN
+Status: DEFERRED — never run
+Phase 3: DEFERRED (optional claims-gate)
 productionClaimAllowed: false
 ```
 
-No live model results exist yet.
+Deferred by owner direction on 2026-08-03; the experiment gates efficacy
+claims only and blocks nothing. No live model results exist.
 
 This file may be populated only after:
 

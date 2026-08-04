@@ -23,6 +23,7 @@
   "runAuthorization": {
     "allowed": false,
     "blockers": [
+      "owner reactivation of the deferred experiment",
       "model and client identity not recorded",
       "sampling parameters not recorded",
       "credentials not confirmed",
@@ -30,7 +31,7 @@
     ]
   },
   "schemaVersion": "soleaux.phase3.status/v1",
-  "status": "draft_blocked",
+  "status": "deferred",
   "targetRepository": {
     "commit": "2b7a0fab88dbc202f75b5e443725c825f7dc4fa2",
     "reason": "Real Turborepo/Next.js monorepo with loan-officer dashboard surfaces.",

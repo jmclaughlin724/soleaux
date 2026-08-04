@@ -1,6 +1,6 @@
 # Soleaux Executable Task List
 
-<!-- soleaux-docs:tasks current_phase=3 -->
+<!-- soleaux-docs:tasks current_phase=4 -->
 
 **Owner:** the unified Soleaux repository  
 **Status owner:** [`PROJECT-STATUS.json`](PROJECT-STATUS.json)  
@@ -48,9 +48,13 @@ Evidence: `PHASE1-NATIVE-GATE-RECEIPT.json`.
 
 Evidence: `PHASE2-CLOSURE-RECEIPT.json` and `PHASE2-INDEPENDENT-VERIFICATION.json`.
 
-## Current phase
+## Deferred phase (optional claims-gate)
 
 ### Phase 3 — live same-model / same-task product proof
+
+Deferred by owner direction on 2026-08-03. The experiment package stays frozen
+for optional later execution and gates efficacy claims only; its open tasks
+below carry no scheduling obligation and block nothing.
 
 #### Experiment freeze
 
@@ -81,9 +85,16 @@ Evidence: `PHASE2-CLOSURE-RECEIPT.json` and `PHASE2-INDEPENDENT-VERIFICATION.jso
 - [ ] **P3-024** Write exact Phase 3 receipt.
 - [ ] **P3-025** Update project status; keep `productionClaimAllowed=false`.
 
-## Remaining phases
+## Current phase
 
 ### Phase 4 — canonical source consolidation and alpha foundation
+
+The branch consolidation itself landed with this documentation state: the
+working branch absorbed the documentation system and the Python-lineage
+Stage D (attach onboarding) and Stage E1 (machine service registry) work, and
+merges to `main` through one reviewed merge-commit pull request with receipt
+tags replacing the historical phase branches. The verified Phase 2 source is
+preserved from CI artifact `8858165328` ahead of its 2026-08-17 expiry.
 
 - [ ] **P4-001** Create a normal native source branch from the verified Phase 2/3 source.
 - [ ] **P4-002** Replace carrier-only development with checked-in Rust workspace files.
@@ -94,6 +105,8 @@ Evidence: `PHASE2-CLOSURE-RECEIPT.json` and `PHASE2-INDEPENDENT-VERIFICATION.jso
 - [ ] **P4-007** Build an unsigned alpha package with install/doctor/uninstall smoke.
 - [ ] **P4-008** Open reviewed default-branch consolidation PR; no force-push.
 - [ ] **P4-009** Write Phase 4 receipt and independent verification.
+
+## Remaining phases
 
 ### Phase 5 — shared service, live adapters, and consumers
 
