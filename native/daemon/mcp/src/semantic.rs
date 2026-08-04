@@ -432,6 +432,9 @@ impl SemanticService {
         server_id: &str,
         relative: &str,
     ) -> Result<(String, soleaux_storage::IndexedFileRecord, String)> {
+        if !self.index.validate_indexed_file(relative)? {
+            bail!("semantic target changed since it was indexed: {relative}");
+        }
         let file = self
             .index
             .indexed_file(relative)?
