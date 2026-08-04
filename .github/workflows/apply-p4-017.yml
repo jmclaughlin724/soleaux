@@ -7,6 +7,7 @@ on:
     paths:
       - .ci/p4-017-schema.part-*
       - .ci/apply-p4-017.py
+      - .ci/patch-p4-017-patterns.py
       - .github/workflows/apply-p4-017.yml
   push:
     branches:
@@ -14,6 +15,7 @@ on:
     paths:
       - .ci/p4-017-schema.part-*
       - .ci/apply-p4-017.py
+      - .ci/patch-p4-017-patterns.py
       - .github/workflows/apply-p4-017.yml
   workflow_dispatch:
 
@@ -39,26 +41,10 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - name: Assemble exact carrier diagnostics
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p carrier-diagnostics
-          cat .ci/p4-017-schema.part-* | tr -d '\r\n' > carrier-diagnostics/current.b64
-          wc -c .ci/p4-017-schema.part-* > carrier-diagnostics/part-sizes.txt
-          sha256sum .ci/p4-017-schema.part-* carrier-diagnostics/current.b64 \
-            > carrier-diagnostics/SHA256SUMS
-
-      - name: Upload carrier diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: p4-017-carrier-diagnostics-${{ github.run_id }}
-          path: carrier-diagnostics/
-          if-no-files-found: error
-          retention-days: 3
-
       - name: Apply the hash-bound P4-017 source package
-        run: python3 .ci/apply-p4-017.py
+        run: |
+          python3 .ci/apply-p4-017.py
+          python3 .ci/patch-p4-017-patterns.py
 
       - name: Format and run focused native gates
         working-directory: native
@@ -73,6 +59,7 @@ jobs:
           cargo test -p soleaux-mcp --all-features --locked invalid_tool_arguments
           cargo test -p soleaux-mcp --all-features --locked json_rpc_invalid_tool_arguments
           cargo test -p soleaux-mcp --all-features --locked locked_tool_input_schemas
+          cargo test -p soleaux-mcp --all-features --locked locked_patterns
 
       - name: Commit normal source and remove the one-shot carrier
         shell: bash
@@ -82,6 +69,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .ci/p4-017-schema.part-*
           git rm .ci/apply-p4-017.py
+          git rm .ci/patch-p4-017-patterns.py
           git rm .github/workflows/apply-p4-017.yml
           git add native/daemon/mcp/src/lib.rs native/daemon/mcp/src/schema.rs
           git diff --cached --check
