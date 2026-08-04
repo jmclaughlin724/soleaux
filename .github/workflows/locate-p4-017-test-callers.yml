@@ -29,6 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p .ci
           output=.ci/p4-017-test-callers.txt
           : > "$output"
           tests=(
