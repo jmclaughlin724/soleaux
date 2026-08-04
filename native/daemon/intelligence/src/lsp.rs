@@ -371,26 +371,10 @@ impl ServerProcess {
     }
 
     async fn supports(&self, method: &str) -> bool {
-        let capabilities = self.capabilities.read().await;
-        let property = match method {
-            "textDocument/definition" => "definitionProvider",
-            "textDocument/references" => "referencesProvider",
-            "textDocument/implementation" => "implementationProvider",
-            "textDocument/hover" => "hoverProvider",
-            "textDocument/documentSymbol" => "documentSymbolProvider",
-            "textDocument/prepareCallHierarchy"
-            | "callHierarchy/incomingCalls"
-            | "callHierarchy/outgoingCalls" => "callHierarchyProvider",
-            "textDocument/completion" => "completionProvider",
-            "textDocument/signatureHelp" => "signatureHelpProvider",
-            "textDocument/codeAction" => "codeActionProvider",
-            "textDocument/diagnostic" => "diagnosticProvider",
-            "textDocument/rename" | "textDocument/prepareRename" => "renameProvider",
-            "textDocument/formatting" => "documentFormattingProvider",
-            "textDocument/rangeFormatting" => "documentRangeFormattingProvider",
-            "workspace/symbol" => "workspaceSymbolProvider",
-            _ => return false,
+        let Some(property) = capability_property(method) else {
+            return false;
         };
+        let capabilities = self.capabilities.read().await;
         capability_enabled(capabilities.get(property))
     }
 }
@@ -487,6 +471,15 @@ impl LspSupervisor {
         server
             .notify("textDocument/didClose", json!({"textDocument":{"uri":uri}}))
             .await
+    }
+
+    pub async fn supports(&self, server_id: &str, method: &str) -> Result<bool> {
+        let server = self
+            .servers
+            .get(server_id)
+            .map(|entry| Arc::clone(entry.value()))
+            .context("LSP server is not running or failed its capability probe")?;
+        Ok(server.supports(method).await)
     }
 
     pub async fn query(&self, query: LspQuery) -> Result<LspQueryResult> {
@@ -628,6 +621,28 @@ impl LspSupervisor {
 
     pub async fn invalidate(&self, cache_key: &str) {
         self.cache.invalidate(cache_key).await;
+    }
+}
+
+pub fn capability_property(method: &str) -> Option<&'static str> {
+    match method {
+        "textDocument/definition" => Some("definitionProvider"),
+        "textDocument/references" => Some("referencesProvider"),
+        "textDocument/implementation" => Some("implementationProvider"),
+        "textDocument/hover" => Some("hoverProvider"),
+        "textDocument/documentSymbol" => Some("documentSymbolProvider"),
+        "textDocument/prepareCallHierarchy"
+        | "callHierarchy/incomingCalls"
+        | "callHierarchy/outgoingCalls" => Some("callHierarchyProvider"),
+        "textDocument/completion" => Some("completionProvider"),
+        "textDocument/signatureHelp" => Some("signatureHelpProvider"),
+        "textDocument/codeAction" => Some("codeActionProvider"),
+        "textDocument/diagnostic" => Some("diagnosticProvider"),
+        "textDocument/rename" | "textDocument/prepareRename" => Some("renameProvider"),
+        "textDocument/formatting" => Some("documentFormattingProvider"),
+        "textDocument/rangeFormatting" => Some("documentRangeFormattingProvider"),
+        "workspace/symbol" => Some("workspaceSymbolProvider"),
+        _ => None,
     }
 }
 
@@ -820,6 +835,19 @@ mod tests {
         assert!(capability_enabled(Some(&json!({"workDoneProgress":true}))));
         assert!(!capability_enabled(Some(&Value::Null)));
         assert!(!capability_enabled(None));
+    }
+
+    #[test]
+    fn brokered_methods_resolve_to_advertised_capability_properties() {
+        assert_eq!(
+            capability_property("textDocument/diagnostic"),
+            Some("diagnosticProvider")
+        );
+        assert_eq!(
+            capability_property("callHierarchy/incomingCalls"),
+            Some("callHierarchyProvider")
+        );
+        assert_eq!(capability_property("textDocument/unknown"), None);
     }
 
     #[test]

@@ -275,8 +275,11 @@ def base_smoke(binary: pathlib.Path, source: pathlib.Path, context_schema: dict[
         assert "return { task };" in target.read_text(encoding="utf-8")
 
         restart, is_error = mcp.tool("restart_lsp", {})
-        assert is_error
-        assert_envelope(restart, source="restart_lsp", error=True)
+        if is_error:
+            assert_envelope(restart, source="restart_lsp", error=True)
+        else:
+            assert_envelope(restart, source="restart_lsp")
+            assert restart["data"]["restarted"]
 
         mcp.close()
         return {

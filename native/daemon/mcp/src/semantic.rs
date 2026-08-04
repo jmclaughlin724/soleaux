@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use soleaux_intelligence::{
     index::RepositoryIndex,
-    lsp::{LspProbe, LspQuery, LspQueryResult, LspSupervisor},
+    lsp::{LspProbe, LspQuery, LspQueryResult, LspSupervisor, capability_property},
 };
 use std::{
     collections::{BTreeSet, HashMap},
@@ -70,8 +70,24 @@ impl SemanticService {
             .and_then(Value::as_str)
             .unwrap_or("best_available");
         let Some(server_id) = self.server_for_path(&target.path).await? else {
-            return self.unavailable_navigation(operation, semantic_mode, &target.path);
+            return self.unavailable_navigation(
+                operation,
+                semantic_mode,
+                &target.path,
+                SemanticUnavailability::NoNativeServer,
+            );
         };
+        if !self.lsp.supports(&server_id, method).await? {
+            return self.unavailable_navigation(
+                operation,
+                semantic_mode,
+                &target.path,
+                SemanticUnavailability::MissingCapability {
+                    server_id: &server_id,
+                    capability: capability_property(method).unwrap_or(method),
+                },
+            );
+        }
         let (uri, file, text) = self.open_target(&server_id, &target.path).await?;
         let params = match operation {
             "references" => json!({
@@ -157,41 +173,52 @@ impl SemanticService {
         let path = required_string(arguments, "path")?;
         let line = required_u64(arguments, "line")?;
         let column = required_u64(arguments, "column")?;
+        let method = match operation {
+            "diagnostics" => "textDocument/diagnostic",
+            "completion" => "textDocument/completion",
+            "signature_help" => "textDocument/signatureHelp",
+            "code_actions" => "textDocument/codeAction",
+            _ => bail!("unsupported inspect operation: {operation}"),
+        };
         let semantic_mode = arguments
             .get("semantic_mode")
             .and_then(Value::as_str)
             .unwrap_or("best_available");
         let Some(server_id) = self.server_for_path(path).await? else {
-            return self.unavailable_inspection(operation, semantic_mode, path);
+            return self.unavailable_inspection(
+                operation,
+                semantic_mode,
+                path,
+                SemanticUnavailability::NoNativeServer,
+            );
         };
+        if !self.lsp.supports(&server_id, method).await? {
+            return self.unavailable_inspection(
+                operation,
+                semantic_mode,
+                path,
+                SemanticUnavailability::MissingCapability {
+                    server_id: &server_id,
+                    capability: capability_property(method).unwrap_or(method),
+                },
+            );
+        }
         let (uri, file, _text) = self.open_target(&server_id, path).await?;
         let line_zero = line.saturating_sub(1);
         let column_zero = column.saturating_sub(1);
-        let (method, params) = match operation {
-            "diagnostics" => (
-                "textDocument/diagnostic",
-                json!({"textDocument":{"uri":uri},"identifier":"soleaux"}),
-            ),
-            "completion" => (
-                "textDocument/completion",
-                json!({"textDocument":{"uri":uri},"position":{"line":line_zero,"character":column_zero}}),
-            ),
-            "signature_help" => (
-                "textDocument/signatureHelp",
-                json!({"textDocument":{"uri":uri},"position":{"line":line_zero,"character":column_zero}}),
-            ),
-            "code_actions" => (
-                "textDocument/codeAction",
-                json!({
-                    "textDocument":{"uri":uri},
-                    "range":{
-                        "start":{"line":line_zero,"character":column_zero},
-                        "end":{"line":line_zero,"character":column_zero},
-                    },
-                    "context":{"diagnostics":[]},
-                }),
-            ),
-            _ => bail!("unsupported inspect operation: {operation}"),
+        let params = match operation {
+            "diagnostics" => json!({"textDocument":{"uri":uri},"identifier":"soleaux"}),
+            "code_actions" => json!({
+                "textDocument":{"uri":uri},
+                "range":{
+                    "start":{"line":line_zero,"character":column_zero},
+                    "end":{"line":line_zero,"character":column_zero},
+                },
+                "context":{"diagnostics":[]},
+            }),
+            _ => {
+                json!({"textDocument":{"uri":uri},"position":{"line":line_zero,"character":column_zero}})
+            }
         };
         let result = self
             .query(
@@ -475,13 +502,14 @@ impl SemanticService {
         operation: &str,
         semantic_mode: &str,
         path: &str,
+        cause: SemanticUnavailability<'_>,
     ) -> Result<SemanticResponse> {
         if semantic_mode == "semantic_required" {
-            bail!("semantic_required requested but no native LSP completed its capability probe");
+            bail!("{}", cause.required_message());
         }
         let gaps = vec![gap(
-            "native_lsp_unavailable",
-            "No applicable native LSP completed its capability probe.",
+            cause.gap_code(),
+            &cause.gap_message(),
             "warning",
             true,
             Some("repository.semantic"),
@@ -510,9 +538,7 @@ impl SemanticService {
                 gaps,
                 None,
             ),
-            warnings: vec![
-                "Semantic navigation is unavailable; no non-native fallback was used.".to_string(),
-            ],
+            warnings: vec![cause.warning("Semantic navigation")],
         })
     }
 
@@ -521,13 +547,14 @@ impl SemanticService {
         operation: &str,
         semantic_mode: &str,
         path: &str,
+        cause: SemanticUnavailability<'_>,
     ) -> Result<SemanticResponse> {
         if semantic_mode == "semantic_required" {
-            bail!("semantic_required requested but no native LSP completed its capability probe");
+            bail!("{}", cause.required_message());
         }
         let gaps = vec![gap(
-            "native_lsp_unavailable",
-            "No applicable native LSP completed its capability probe.",
+            cause.gap_code(),
+            &cause.gap_message(),
             "warning",
             true,
             Some("repository.semantic"),
@@ -554,9 +581,7 @@ impl SemanticService {
                 gaps,
                 None,
             ),
-            warnings: vec![
-                "Semantic inspection is unavailable; no non-native fallback was used.".to_string(),
-            ],
+            warnings: vec![cause.warning("Semantic inspection")],
         })
     }
 }
@@ -566,6 +591,65 @@ struct SemanticTarget {
     path: String,
     line_zero: u64,
     column_zero: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SemanticUnavailability<'a> {
+    NoNativeServer,
+    MissingCapability {
+        server_id: &'a str,
+        capability: &'a str,
+    },
+}
+
+impl SemanticUnavailability<'_> {
+    fn gap_code(&self) -> &'static str {
+        match self {
+            Self::NoNativeServer => "native_lsp_unavailable",
+            Self::MissingCapability { .. } => "native_lsp_capability_unavailable",
+        }
+    }
+
+    fn gap_message(&self) -> String {
+        match self {
+            Self::NoNativeServer => {
+                "No applicable native LSP completed its capability probe.".to_string()
+            }
+            Self::MissingCapability {
+                server_id,
+                capability,
+            } => format!("Native LSP {server_id} did not advertise {capability}."),
+        }
+    }
+
+    fn required_message(&self) -> String {
+        match self {
+            Self::NoNativeServer => {
+                "semantic_required requested but no native LSP completed its capability probe"
+                    .to_string()
+            }
+            Self::MissingCapability {
+                server_id,
+                capability,
+            } => format!(
+                "semantic_required requested but native LSP {server_id} did not advertise {capability}"
+            ),
+        }
+    }
+
+    fn warning(&self, subject: &str) -> String {
+        match self {
+            Self::NoNativeServer => {
+                format!("{subject} is unavailable; no non-native fallback was used.")
+            }
+            Self::MissingCapability {
+                server_id,
+                capability,
+            } => format!(
+                "{subject} is unavailable; native LSP {server_id} did not advertise {capability} and no non-native fallback was used."
+            ),
+        }
+    }
 }
 
 fn normalize_navigation(
@@ -790,4 +874,193 @@ fn required_u64(arguments: &Value, name: &str) -> Result<u64> {
         .get(name)
         .and_then(Value::as_u64)
         .with_context(|| format!("missing integer argument: {name}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soleaux_intelligence::{index::IndexConfig, lsp::LspServerSpec};
+    use soleaux_storage::Store;
+    use tempfile::{TempDir, tempdir};
+
+    const STUB_LANGUAGE_SERVER: &str = r#"import json
+import sys
+
+
+def read_message(stream):
+    length = None
+    while True:
+        line = stream.readline()
+        if not line:
+            return None
+        if line in (b"\r\n", b"\n"):
+            break
+        if line.lower().startswith(b"content-length:"):
+            length = int(line.split(b":", 1)[1].strip())
+    if length is None:
+        return None
+    return json.loads(stream.read(length))
+
+
+def write_message(stream, payload):
+    body = json.dumps(payload).encode("utf-8")
+    stream.write(b"Content-Length: %d\r\n\r\n%s" % (len(body), body))
+    stream.flush()
+
+
+capabilities = json.loads(sys.argv[1])
+while True:
+    message = read_message(sys.stdin.buffer)
+    if message is None:
+        break
+    identifier = message.get("id")
+    if identifier is None:
+        continue
+    result = {"capabilities": capabilities} if message.get("method") == "initialize" else None
+    write_message(sys.stdout.buffer, {"jsonrpc": "2.0", "id": identifier, "result": result})
+"#;
+
+    async fn service_with_capabilities(capabilities: Value) -> (TempDir, SemanticService) {
+        let temp = tempdir().expect("tempdir");
+        let root = fs::canonicalize(temp.path()).expect("canonical root");
+        fs::create_dir_all(root.join("src")).expect("src");
+        fs::write(
+            root.join("src/context.ts"),
+            "export function compileContext(task: string) {\n  return task;\n}\n",
+        )
+        .expect("fixture");
+        let stub = root.join("stub_language_server.py");
+        fs::write(&stub, STUB_LANGUAGE_SERVER).expect("stub");
+        let store = Store::open(root.join("index.sqlite3")).expect("store");
+        let index = RepositoryIndex::open(&root, store, IndexConfig::default()).expect("index");
+        index.refresh().await.expect("refresh");
+        let lsp = LspSupervisor::new(8 * 1024 * 1024);
+        let probe = lsp
+            .ensure_server(LspServerSpec {
+                server_id: "typescript".to_string(),
+                command: "python3".to_string(),
+                arguments: vec![stub.to_string_lossy().to_string(), capabilities.to_string()],
+                root_uri: Url::from_directory_path(&root)
+                    .expect("root uri")
+                    .to_string(),
+                initialization_options: Value::Null,
+                workspace_folders: Vec::new(),
+                hard_timeout_ms: 10_000,
+                idle_timeout_ms: 60_000,
+                rss_limit_bytes: 512 * 1024 * 1024,
+                maximum_open_documents: 16,
+            })
+            .await
+            .expect("stub language server");
+        let service = SemanticService::new(
+            index,
+            lsp,
+            Arc::new(RwLock::new(HashMap::from([(
+                "typescript".to_string(),
+                "typescript".to_string(),
+            )]))),
+            Arc::new(RwLock::new(vec![probe])),
+        );
+        (temp, service)
+    }
+
+    #[tokio::test]
+    async fn inspect_degrades_when_the_server_omits_pull_diagnostics() {
+        let (_temp, service) = service_with_capabilities(
+            json!({"completionProvider":{"triggerCharacters":["."]},"hoverProvider":true}),
+        )
+        .await;
+
+        let degraded = service
+            .inspect(&json!({
+                "operation":"diagnostics",
+                "path":"src/context.ts",
+                "line":1,
+                "column":1,
+            }))
+            .await
+            .expect("missing capability degrades instead of failing");
+        assert_eq!(degraded.cache_status, "not_attached");
+        assert_eq!(degraded.coverage.get("complete"), Some(&json!(false)));
+        assert_eq!(
+            degraded
+                .coverage
+                .pointer("/gaps/0/code")
+                .and_then(Value::as_str),
+            Some("native_lsp_capability_unavailable")
+        );
+        assert_eq!(
+            degraded
+                .coverage
+                .pointer("/gaps/0/message")
+                .and_then(Value::as_str),
+            Some("Native LSP typescript did not advertise diagnosticProvider.")
+        );
+        assert_eq!(
+            degraded.warnings,
+            vec![
+                "Semantic inspection is unavailable; native LSP typescript did not advertise diagnosticProvider and no non-native fallback was used."
+                    .to_string()
+            ]
+        );
+        assert_eq!(degraded.data.get("items"), Some(&json!([])));
+        assert_eq!(degraded.data.get("server_id"), Some(&Value::Null));
+
+        let advertised = service
+            .inspect(&json!({
+                "operation":"completion",
+                "path":"src/context.ts",
+                "line":2,
+                "column":10,
+            }))
+            .await
+            .expect("advertised capability still reaches the server");
+        assert!(advertised.warnings.is_empty());
+        assert_eq!(advertised.coverage.get("complete"), Some(&json!(true)));
+    }
+
+    #[tokio::test]
+    async fn semantic_required_inspection_reports_the_missing_capability() {
+        let (_temp, service) = service_with_capabilities(json!({"hoverProvider":true})).await;
+
+        let error = service
+            .inspect(&json!({
+                "operation":"diagnostics",
+                "path":"src/context.ts",
+                "line":1,
+                "column":1,
+                "semantic_mode":"semantic_required",
+            }))
+            .await
+            .expect_err("semantic_required must not degrade");
+        assert_eq!(
+            error.to_string(),
+            "semantic_required requested but native LSP typescript did not advertise diagnosticProvider"
+        );
+    }
+
+    #[tokio::test]
+    async fn navigation_degrades_when_the_server_omits_the_requested_capability() {
+        let (_temp, service) = service_with_capabilities(json!({"definitionProvider":true})).await;
+
+        let degraded = service
+            .navigate(&json!({
+                "operation":"implementation",
+                "path":"src/context.ts",
+                "line":1,
+                "column":17,
+            }))
+            .await
+            .expect("missing capability degrades instead of failing");
+        assert_eq!(degraded.cache_status, "not_attached");
+        assert_eq!(degraded.coverage.get("complete"), Some(&json!(false)));
+        assert_eq!(
+            degraded.warnings,
+            vec![
+                "Semantic navigation is unavailable; native LSP typescript did not advertise implementationProvider and no non-native fallback was used."
+                    .to_string()
+            ]
+        );
+        assert_eq!(degraded.data.get("locations"), Some(&json!([])));
+    }
 }
