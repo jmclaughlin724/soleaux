@@ -39,6 +39,24 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
+      - name: Assemble exact carrier diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p carrier-diagnostics
+          cat .ci/p4-017-schema.part-* | tr -d '\r\n' > carrier-diagnostics/current.b64
+          wc -c .ci/p4-017-schema.part-* > carrier-diagnostics/part-sizes.txt
+          sha256sum .ci/p4-017-schema.part-* carrier-diagnostics/current.b64 \
+            > carrier-diagnostics/SHA256SUMS
+
+      - name: Upload carrier diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: p4-017-carrier-diagnostics-${{ github.run_id }}
+          path: carrier-diagnostics/
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Apply the hash-bound P4-017 source package
         run: python3 .ci/apply-p4-017.py
 
