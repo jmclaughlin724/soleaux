@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501
 from __future__ import annotations
 
 from pathlib import Path
@@ -159,8 +160,7 @@ text = replace_once(
         assert!(
             old_before
                 .data
-                .as_ref()
-                .and_then(|data| data.get("matches"))
+                .get("matches")
                 .and_then(Value::as_array)
                 .is_some_and(|matches| !matches.is_empty())
         );
@@ -177,8 +177,7 @@ text = replace_once(
         assert!(
             new_after
                 .data
-                .as_ref()
-                .and_then(|data| data.get("matches"))
+                .get("matches")
                 .and_then(Value::as_array)
                 .is_some_and(|matches| !matches.is_empty())
         );
@@ -189,8 +188,7 @@ text = replace_once(
         assert!(
             old_after
                 .data
-                .as_ref()
-                .and_then(|data| data.get("matches"))
+                .get("matches")
                 .and_then(Value::as_array)
                 .is_some_and(Vec::is_empty)
         );
@@ -203,8 +201,7 @@ text = replace_once(
         assert!(
             deleted
                 .data
-                .as_ref()
-                .and_then(|data| data.get("symbols"))
+                .get("symbols")
                 .and_then(Value::as_array)
                 .is_some_and(Vec::is_empty)
         );
