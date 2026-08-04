@@ -42,8 +42,64 @@ jobs:
           xz -t /tmp/p4-018-freshness-v2.patch.xz
           xz --decompress --stdout /tmp/p4-018-freshness-v2.patch.xz > /tmp/p4-018-freshness-v2.patch
           echo 'a3c3a716f6496af103be43884ef982bd14b16852c008c0c0dec34cf0a13b419f  /tmp/p4-018-freshness-v2.patch' | sha256sum -c -
-          git apply --check /tmp/p4-018-freshness-v2.patch
-          git apply /tmp/p4-018-freshness-v2.patch
+          python3 - <<'PY'
+          from pathlib import Path
+
+          patch_lines = Path('/tmp/p4-018-freshness-v2.patch').read_text(encoding='utf-8').splitlines(keepends=True)
+          current_path = None
+          old_lines = []
+          new_lines = []
+          changed = 0
+
+          def flush_hunk():
+              global old_lines, new_lines, changed
+              if current_path is None or not old_lines and not new_lines:
+                  old_lines = []
+                  new_lines = []
+                  return
+              old = ''.join(old_lines)
+              new = ''.join(new_lines)
+              old_lines = []
+              new_lines = []
+              if old == new:
+                  return
+              path = Path(current_path)
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: replacement context matched {count} times')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+              changed += 1
+
+          for line in patch_lines:
+              if line.startswith('diff --git '):
+                  flush_hunk()
+                  parts = line.rstrip('\n').split(' ')
+                  current_path = parts[3][2:]
+                  continue
+              if line.startswith('--- ') or line.startswith('+++ '):
+                  continue
+              if line.startswith('@@'):
+                  flush_hunk()
+                  continue
+              if current_path is None:
+                  continue
+              if line.startswith(' '):
+                  old_lines.append(line[1:])
+                  new_lines.append(line[1:])
+              elif line.startswith('-'):
+                  old_lines.append(line[1:])
+              elif line.startswith('+'):
+                  new_lines.append(line[1:])
+              else:
+                  old_lines.append(line)
+                  new_lines.append(line)
+
+          flush_hunk()
+          if changed == 0:
+              raise SystemExit('repair made no source replacements')
+          print(f'applied {changed} exact source replacements')
+          PY
 
       - name: Format and run focused native gates
         working-directory: native
