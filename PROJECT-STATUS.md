@@ -36,7 +36,7 @@ Phases 0–2 prove a valuable native repository-intelligence foundation. They do
 
 ```text
 Unified MCP profile:
-89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050ddf57ed967a9c57e3a60fc
+89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc
 
 Context Packet V2:
 3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f

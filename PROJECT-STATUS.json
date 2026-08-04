@@ -34,7 +34,7 @@
     },
     "unifiedMcpProfile": {
       "path": "contracts/unified-mcp-profile-v2.json",
-      "sha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050ddf57ed967a9c57e3a60fc"
+      "sha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
     }
   },
   "nextActions": [
