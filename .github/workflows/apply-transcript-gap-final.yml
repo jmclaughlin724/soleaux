@@ -1,0 +1,43 @@
+name: Apply Soleaux transcript gap audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/transcript-gap-plan-0.4.0-dev.5
+    paths:
+      - .ci/transcript-gap-final.part-*
+      - .ci/apply-transcript-gap-final.sh
+      - .github/workflows/apply-transcript-gap-final.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: soleaux-transcript-gap-final-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify and apply transcript gap package
+        run: bash .ci/apply-transcript-gap-final.sh
+
+      - name: Commit normal audit files and remove carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .ci/transcript-gap-final.part-*
+          git rm .ci/apply-transcript-gap-final.sh
+          git rm .github/workflows/apply-transcript-gap-final.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "docs: reconcile transcript requirements with the finish-line roadmap"
+          git push origin HEAD:audit/transcript-gap-plan-0.4.0-dev.5
