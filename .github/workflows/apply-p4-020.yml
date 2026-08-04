@@ -1,0 +1,71 @@
+name: Apply P4-020 durable operation idempotency
+
+on:
+  push:
+    branches:
+      - fix/operation-idempotency-p4-020-0.4.0-dev.5
+    paths:
+      - .ci/apply-p4-020.py
+      - .github/workflows/apply-p4-020.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-p4-020-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/operation-idempotency-p4-020-0.4.0-dev.5
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply P4-020
+        run: python3 .ci/apply-p4-020.py
+
+      - name: Focused native gates
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo check -p soleaux-storage -p soleaux-mcp --all-targets --all-features --locked
+          cargo clippy -p soleaux-storage -p soleaux-mcp --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-storage --all-features --locked \
+            operation_reservations_are_atomic_replayable_and_releasable
+          cargo test -p soleaux-mcp --all-features --locked \
+            preview_is_no_write_and_apply_revalidates_hash
+          cargo test -p soleaux-mcp --all-features --locked \
+            post_write_failure_restores_source_preview_and_receipt
+
+      - name: Commit normal source and remove one-shot files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .ci/apply-p4-020.py
+          git rm .github/workflows/apply-p4-020.yml
+          git add native/daemon/storage/src/lib.rs native/daemon/mcp/src/editor.rs
+          git diff --cached --check
+          git commit -m "fix(operations): reserve idempotency before edit side effects"
+          git push origin HEAD:fix/operation-idempotency-p4-020-0.4.0-dev.5
