@@ -104,6 +104,7 @@ fn parse_backends(content: &str, config_path: &str) -> Result<Vec<GatewayBackend
             .strip_prefix("[mcp.")
             .and_then(|value| value.strip_suffix(']'))
         {
+            let name = unquote_key(name);
             validate_identifier(name, "backend")?;
             current = Some(name.to_string());
             sections.entry(name.to_string()).or_default();
@@ -494,6 +495,13 @@ fn strip_comment(line: &str) -> &str {
     line
 }
 
+fn unquote_key(value: &str) -> &str {
+    value
+        .strip_prefix('"')
+        .and_then(|inner| inner.strip_suffix('"'))
+        .unwrap_or(value)
+}
+
 fn validate_identifier(value: &str, kind: &str) -> Result<()> {
     if value.is_empty()
         || value.len() > 128
@@ -595,6 +603,21 @@ enabled = true
         assert_eq!(parsed[0].namespace, "team.docs");
         assert_eq!(parsed[0].auth, "oauth");
         assert_eq!(parsed[1].transport, GatewayTransport::StreamableHttp);
+    }
+
+    #[test]
+    fn parses_quoted_backend_keys_with_hyphens() {
+        let parsed = parse_backends(
+            r#"
+[mcp."openai-docs"]
+url = "https://developers.openai.com/mcp"
+"#,
+            "soleaux.toml",
+        )
+        .expect("parse");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].name, "openai-docs");
+        assert!(parse_backends("[mcp.\"bad name\"]\n", "soleaux.toml").is_err());
     }
 
     #[test]
