@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# One-shot, hash-bound documentation reconciliation applicator.
 set -euo pipefail
 
 carrier=.ci/transcript-audit-docs.tar.xz.b64
