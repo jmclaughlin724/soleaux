@@ -47,6 +47,36 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
+      - name: Normalize the rustfmt carrier anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".ci/apply-p4-020.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''    ''' + "'''" + '''        assert!(receipt["rollback_errors"].as_array().is_some_and(Vec::is_empty));
+    }
+
+    #[test]
+''' + "'''" + ''',
+'''
+          new = '''    ''' + "'''" + '''        assert!(
+            receipt["rollback_errors"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
+        );
+    }
+
+    #[test]
+''' + "'''" + ''',
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"rollback carrier anchor match count: {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Apply P4-020
         run: python3 .ci/apply-p4-020.py
 
