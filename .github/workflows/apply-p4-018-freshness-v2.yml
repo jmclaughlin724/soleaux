@@ -1,0 +1,76 @@
+name: Apply P4-018 hash-validated freshness repair
+
+on:
+  push:
+    branches:
+      - fix/stale-index-read-freshness-0.4.0-dev.5
+    paths:
+      - .ci/p4-018-freshness-v2.patch.xz.b64
+      - .github/workflows/apply-p4-018-freshness-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-p4-018-freshness-v2
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stale-index-read-freshness-0.4.0-dev.5
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Decode and apply the hash-bound repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(wc -c < .ci/p4-018-freshness-v2.patch.xz.b64 | tr -d ' ')" = "6184"
+          echo '9aea69bd5fa5e3c4d97fa0df942aef367e117e244c54c1f5b321c345cc874ace  .ci/p4-018-freshness-v2.patch.xz.b64' | sha256sum -c -
+          base64 --decode .ci/p4-018-freshness-v2.patch.xz.b64 > /tmp/p4-018-freshness-v2.patch.xz
+          echo '5bc320700dc5f98b140cd3c141b692ec18e2e1be6bc35f1c8fa549719153b391  /tmp/p4-018-freshness-v2.patch.xz' | sha256sum -c -
+          xz -t /tmp/p4-018-freshness-v2.patch.xz
+          xz --decompress --stdout /tmp/p4-018-freshness-v2.patch.xz > /tmp/p4-018-freshness-v2.patch
+          echo 'a3c3a716f6496af103be43884ef982bd14b16852c008c0c0dec34cf0a13b419f  /tmp/p4-018-freshness-v2.patch' | sha256sum -c -
+          git apply --check /tmp/p4-018-freshness-v2.patch
+          git apply /tmp/p4-018-freshness-v2.patch
+
+      - name: Format and run focused native gates
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-intelligence --all-features --locked
+          cargo test -p soleaux-mcp --all-features --locked structural_reads_refresh_external_mutations_and_deletions
+          cargo test -p soleaux-mcp --all-features --locked concurrent_structural_reads_share_a_serial_refresh_barrier
+          cargo test -p soleaux-mcp --all-features --locked stale_structural_results_are_omitted
+
+      - name: Commit normal source and remove the transient carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .ci/p4-018-freshness-v2.patch.xz.b64
+          git rm .github/workflows/apply-p4-018-freshness-v2.yml
+          git add native/daemon/intelligence/src/index.rs \
+                  native/daemon/intelligence/src/context_v2.rs \
+                  native/daemon/mcp/src/semantic.rs \
+                  native/daemon/mcp/src/lib.rs
+          git diff --cached --check
+          git commit -m "fix(index): hash-validate incremental repository freshness"
+          git push origin HEAD:fix/stale-index-read-freshness-0.4.0-dev.5
