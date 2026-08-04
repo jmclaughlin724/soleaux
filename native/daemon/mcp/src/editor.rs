@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use soleaux_intelligence::index::RepositoryIndex;
+use soleaux_storage::{OperationReservationOutcome, Store};
 use std::{
     collections::BTreeMap,
     fs,
@@ -66,6 +67,38 @@ pub struct EditorService {
     preview_dir: PathBuf,
     process_epoch: String,
     fail_after_write: Arc<AtomicBool>,
+}
+
+struct OperationReservationGuard {
+    store: Store,
+    operation_key: String,
+    request_hash: String,
+    committed: bool,
+}
+
+impl OperationReservationGuard {
+    fn new(store: Store, operation_key: String, request_hash: String) -> Self {
+        Self {
+            store,
+            operation_key,
+            request_hash,
+            committed: false,
+        }
+    }
+
+    fn mark_committed(&mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for OperationReservationGuard {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = self
+                .store
+                .release_operation(self.operation_key.clone(), self.request_hash.clone());
+        }
+    }
 }
 
 impl EditorService {
@@ -182,6 +215,34 @@ impl EditorService {
         if !confirm {
             bail!("edit requires confirm=true");
         }
+        let workspace_id = self.index.workspace_id();
+        let operation_key = format!("edit:{workspace_id}:{preview_id}");
+        let request_hash = sha256_hex(
+            format!(
+                "editor.apply
+{workspace_id}
+{preview_id}
+{digest}
+{confirm}"
+            )
+            .as_bytes(),
+        );
+        let mut reservation = match self.index.store().reserve_operation(
+            operation_key.clone(),
+            request_hash.clone(),
+            "editor.apply",
+            Some(workspace_id),
+        )? {
+            OperationReservationOutcome::Acquired => OperationReservationGuard::new(
+                self.index.store().clone(),
+                operation_key.clone(),
+                request_hash.clone(),
+            ),
+            OperationReservationOutcome::InFlight => {
+                bail!("edit operation is already in progress")
+            }
+            OperationReservationOutcome::Replayed(result) => return Ok(result),
+        };
         let mut preview = self.load(preview_id)?;
         if preview.digest != digest {
             bail!("preview digest does not match");
@@ -266,11 +327,28 @@ impl EditorService {
                     "index_report":&report,
                 }),
             )?;
-            Ok::<_, anyhow::Error>((report, event))
+            let result = json!({
+                "receipt_id":receipt_id,
+                "preview_id":preview.preview_id,
+                "applied":true,
+                "files":files,
+                "formatter":null,
+                "diagnostics":[],
+                "reindexed":true,
+                "audit_event_hash":event.event_hash,
+                "operation_key":operation_key,
+                "replayed":false,
+            });
+            self.index.store().commit_operation(
+                operation_key.clone(),
+                request_hash.clone(),
+                result.clone(),
+            )?;
+            Ok::<_, anyhow::Error>(result)
         }
         .await;
 
-        let (_report, event) = match post_write {
+        let result = match post_write {
             Ok(value) => value,
             Err(failure) => {
                 return Err(self
@@ -278,17 +356,8 @@ impl EditorService {
                     .await);
             }
         };
-
-        Ok(json!({
-            "receipt_id":receipt_id,
-            "preview_id":preview.preview_id,
-            "applied":true,
-            "files":files,
-            "formatter":null,
-            "diagnostics":[],
-            "reindexed":true,
-            "audit_event_hash":event.event_hash,
-        }))
+        reservation.mark_committed();
+        Ok(result)
     }
 
     async fn rollback_after_failure(
@@ -697,12 +766,20 @@ mod tests {
             fs::read_to_string(&source_path).expect("read"),
             "export const value = 2;\n"
         );
-        assert!(
-            editor
-                .apply(&preview.preview_id, &preview.digest, true)
-                .await
-                .is_err()
-        );
+        let replay = editor
+            .apply(&preview.preview_id, &preview.digest, true)
+            .await
+            .expect("idempotent replay");
+        assert_eq!(replay, result);
+        let applied_events = editor
+            .index
+            .store()
+            .events_after(0, 100)
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.event_type == "editor.preview_applied")
+            .count();
+        assert_eq!(applied_events, 1);
     }
 
     #[tokio::test]
@@ -759,6 +836,17 @@ mod tests {
             receipt["rollback_errors"]
                 .as_array()
                 .is_some_and(Vec::is_empty)
+        );
+
+        let retry = editor
+            .apply(&preview.preview_id, &preview.digest, true)
+            .await
+            .expect("retry after released reservation");
+        assert_eq!(retry["applied"], true);
+        assert_eq!(
+            fs::read_to_string(&source_path).expect("read after retry"),
+            "export const value = 2;
+"
         );
     }
 

@@ -5,7 +5,7 @@
 //! first production slice simple while preserving the single-writer contract.
 
 use anyhow::{Context, Result, bail};
-use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -17,7 +17,7 @@ use std::{
 };
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -82,6 +82,13 @@ pub struct EventRecord {
     pub created_at_unix_ms: i64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum OperationReservationOutcome {
+    Acquired,
+    InFlight,
+    Replayed(Value),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStats {
@@ -120,6 +127,24 @@ enum WriteCommand {
         workspace_id: Option<Uuid>,
         payload: Value,
         reply: mpsc::SyncSender<std::result::Result<EventRecord, String>>,
+    },
+    ReserveOperation {
+        operation_key: String,
+        request_hash: String,
+        operation_kind: String,
+        workspace_id: Option<Uuid>,
+        reply: mpsc::SyncSender<std::result::Result<OperationReservationOutcome, String>>,
+    },
+    CommitOperation {
+        operation_key: String,
+        request_hash: String,
+        result: Value,
+        reply: mpsc::SyncSender<std::result::Result<(), String>>,
+    },
+    ReleaseOperation {
+        operation_key: String,
+        request_hash: String,
+        reply: mpsc::SyncSender<std::result::Result<(), String>>,
     },
     Shutdown,
 }
@@ -212,6 +237,69 @@ impl Store {
         receiver
             .recv()
             .context("SQLite writer dropped event reply")?
+            .map_err(anyhow::Error::msg)
+    }
+
+    pub fn reserve_operation(
+        &self,
+        operation_key: impl Into<String>,
+        request_hash: impl Into<String>,
+        operation_kind: impl Into<String>,
+        workspace_id: Option<Uuid>,
+    ) -> Result<OperationReservationOutcome> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::ReserveOperation {
+                operation_key: operation_key.into(),
+                request_hash: request_hash.into(),
+                operation_kind: operation_kind.into(),
+                workspace_id,
+                reply: sender,
+            })
+            .context("SQLite writer stopped")?;
+        receiver
+            .recv()
+            .context("SQLite writer dropped operation reservation reply")?
+            .map_err(anyhow::Error::msg)
+    }
+
+    pub fn commit_operation(
+        &self,
+        operation_key: impl Into<String>,
+        request_hash: impl Into<String>,
+        result: Value,
+    ) -> Result<()> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::CommitOperation {
+                operation_key: operation_key.into(),
+                request_hash: request_hash.into(),
+                result,
+                reply: sender,
+            })
+            .context("SQLite writer stopped")?;
+        receiver
+            .recv()
+            .context("SQLite writer dropped operation commit reply")?
+            .map_err(anyhow::Error::msg)
+    }
+
+    pub fn release_operation(
+        &self,
+        operation_key: impl Into<String>,
+        request_hash: impl Into<String>,
+    ) -> Result<()> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::ReleaseOperation {
+                operation_key: operation_key.into(),
+                request_hash: request_hash.into(),
+                reply: sender,
+            })
+            .context("SQLite writer stopped")?;
+        receiver
+            .recv()
+            .context("SQLite writer dropped operation release reply")?
             .map_err(anyhow::Error::msg)
     }
 
@@ -440,6 +528,44 @@ fn writer_loop(mut connection: Connection, receiver: mpsc::Receiver<WriteCommand
                 .map_err(|error| error.to_string());
                 let _ = reply.send(result);
             }
+            WriteCommand::ReserveOperation {
+                operation_key,
+                request_hash,
+                operation_kind,
+                workspace_id,
+                reply,
+            } => {
+                let result = write_reserve_operation(
+                    &mut connection,
+                    &operation_key,
+                    &request_hash,
+                    &operation_kind,
+                    workspace_id,
+                )
+                .map_err(|error| error.to_string());
+                let _ = reply.send(result);
+            }
+            WriteCommand::CommitOperation {
+                operation_key,
+                request_hash,
+                result,
+                reply,
+            } => {
+                let result =
+                    write_commit_operation(&mut connection, &operation_key, &request_hash, &result)
+                        .map_err(|error| error.to_string());
+                let _ = reply.send(result);
+            }
+            WriteCommand::ReleaseOperation {
+                operation_key,
+                request_hash,
+                reply,
+            } => {
+                let result =
+                    write_release_operation(&mut connection, &operation_key, &request_hash)
+                        .map_err(|error| error.to_string());
+                let _ = reply.send(result);
+            }
             WriteCommand::Shutdown => break,
         }
     }
@@ -532,11 +658,146 @@ fn migrate(connection: &mut Connection) -> Result<()> {
                 event_hash TEXT NOT NULL,
                 created_at_unix_ms INTEGER NOT NULL
             );
-            PRAGMA user_version = 1;
+            CREATE TABLE operation_reservations (
+                operation_key TEXT PRIMARY KEY,
+                request_hash TEXT NOT NULL,
+                operation_kind TEXT NOT NULL,
+                workspace_id TEXT,
+                state TEXT NOT NULL CHECK(state IN ('reserved', 'committed')),
+                result_json TEXT,
+                created_at_unix_ms INTEGER NOT NULL,
+                updated_at_unix_ms INTEGER NOT NULL
+            );
+            CREATE INDEX operation_reservations_state
+                ON operation_reservations(state, updated_at_unix_ms);
+            PRAGMA user_version = 2;
+            COMMIT;
+            "#,
+        )?;
+        return Ok(());
+    }
+    if version == 1 {
+        connection.execute_batch(
+            r#"
+            BEGIN IMMEDIATE;
+            CREATE TABLE operation_reservations (
+                operation_key TEXT PRIMARY KEY,
+                request_hash TEXT NOT NULL,
+                operation_kind TEXT NOT NULL,
+                workspace_id TEXT,
+                state TEXT NOT NULL CHECK(state IN ('reserved', 'committed')),
+                result_json TEXT,
+                created_at_unix_ms INTEGER NOT NULL,
+                updated_at_unix_ms INTEGER NOT NULL
+            );
+            CREATE INDEX operation_reservations_state
+                ON operation_reservations(state, updated_at_unix_ms);
+            PRAGMA user_version = 2;
             COMMIT;
             "#,
         )?;
     }
+    Ok(())
+}
+
+fn write_reserve_operation(
+    connection: &mut Connection,
+    operation_key: &str,
+    request_hash: &str,
+    operation_kind: &str,
+    workspace_id: Option<Uuid>,
+) -> Result<OperationReservationOutcome> {
+    if operation_key.trim().is_empty() || request_hash.trim().is_empty() {
+        bail!("operation key and request hash must be non-empty");
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let existing = transaction
+        .query_row(
+            "SELECT request_hash, state, result_json
+             FROM operation_reservations WHERE operation_key = ?1",
+            [operation_key],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            },
+        )
+        .optional()?;
+    let outcome = match existing {
+        None => {
+            let now = unix_ms();
+            transaction.execute(
+                "INSERT INTO operation_reservations(
+                    operation_key, request_hash, operation_kind, workspace_id,
+                    state, result_json, created_at_unix_ms, updated_at_unix_ms
+                 ) VALUES (?1, ?2, ?3, ?4, 'reserved', NULL, ?5, ?5)",
+                params![
+                    operation_key,
+                    request_hash,
+                    operation_kind,
+                    workspace_id.map(|value| value.to_string()),
+                    now,
+                ],
+            )?;
+            OperationReservationOutcome::Acquired
+        }
+        Some((existing_hash, state, result_json)) => {
+            if existing_hash != request_hash {
+                bail!("operation key collision: request hash differs from the reserved operation");
+            }
+            match state.as_str() {
+                "reserved" => OperationReservationOutcome::InFlight,
+                "committed" => {
+                    let encoded =
+                        result_json.context("committed operation omitted its result payload")?;
+                    OperationReservationOutcome::Replayed(
+                        serde_json::from_str(&encoded)
+                            .context("decoding committed operation result")?,
+                    )
+                }
+                other => bail!("unsupported operation reservation state: {other}"),
+            }
+        }
+    };
+    transaction.commit()?;
+    Ok(outcome)
+}
+
+fn write_commit_operation(
+    connection: &mut Connection,
+    operation_key: &str,
+    request_hash: &str,
+    result: &Value,
+) -> Result<()> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let result_json = serde_json::to_string(result)?;
+    let changed = transaction.execute(
+        "UPDATE operation_reservations
+         SET state = 'committed', result_json = ?3, updated_at_unix_ms = ?4
+         WHERE operation_key = ?1 AND request_hash = ?2 AND state = 'reserved'",
+        params![operation_key, request_hash, result_json, unix_ms()],
+    )?;
+    if changed != 1 {
+        bail!("operation reservation could not be committed from the reserved state");
+    }
+    transaction.commit()?;
+    Ok(())
+}
+
+fn write_release_operation(
+    connection: &mut Connection,
+    operation_key: &str,
+    request_hash: &str,
+) -> Result<()> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    transaction.execute(
+        "DELETE FROM operation_reservations
+         WHERE operation_key = ?1 AND request_hash = ?2 AND state = 'reserved'",
+        params![operation_key, request_hash],
+    )?;
+    transaction.commit()?;
     Ok(())
 }
 
@@ -796,6 +1057,101 @@ pub fn unix_ms() -> i64 {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn operation_reservations_are_atomic_replayable_and_releasable() {
+        use std::sync::Barrier;
+
+        let directory = tempdir().expect("tempdir");
+        let store = Store::open(directory.path().join("soleaux.db")).expect("open store");
+        let workspace_id = Uuid::now_v7();
+        let key = "edit:workspace:preview";
+        let request_hash = "request-hash";
+
+        assert_eq!(
+            store
+                .reserve_operation(key, request_hash, "editor.apply", Some(workspace_id))
+                .expect("acquire"),
+            OperationReservationOutcome::Acquired
+        );
+        assert_eq!(
+            store
+                .reserve_operation(key, request_hash, "editor.apply", Some(workspace_id))
+                .expect("in flight"),
+            OperationReservationOutcome::InFlight
+        );
+        assert!(
+            store
+                .reserve_operation(key, "different", "editor.apply", Some(workspace_id))
+                .is_err()
+        );
+
+        let result = serde_json::json!({"receipt_id":"receipt-1","applied":true});
+        store
+            .commit_operation(key, request_hash, result.clone())
+            .expect("commit");
+        assert_eq!(
+            store
+                .reserve_operation(key, request_hash, "editor.apply", Some(workspace_id))
+                .expect("replay"),
+            OperationReservationOutcome::Replayed(result)
+        );
+
+        let retry_key = "edit:workspace:retry";
+        assert_eq!(
+            store
+                .reserve_operation(retry_key, request_hash, "editor.apply", Some(workspace_id),)
+                .expect("retry acquire"),
+            OperationReservationOutcome::Acquired
+        );
+        store
+            .release_operation(retry_key, request_hash)
+            .expect("release");
+        assert_eq!(
+            store
+                .reserve_operation(retry_key, request_hash, "editor.apply", Some(workspace_id),)
+                .expect("reacquire"),
+            OperationReservationOutcome::Acquired
+        );
+
+        let concurrent_key = "edit:workspace:concurrent";
+        let barrier = Arc::new(Barrier::new(8));
+        let handles = (0..8)
+            .map(|_| {
+                let store = store.clone();
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    barrier.wait();
+                    store
+                        .reserve_operation(
+                            concurrent_key,
+                            request_hash,
+                            "editor.apply",
+                            Some(workspace_id),
+                        )
+                        .expect("concurrent reserve")
+                })
+            })
+            .collect::<Vec<_>>();
+        let outcomes = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("reservation thread"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, OperationReservationOutcome::Acquired))
+                .count(),
+            1
+        );
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, OperationReservationOutcome::InFlight))
+                .count(),
+            7
+        );
+    }
 
     #[test]
     fn wal_store_indexes_symbols_and_hash_chains_events() {
