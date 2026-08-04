@@ -103,10 +103,7 @@ path = "scripts/build_identity_hook.py"
 typeCheckingMode = "strict"
 include = ["scripts", "src", "tests"]
 exclude = [
-  "scripts/apply_phase0_native_overlay.py",
-  "scripts/apply_phase1_clippy_repairs.py",
   "scripts/soleaux/__tests__",
-  "scripts/validate_phase0_contracts.py",
 ]
 extraPaths = [".", "src"]
 pythonVersion = "3.14"
@@ -134,9 +131,6 @@ target-version = "py314"
 extend-exclude = [
   "native/scripts/phase1_mcp_smoke.py",
   "native/scripts/phase2_capability_smoke.py",
-  "scripts/apply_phase0_native_overlay.py",
-  "scripts/apply_phase1_clippy_repairs.py",
-  "scripts/validate_phase0_contracts.py",
 ]
 
 [tool.ruff.format]
