@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
 import {
-  dirname,
-  extname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-  sep,
+    dirname,
+    extname,
+    isAbsolute,
+    join,
+    relative,
+    resolve,
+    sep,
 } from "node:path";
 
 // Deterministic Claude Bash policy. Codex composes its corresponding policy
@@ -678,7 +678,7 @@ function checkSourceMutationSegment(tokens, cwd, repositoryRoot) {
   if (name === "git") {
     const gitArguments = parseGitInvocation(tokens).args;
     if (
-      ["am", "apply", "cherry-pick", "merge", "rebase", "restore"].includes(
+      ["am", "apply", "cherry-pick", "rebase", "restore"].includes(
         gitArguments[0] ?? ""
       ) &&
       !isReadOnlyGitMutationProbe(gitArguments)
