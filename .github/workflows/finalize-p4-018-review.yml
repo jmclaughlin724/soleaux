@@ -1,0 +1,103 @@
+name: Finalize P4-018 review fixes
+
+on:
+  push:
+    branches:
+      - fix/stale-index-read-freshness-0.4.0-dev.5
+    paths:
+      - .github/workflows/finalize-p4-018-review.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-p4-018-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stale-index-read-freshness-0.4.0-dev.5
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply review and artifact corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("native/daemon/mcp/src/lib.rs")
+          text = source.read_text(encoding="utf-8")
+          old = '''        *self.registry.write().expect("registry lock poisoned") =
+            scan_registry(self.root(), &self.index)?;
+        Ok(report)
+'''
+          new = '''        let registry = scan_registry(self.root(), &self.index)?;
+        *self.registry.write().expect("registry lock poisoned") = registry;
+        Ok(report)
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one registry assignment, found {text.count(old)}")
+          source.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          workflow = Path(".github/workflows/verify-p4-018-final.yml")
+          text = workflow.read_text(encoding="utf-8")
+          old = (
+              "          sha256sum evidence/P4-018-RECEIPT.json > "
+              "evidence/SHA256SUMS\n"
+          )
+          new = (
+              "          (\n"
+              "            cd evidence\n"
+              "            sha256sum P4-018-RECEIPT.json > SHA256SUMS\n"
+              "          )\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one checksum command, found {text.count(old)}")
+          workflow.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Focused native gates
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo check -p soleaux-mcp --all-targets --all-features --locked
+          cargo clippy -p soleaux-mcp --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-mcp --all-features --locked \
+            structural_reads_refresh_external_mutations_and_deletions
+          cargo test -p soleaux-mcp --all-features --locked \
+            concurrent_structural_reads_share_a_serial_refresh_barrier
+
+      - name: Commit normal source and remove this one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/finalize-p4-018-review.yml
+          git add native/daemon/mcp/src/lib.rs
+          git add .github/workflows/verify-p4-018-final.yml
+          git diff --cached --check
+          git commit -m "fix(index): minimize registry lock scope and repair evidence checksums"
+          git push origin HEAD:fix/stale-index-read-freshness-0.4.0-dev.5
