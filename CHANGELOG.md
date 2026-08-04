@@ -4,15 +4,16 @@ All notable changes to the unified native Soleaux product are recorded here. Pha
 
 ## [Unreleased] — `0.4.0-dev.5`
 
-### Consolidation (2026-08-03)
-
-- Consolidated every lineage into one branch bound for `main` through a single reviewed merge-commit pull request: the native phase lineage, the unified documentation system, the Python-lineage Stage D attach onboarding and Stage E1 machine service registry, the ast-grep 0.45.0 rule catalog, and the Codex hooks-to-rules migration.
-- Deferred the Phase 3 live same-model experiment by owner direction; it remains a frozen optional claims-gate and no longer blocks source consolidation, release work, or the merge to `main`. Removed the superseded Grok-era Phase 3 fixture harness, its unpacker, and the executed one-shot phase gate workflows; receipts and annotated tags preserve exact-commit provenance.
-- Preserved the independently verified Phase 2 evidence artifact (`8858165328`, SHA-256 `3fa99fa2de889c7eb081e8ff2a913e66cb7c2027a1696f6ad4eb1c0d0b963ebe`) ahead of its 2026-08-17 retention expiry as the Phase 4 materialization source.
-- Scoped the local pre-commit gate to the change under commit and removed the full-suite post-commit hook; continuous integration remains the full-suite owner. Retired the local Claude bash-policy guard scripts by owner direction.
-- Routed the next-devtools MCP backend through the soleaux gateway in `soleaux.toml`; host configurations register only the single soleaux server.
-
 ### Documentation and governance
+
+#### Transcript and repository reconciliation
+
+- Audited both complete design transcripts against current branches and the independently verified Phase 2 Rust source.
+- Added a machine gap registry, capability absorption map, and branch consolidation plan.
+- Expanded remaining tasks to cover canonical sessions/memory/handoffs/runs/subagents/artifacts/policy, live adapters, intelligence depth, SDK/plugin/editor surfaces, desktop/mobile/remote operations, assurance, and release.
+- Identified and corrected conflicting Phase 3 designs; current proof now requires no-Soleaux control, historical Python baseline, and native treatment.
+- Designated `native/0.4.0-dev.5` as the sole working lineage; PR #4 merged the unified docs at `7af28901...`, and PR #3 is obsolete.
+- Recorded that Phase 3 is deferred but must be reconciled to no-Soleaux/historical/native arms before any efficacy claim.
 
 - Established one authoritative documentation hierarchy for product purpose, status, roadmap, tasks, testing, rollout, experiments, releases, and public claims.
 - Replaced root documentation that still described the historical Python/FastMCP `0.1.0` product.
@@ -45,8 +46,8 @@ All notable changes to the unified native Soleaux product are recorded here. Pha
 
 ### Pending
 
-- Phase 3 live same-model / same-task product proof.
-- Canonical native source/default-branch consolidation.
+- Deferred Phase 3 product proof before quantified efficacy or production-claim approval.
+- Consolidated lineage merge, normal native source, direct native CI, durable state/service/security/CLI foundation.
 - Live client, LSP, framework, and design-partner matrices.
 - Desktop/mobile/installers.
 - External assurance and signed distribution.

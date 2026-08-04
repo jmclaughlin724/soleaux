@@ -1,28 +1,32 @@
 {
   "asOfDate": "2026-08-03",
   "branches": {
-    "canonical": "main",
-    "consolidation": "All native, documentation, and provisioning lineages merge into main through one reviewed merge-commit pull request; historical phase branches are deleted after receipt tags are pushed.",
-    "mergePolicy": "No force-push. No squash of the consolidation merge: committed receipts pin exact commits that must stay reachable from main.",
-    "receiptTags": [
-      "receipts/phase0-source-diagnostic",
-      "receipts/phase0-gate",
-      "receipts/phase1-gate",
-      "receipts/phase2-gate-source",
-      "receipts/phase2-gate-receipt",
-      "receipts/phase2-verification",
-      "archive/native-wedge-0.4.0-dev.4",
-      "archive/phase2-native-lineage-a-0.4.0-dev.5",
-      "archive/phase3-live-wedge-0.4.0-dev.5"
-    ]
+    "auditBranch": "audit/transcript-reconciliation-v2-0.4.0-dev.5",
+    "branchPlan": "docs/operations/BRANCH-CONSOLIDATION-PLAN.md",
+    "canonicalWorking": "native/0.4.0-dev.5",
+    "consolidationPolicy": "Merge the audit into native, close obsolete PR #3, then merge the consolidated native lineage to main through a reviewed merge commit. Preserve receipt/archive references before deleting historical branches.",
+    "evidenceArchives": [
+      "native-wedge/0.4.0-dev.4",
+      "phase2/native-lineage-a-0.4.0-dev.5",
+      "phase3/live-wedge-0.4.0-dev.5"
+    ],
+    "historicalDefault": "main",
+    "mergePolicy": "No force-push or squash of receipt-bearing lineage. Main may become the canonical project branch while Phase 4 remains in progress, but production claims remain prohibited until release gates pass.",
+    "mergedDocumentation": {
+      "commit": "7af28901a67d7909a3442b0d22801ab3fe619293",
+      "pullRequest": 4
+    }
   },
+  "capabilityAbsorptionMap": "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
   "currentPhase": {
+    "audit": "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-03.md",
     "name": "Canonical source consolidation and alpha foundation",
     "number": 4,
     "plan": "ROADMAP.md",
-    "primaryBlocker": "The verified Phase 2 native source must be materialized as a normal in-tree Rust workspace with direct-checkout CI before any release-facing work.",
+    "primaryBlocker": "The verified Phase 2 Rust source must become a normal checked-in workspace with direct native CI, then the missing durable state, service, security, and CLI foundations must be implemented.",
     "status": "in_progress"
   },
+  "gapRegistry": "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
   "lockedContracts": {
     "contextPacketV2": {
       "path": "contracts/context-packet-v2.schema.json",
@@ -30,14 +34,16 @@
     },
     "unifiedMcpProfile": {
       "path": "contracts/unified-mcp-profile-v2.json",
-      "sha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+      "sha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050ddf57ed967a9c57e3a60fc"
     }
   },
   "nextActions": [
-    "Merge the consolidated working branch into main through one reviewed merge-commit pull request.",
-    "Push the receipt and archive tags, then delete the historical phase branches.",
-    "Materialize the verified Phase 2 native source at native/ and verify parity against the evidence artifact (P4-001, P4-002).",
-    "Replace carrier assembly with direct-checkout native CI (P4-004)."
+    "Merge the transcript gap audit and expanded task registry into native/0.4.0-dev.5 after green documentation and repository CI.",
+    "Close obsolete draft PR #3 as superseded.",
+    "Open and review the consolidated native-to-main merge-commit PR; preserve receipt and archive references before branch deletion.",
+    "Materialize the independently verified Phase 2 Rust source as normal checked-in files and replace carrier assembly with direct-checkout native CI.",
+    "Implement the Phase 4 canonical data, durability, artifact, policy, CLI, service, install, backup, repair, and uninstall foundations.",
+    "Keep Phase 3 deferred; before any efficacy claim, reconcile it into the required no-Soleaux/historical/native three-arm experiment."
   ],
   "phases": [
     {
@@ -67,29 +73,29 @@
       "workflowRunId": 30818963313
     },
     {
-      "exitGate": "Equal-or-better correctness with measurable context/tool reduction, exact receipt, and independent verification.",
+      "exitGate": "If reactivated: native correctness must meet both no-Soleaux control and historical compatibility gates with lower waste context, exact receipt, and independent verification.",
       "name": "Live same-model / same-task product proof",
-      "note": "Deferred as an optional claims-gate by owner direction on 2026-08-03. It gates efficacy claims only and no longer blocks any later phase.",
+      "note": "Deferred by owner direction on 2026-08-03; gates efficacy claims and productionClaimAllowed review, but does not block implementation phases.",
       "number": 3,
-      "status": "deferred"
+      "status": "deferred_reconciliation_required"
     },
     {
-      "name": "Canonical source consolidation and alpha foundation",
+      "name": "Canonical source, durable core, and alpha foundation",
       "number": 4,
       "status": "in_progress"
     },
     {
-      "name": "Shared service, live adapters, and consumer onboarding",
+      "name": "Adapters, data lifecycle, intelligence depth, and extensibility",
       "number": 5,
       "status": "blocked_by_phase_4"
     },
     {
-      "name": "Desktop, mobile, installers, and operational UX",
+      "name": "Desktop, mobile, remote control, installers, and operations",
       "number": 6,
       "status": "blocked_by_phase_5"
     },
     {
-      "name": "Compatibility, performance, security, privacy, and accessibility assurance",
+      "name": "Assurance, scale, parity, and enterprise readiness",
       "number": 7,
       "status": "blocked_by_phase_6"
     },
@@ -126,6 +132,15 @@
     ],
     "substitutionRule": "one-for-one replacement; optional tools never append"
   },
-  "schemaVersion": "soleaux.project-status/v1",
+  "schemaVersion": "soleaux.project-status/v2",
+  "unimplementedProgramAreas": [
+    "normal checked-in native source and direct native CI",
+    "canonical sessions/history/memory/handoff/run/subagent/artifact/policy data plane",
+    "live Claude/Claude Desktop/Codex/OpenCode adapters",
+    "complete Oxc/Tree-sitter/LSP/shell/Turbo/Next production depth",
+    "materializer compiler, stable SDK/provider APIs, CI mode, editor integration, and event export",
+    "Tauri desktop, Expo mobile, pairing/relay/installers",
+    "performance/security/privacy/accessibility/OS/release assurance"
+  ],
   "version": "0.4.0-dev.5"
 }
