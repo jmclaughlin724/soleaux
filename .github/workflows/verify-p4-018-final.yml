@@ -1,7 +1,12 @@
-# Human-authored exact-source verification trigger after the one-shot applicator.
 name: Verify P4-018 exact normal source
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - native/**
+      - .github/workflows/verify-p4-018-final.yml
   push:
     branches:
       - fix/stale-index-read-freshness-0.4.0-dev.5
@@ -14,15 +19,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-p4-018-final-${{ github.ref }}
+  group: verify-p4-018-final-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   native:
     runs-on: ubuntu-24.04
+    env:
+      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.SOURCE_COMMIT }}
           fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@master
@@ -34,6 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           test ! -e .ci/apply-p4-018.py
           test ! -e .github/workflows/apply-p4-018.yml
           grep -R 'refresh_repository_read_state' native/daemon/mcp/src/lib.rs
@@ -70,7 +79,7 @@ jobs:
           receipt = {
               "schemaVersion": "soleaux.phase4-task-receipt/v1",
               "task": "P4-018",
-              "sourceCommit": os.environ["GITHUB_SHA"],
+              "sourceCommit": os.environ["SOURCE_COMMIT"],
               "workflowRunId": os.environ["GITHUB_RUN_ID"],
               "conclusion": "success",
               "version": "0.4.0-dev.5",
@@ -84,7 +93,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: soleaux-p4-018-${{ github.sha }}
+          name: soleaux-p4-018-${{ env.SOURCE_COMMIT }}
           path: evidence/
           if-no-files-found: error
           retention-days: 30
