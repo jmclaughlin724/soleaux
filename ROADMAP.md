@@ -2,166 +2,116 @@
 
 <!-- soleaux-docs:roadmap current_phase=4 version=0.4.0-dev.5 -->
 
-This roadmap is the sole phase model for the unified native product. Historical Python task stages and earlier 18-stage plans are mapped into this sequence rather than maintained as competing roadmaps.
+This is the sole phase model for the unified native product. The transcript gap audit and machine registry are part of this roadmap:
+
+- [`docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-03.md`](docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-03.md)
+- [`docs/audits/TRANSCRIPT-GAP-REGISTRY.json`](docs/audits/TRANSCRIPT-GAP-REGISTRY.json)
+- [`docs/architecture/CAPABILITY-ABSORPTION-MAP.md`](docs/architecture/CAPABILITY-ABSORPTION-MAP.md)
 
 ## Program objective
 
-Deliver one local-first repository-intelligence product that:
+Deliver one local-first product that:
 
-- exposes one lean MCP server;
-- compiles accurate bounded context;
-- governs one skills/rules/agents/backends catalog;
-- uses native parsers and LSPs when selected;
-- supports safe edits and repository governance;
-- integrates with existing agent clients without replacing them;
+- turns a repository into one lean twelve-slot MCP server;
+- compiles accurate bounded context with trust, provenance, ownership, constraints, validation routes, and explicit gaps;
+- governs one catalog of skills, rules, agents, ownership, artifacts, and registered backends;
+- uses native parsers, LSPs, and framework providers when selected;
+- provides canonical sessions, memory, handoffs, runs, approvals, artifacts, policy, and audit without mutating vendor internal stores;
+- exposes non-model operations through the native app, CLI, typed API, editor integration, and mobile control plane;
 - ships only after live product proof and release assurance.
 
 ## Phase overview
 
-| Phase | Name | Status | Version posture | Exit evidence |
-|---:|---|---|---|---|
-| 0 | Contract lock and native foundation | **Closed** | `0.4.0-dev.5` | Exact native gate receipt |
-| 1 | Unified public surface and Context Packet V2 | **Closed** | `0.4.0-dev.5` | Exact 12-tool smoke + schema validation |
-| 2 | Gateway, catalog, provisioning, governance | **Closed** | `0.4.0-dev.5` | Exact native gate + independent artifact verification |
-| 3 | Live same-model / same-task product proof | **Deferred** (optional claims-gate) | `0.4.0-dev.5` | Equal-or-better correctness + lower context waste |
-| 4 | Canonical source consolidation and alpha foundation | **In progress** | eligible for `0.4.0-alpha.x` after gate | Normal native source tree + reviewed default-branch PR |
-| 5 | Shared service, live adapters, and consumer onboarding | Blocked | alpha/beta | Live client/repository matrix |
-| 6 | Desktop, mobile, installers, and operations | Blocked | beta | Signed development distributions and device flows |
-| 7 | Assurance and cross-platform parity | Blocked | beta/RC | Benchmarks, security, privacy, accessibility, OS matrix |
-| 8 | RC and GA rollout | Blocked | `1.0.0-rc.x` → `1.0.0` | Signed release, external reviews, rollout evidence |
+| Phase | Name | Status | Exit evidence |
+|---:|---|---|---|
+| 0 | Contract lock and native foundation | **Closed** | Exact native gate receipt |
+| 1 | Unified public surface and Context Packet V2 | **Closed** | Exact twelve-tool smoke + schema validation |
+| 2 | Gateway, catalog, provisioning, governance | **Closed** | Exact native gate + independent artifact verification |
+| 3 | Three-arm real-client product proof | **Deferred; reconciliation required before use** | Market-value + historical-compatibility gates and independent verification |
+| 4 | Canonical source, durable core, and alpha foundation | **In progress** | Consolidated lineage, normal Rust tree, durable state/service/CLI, alpha artifact |
+| 5 | Live adapters, data lifecycle, intelligence depth, and extensibility | Blocked by Phase 4 | Client/LSP/framework/design-partner matrices and beta receipt |
+| 6 | Desktop, mobile, remote control, installers, and operations | Blocked by Phase 5 | Full app/device/install E2E |
+| 7 | Assurance, scale, parity, and enterprise readiness | Blocked by Phase 6 | Benchmarks, external assurance, OS/security/scale matrix |
+| 8 | Release candidate and general availability | Blocked by Phase 7 | Signed staged release and explicit production-claim decision |
 
-## Phase 3 — live product proof
+## Immediate branch convergence
 
-**Status: DEFERRED by owner direction (2026-08-03).** The live comparison is
-an optional experiment that gates efficacy claims only. It no longer blocks
-Phase 4 or any later phase, and no phase may be re-blocked on it without an
-explicit owner decision. The pre-registered package under
-`docs/experiments/phase3/` is retained unchanged for optional later execution.
+Before the next Phase 4 implementation batch:
 
-**Purpose:** verify the product's central promise rather than adding more surface area.
+1. preserve PR #4 as the completed standardized-docs merge at `7af28901...`;
+2. merge this transcript gap audit into `native/0.4.0-dev.5`;
+3. close obsolete PR #3;
+4. use `native/0.4.0-dev.5` as the sole working branch;
+5. retain Phase 0–2 evidence branches read-only until Phase 4 tags and references preserve them;
+6. merge the consolidated lineage to `main` through a reviewed merge commit, then keep Phase 4 open until normal source and direct native CI pass.
 
-Required:
+See the branch consolidation plan.
 
-- fixed baseline and treatment implementations;
-- fixed repository commit and task set;
-- identical model/client/sampling parameters;
-- identical scoring and measurement;
-- all runs retained;
-- equal-or-better aggregate task correctness;
-- measurable tool-schema/file-read/context reduction;
-- exact 12-tool profile in every treatment run;
-- Context Packet V2 validity, native selections, and no secret leakage;
-- exact receipt and independent verification.
+## Phase 3 — deferred three-arm product proof
 
-Phase 3 does not change `productionClaimAllowed`.
+**Status:** deferred by owner direction on 2026-08-03. It does not block Phase 4–8 implementation. It remains mandatory before quantified efficacy claims or a reviewed change to `productionClaimAllowed`.
 
-## Phase 4 — canonical source consolidation and alpha foundation
+Two incompatible preparations exist: the removed/superseded GitHub Models synthetic carrier and the real `anilize` task package. Before any live call, the experiment must be re-frozen with three arms:
 
-**Purpose:** eliminate the split between historical default-branch documentation and the proven native implementation.
-
-Work:
-
-- materialize the native Rust source as normal repository files;
-- establish a reviewed source-of-truth branch;
-- archive Python runtime code as fixture/history where still useful;
-- update build, license, packaging, and developer workflows;
-- remove carrier-only source as the long-term development mechanism;
-- preserve exact Phase 0–3 receipts and contracts;
-- produce a reproducible unsigned alpha package;
-- update default-branch README, changelog, docs, and release metadata.
-
-Exit:
-
-- native source builds directly from checkout;
-- no client-visible Python product mode;
-- normal PR CI runs the native gate set;
-- clean install/doctor/uninstall smoke on at least one supported OS;
-- documentation consistency gate green;
-- version may advance only through reviewed release policy.
-
-## Phase 5 — shared service, live adapters, and consumer onboarding
-
-**Purpose:** prove the unified product across real clients and repositories.
-
-Work:
-
-- per-user service and workspace registry;
-- live Claude Code, Claude Desktop, Codex, OpenCode, and Cursor capability probes;
-- supported read-only/session/handoff adapter behavior;
-- shared memory and handoff lifecycle with provenance;
-- materialization to native rules/skills/agents files with backup, diff, rollback, and echo guards;
-- consumer onboarding via `soleaux attach`;
-- design-partner repositories: `anilize`, then additional approved repositories;
-- real LSP and Turbo/Next compatibility matrix.
-
-Exit:
-
-- at least three design-partner repositories;
-- adapter matrix green for declared versions;
-- unknown versions enter safe/read-only mode;
-- no writes to vendor internal stores;
-- beta readiness review.
-
-## Phase 6 — desktop, mobile, installers, and operations
-
-**Purpose:** turn the core into a usable distributed product without redefining the wedge.
-
-Work:
-
-- Tauri + React desktop;
-- one Expo/React Native mobile app;
-- daemon lifecycle, context inspector, catalog, diagnostics, approvals;
-- secure pairing, direct LAN, encrypted relay fallback, revocation;
-- native installers, upgrade, repair, rollback, uninstall;
-- keychain/keystore integration;
-- updater and support bundle.
-
-Exit:
-
-- development builds on target platforms;
-- end-to-end desktop/mobile control of the same daemon;
-- no parser stack on mobile;
-- install/upgrade/uninstall evidence.
-
-## Phase 7 — assurance and cross-platform parity
-
-Work:
-
-- defined-hardware cold/warm p50/p95/p99;
-- parser/LSP corpus and fuzz tests;
-- shell/path-jail/redaction penetration tests;
-- external security review;
-- privacy and licensing review;
-- WCAG/accessibility audit;
-- macOS, Windows, and Linux parity;
-- signed SBOM and provenance;
-- incident-response and rollback exercises.
-
-Exit: all release-blocking findings resolved or explicitly accepted.
-
-## Phase 8 — RC and GA rollout
-
-Work:
-
-- release-candidate freeze;
-- signed/notarized desktop distributions;
-- TestFlight and Play internal/staged release;
-- staged design-partner and public rollout;
-- release notes, support plan, rollback thresholds;
-- external claims review;
-- explicit decision on `productionClaimAllowed`;
-- GA publication.
-
-## Historical plan mapping
-
-| Historical work | Standardized location |
+| Arm | Question answered |
 |---|---|
-| Python extraction/build identity/bridge | History; capabilities absorbed by Phases 0–2 |
-| Python `attach` and shared-service stages | Native Phase 2 and remaining Phase 5 |
-| Earlier Stage 0–13 native core | Phases 0–2 |
-| Earlier desktop/mobile stages | Phase 6 |
-| Earlier eval/compatibility/signing stages | Phases 3, 7, and 8 |
-| Consumer onboarding | Phase 5 |
-| Public release and PyPI discussion | Replaced by Phase 8 release policy |
+| `control_no_soleaux` | Does Soleaux beat ordinary client repository access at equal-or-better correctness and lower waste context? |
+| `historical_python` | Did native unification preserve useful Python/FastMCP behavior? |
+| `native_treatment` | Does the locked native twelve-tool surface satisfy both gates? |
 
-No historical checklist may independently advance current status.
+Execution requires one exact authenticated model/client/build, identical parameters/budgets, model-free oracles, all attempts retained, exact twelve-tool and Context V2 integrity, no secret leakage, exact receipt, and independent verification.
+
+## Phase 4 — canonical source and durable core
+
+This phase consolidates the working lineage and establishes the source, durability, service, security, and operational foundation required by all later product surfaces.
+
+Workstreams:
+
+1. **Source and branches:** reviewed native-to-main merge, normal checked-in Rust workspace, direct native CI, durable receipt/archive references, redundant branch cleanup.
+2. **Canonical state:** accounts, workspaces, native mappings, sessions, turns, messages, content parts, memory, catalog, runs/subagents, approvals, conflicts, artifacts, materializations, cursors, audit, tombstones, retention.
+3. **Durability:** serialized writes, migrations, replay, backup/repair, idempotency reservation, execution leases, process/session reconciliation, approval recovery.
+4. **Security foundation:** encrypted artifact vault, keychain, per-workspace keys, peer credentials, policy/capability service, redaction.
+5. **Operations:** exact CLI contract, per-user service, typed IPC, install/doctor/backup/restore/uninstall, unsigned alpha artifact.
+
+## Phase 5 — adapters, lifecycle, intelligence, and extensibility
+
+Workstreams:
+
+1. **Adapters:** Claude Code SDK/SessionStore/hooks; Claude Desktop connector/export-import; Codex schema-generated app-server; OpenCode generated OpenAPI/SSE/plugin.
+2. **Canonical lifecycle:** memory validation/supersession/tombstones, session history, native resume/fork, signed cross-platform handoffs, durable runs/subagents/approvals.
+3. **Materializers:** compatibility analysis, diff/backup/atomic apply/rollback, origin/revision/idempotency/echo guards, load verification.
+4. **Intelligence depth:** real Oxc extraction, Tree-sitter query/injection corpus, LibCST, `mvdan.cc/sh`, real LSP matrix, Turbo documented CLI/probes, Next static/runtime merge.
+5. **Extensibility:** versioned provider APIs, native daemon SDKs, CI mode, editor extension, webhook/event export.
+6. **Search and consumers:** optional licensed hybrid search, `anilize` plus two additional design partners.
+
+## Phase 6 — product applications and remote operations
+
+- Tauri/React desktop with onboarding, workspaces, sessions, Context Inspector, memory/catalog, run/subagent graph, approvals/conflicts, intelligence health, Turbo/Next views, devices, backups, updates, diagnostics.
+- One Expo/React Native mobile app using the same typed daemon/remote API; no parsers on device.
+- Pairing, hardware-backed identity, direct LAN, encrypted relay fallback, replay-safe commands, capability/risk tiers, biometrics, push, revocation, audit.
+- Development installers, update/repair/rollback/uninstall, keychain/keystore, support bundle, opt-in redacted crash reporting.
+- Offline mobile library remains optional until encrypted replication and tombstone/conflict rules pass.
+
+## Phase 7 — assurance, scale, parity, and enterprise readiness
+
+- native cold/warm performance against all declared p95 targets;
+- real client, LSP, parser, framework, OS, architecture, large-repository, pathological-file, concurrent-client, and worker-crash matrices;
+- protocol/parser fuzzing and prompt-injection/redaction/path/shell/capability penetration tests;
+- production relay hardening and outage/recovery exercises;
+- external security, privacy, licensing, accessibility, internationalization, and incident-response reviews;
+- signed SBOM/provenance and compatibility table;
+- air-gap, SSO, audit export, and retention only after local gates.
+
+## Phase 8 — release and rollout
+
+- `1.0.0-rc.1` only after Phase 7;
+- signed/notarized desktop and signed Windows artifacts;
+- TestFlight and Play internal/staged delivery;
+- design-partner then public staged rollout with rollback thresholds;
+- release notes, support policy, privacy disclosures, known limitations;
+- explicit reviewed `productionClaimAllowed` decision;
+- GA verification and `1.0.0`.
+
+## Historical proposal handling
+
+Historical plans are retained for research but cannot advance status. Superseded choices—agent-OS positioning, premature RC labels, production Node daemon, parallel native mobile products, standalone SSE, GPL parser dependencies in core, and a large root tool catalog—remain prohibited.

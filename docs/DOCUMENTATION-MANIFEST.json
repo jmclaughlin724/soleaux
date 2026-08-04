@@ -1,5 +1,8 @@
 {
+  "branchPlan": "docs/operations/BRANCH-CONSOLIDATION-PLAN.md",
+  "capabilityAbsorptionMap": "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
   "claimsOwner": "docs/governance/CLAIMS-POLICY.md",
+  "gapRegistry": "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
   "required": [
     "README.md",
     "PROJECT-STATUS.md",
@@ -35,10 +38,14 @@
     "docs/experiments/phase3/MEASUREMENT-SCHEMA.json",
     "docs/experiments/phase3/SCORING-RUBRIC.md",
     "docs/experiments/phase3/RUNBOOK.md",
-    "docs/experiments/phase3/RESULTS.md"
+    "docs/experiments/phase3/RESULTS.md",
+    "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-03.md",
+    "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
+    "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
+    "docs/operations/BRANCH-CONSOLIDATION-PLAN.md"
   ],
   "roadmapOwner": "ROADMAP.md",
-  "schemaVersion": "soleaux.documentation-manifest/v1",
+  "schemaVersion": "soleaux.documentation-manifest/v2",
   "statusOwner": "PROJECT-STATUS.json",
   "taskOwner": "TASKS.md"
 }
