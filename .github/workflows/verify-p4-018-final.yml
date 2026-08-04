@@ -38,6 +38,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema
 
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.8.22"
+          enable-cache: true
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.97.1
