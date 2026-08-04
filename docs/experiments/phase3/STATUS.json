@@ -1,5 +1,13 @@
 {
-  "baseline": {
+  "control": {
+    "implementation": "Selected client ordinary repository access without a Soleaux MCP",
+    "status": "must_be_frozen_before_first_run"
+  },
+  "deferredAt": "2026-08-03",
+  "deferredByOwner": true,
+  "deferredEffect": "Does not block implementation phases; required before efficacy claims or productionClaimAllowed review.",
+  "experimentId": null,
+  "historicalBaseline": {
     "commit": "8ec7abcdf180130448c59127c8487a9ec0515611",
     "implementation": "Python/FastMCP public lineage",
     "repository": "jmclaughlin724/soleaux",
@@ -9,7 +17,9 @@
   "model": {
     "client": null,
     "clientVersion": null,
+    "credentialsAvailable": null,
     "modelId": null,
+    "protocolVersion": null,
     "seed": null,
     "status": "required_before_first_run",
     "temperature": null,
@@ -23,15 +33,16 @@
   "runAuthorization": {
     "allowed": false,
     "blockers": [
-      "owner reactivation of the deferred experiment",
-      "model and client identity not recorded",
-      "sampling parameters not recorded",
+      "owner has not reactivated Phase 3",
+      "obsolete GitHub Models/synthetic harness must remain superseded",
+      "three experiment arms are not frozen",
+      "model/client/protocol/sampling/budgets not recorded",
       "credentials not confirmed",
       "oracle dry-run not recorded"
     ]
   },
-  "schemaVersion": "soleaux.phase3.status/v1",
-  "status": "deferred",
+  "schemaVersion": "soleaux.phase3.status/v2",
+  "status": "deferred_reconciliation_required",
   "targetRepository": {
     "commit": "2b7a0fab88dbc202f75b5e443725c825f7dc4fa2",
     "reason": "Real Turborepo/Next.js monorepo with loan-officer dashboard surfaces.",

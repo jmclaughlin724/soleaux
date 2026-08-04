@@ -125,8 +125,8 @@ def main() -> int:
     phase3 = load_json("docs/experiments/phase3/STATUS.json")
     run_authorization = cast(JsonObject, phase3["runAuthorization"])
     require(
-        phase3["status"] == "deferred",
-        "Phase 3 must remain deferred unless the owner reactivates it",
+        phase3["status"] == "deferred_reconciliation_required",
+        "Phase 3 must remain deferred until owner reactivation and three-arm freeze",
     )
     require(phase3["phase3Started"] is False, "Phase 3 must not be marked started")
     require(
@@ -134,6 +134,9 @@ def main() -> int:
         "Phase 3 cannot change production claim",
     )
     require(run_authorization["allowed"] is False, "live runs cannot be authorized yet")
+    require("control" in phase3, "Phase 3 missing no-Soleaux control")
+    require("historicalBaseline" in phase3, "Phase 3 missing historical baseline")
+    require("treatment" in phase3, "Phase 3 missing native treatment")
 
     tasks = load_json("docs/experiments/phase3/TASKS.json")
     task_records = cast(list[JsonObject], tasks["tasks"])
@@ -142,8 +145,16 @@ def main() -> int:
     require(task_ids == ["P3-T01", "P3-T02", "P3-T03"], "task IDs drift")
     require(len(set(task_ids)) == 3, "duplicate Phase 3 task ID")
 
+    for audit_path in (
+        "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-03.md",
+        "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
+        "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
+        "docs/operations/BRANCH-CONSOLIDATION-PLAN.md",
+    ):
+        require((ROOT / audit_path).is_file(), f"transcript reconciliation file missing: {audit_path}")
+
     results = (ROOT / "docs/experiments/phase3/RESULTS.md").read_text(encoding="utf-8")
-    require("Status: DEFERRED" in results, "Phase 3 results must remain DEFERRED")
+    require("Status: NOT RUN — DEFERRED" in results, "Phase 3 results must remain deferred and not run")
 
     public_files = [
         "README.md",
@@ -165,12 +176,8 @@ def main() -> int:
         "human status Phase 2 drift",
     )
     require(
-        "Phase 3:                     DEFERRED (optional claims-gate)" in status_md,
-        "human status Phase 3 drift",
-    )
-    require(
-        "Phase 4:                     IN PROGRESS" in status_md,
-        "human status Phase 4 drift",
+        "Phase 3:                     DEFERRED — RECONCILIATION REQUIRED BEFORE USE" in status_md,
+        "human deferred Phase 3 status drift",
     )
     require(
         "productionClaimAllowed:      false" in status_md,
@@ -183,7 +190,13 @@ def main() -> int:
     for phase in range(3, 9):
         require(f"Phase {phase}" in roadmap, f"roadmap missing Phase {phase}")
         require(f"Phase {phase}" in tasks_md, f"tasks missing Phase {phase}")
-    require("P4-001" in handoff, "handoff must identify the exact next task")
+    require("P4-002" in handoff and "audit" in handoff.casefold(), "handoff must identify audit convergence and exact Phase 4 next work")
+
+    gap_registry = load_json("docs/audits/TRANSCRIPT-GAP-REGISTRY.json")
+    require(len(cast(list[JsonObject], gap_registry["gaps"])) >= 15, "gap registry incomplete")
+    absorption = (ROOT / "docs/architecture/CAPABILITY-ABSORPTION-MAP.md").read_text(encoding="utf-8")
+    for capability in ("session.handoff", "memory.propose", "turborepo.affected", "next.list_server_actions"):
+        require(capability in absorption, f"capability absorption missing: {capability}")
 
     summary = {
         "status": "pass",

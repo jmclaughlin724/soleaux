@@ -181,9 +181,9 @@ docs/unified-project-system-0.4.0-dev.5
 Findings:
 
 - `native/0.4.0-dev.5` is the most complete linear native lineage and already contains the Phase 3 branch changes plus installer/verifier work.
-- `phase3/live-wedge/0.4.0-dev.5` is a strict ancestor/subset of `native/0.4.0-dev.5` and should not remain an independent source of truth.
+- `phase3/live-wedge-0.4.0-dev.5` is a strict ancestor/subset of `native/0.4.0-dev.5` and should not remain an independent source of truth.
 - `phase2/...` and `native-wedge/...` are evidence branches. They should be frozen, tagged, and retained until their receipts and artifacts are safely referenced from the canonical tree.
-- `main` remains the historical Python product and cannot become authoritative until the normal Rust source is checked in and the Phase 4 consolidation PR passes.
+- `main` remains the historical Python default at the time of audit. The reviewed receipt-preserving native/docs consolidation may make it the canonical project branch before Phase 4 closes; Phase 4 still must check in the normal Rust source and direct native CI before alpha/release claims.
 - draft PR #3 is superseded by the proven Phase 0–2 lineage and must be closed.
 - documentation PR #4 was correctly retargeted and merged into `native/0.4.0-dev.5` at `7af28901a67d7909a3442b0d22801ab3fe619293`.
 
@@ -211,8 +211,8 @@ These requirements must not be reintroduced:
 
 The complete executable registry is `TASKS.md`. The highest-priority additions from this audit are:
 
-1. merge this audit/expanded roadmap into `native/0.4.0-dev.5` and close obsolete PR #3;
-2. reconcile Phase 3 into the three-arm real-client experiment before any live call;
+1. merge this audit/expanded roadmap into `native/0.4.0-dev.5`, close obsolete PR #3, and merge the receipt-preserving consolidated lineage to `main`;
+2. keep Phase 3 deferred; before any efficacy claim or live call, reconcile it into the three-arm real-client experiment;
 3. materialize the proven Rust source as normal files and make native CI run directly from checkout;
 4. expand the canonical data model and implement durable sessions, memory, handoffs, runs, approvals, artifacts, policy, and recovery;
 5. implement and live-test the four platform adapters;

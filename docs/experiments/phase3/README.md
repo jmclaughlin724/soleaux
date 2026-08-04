@@ -1,17 +1,13 @@
-# Phase 3 Live Product-Proof Experiment
+# Phase 3 — Live Product Proof
 
-Status: **draft blocked; no live call authorized**
+**Status:** deferred by owner direction. Do not execute until explicitly reactivated and re-frozen.
 
-This directory is the sole Phase 3 execution package.
+Phase 3 is a pre-registered three-arm real-client comparison:
 
-Read:
+1. no-Soleaux control;
+2. historical Python/FastMCP baseline;
+3. native Rust treatment.
 
-1. `STATUS.json`
-2. `EXPERIMENT-PLAN.md`
-3. `TASKS.json`
-4. `SCORING-RUBRIC.md`
-5. `RUNBOOK.md`
-6. `MEASUREMENT-SCHEMA.json`
-7. `RESULTS.md`
+Read `STATUS.json`, `EXPERIMENT-PLAN.md`, `TASKS.json`, `MEASUREMENT-SCHEMA.json`, `SCORING-RUBRIC.md`, and `RUNBOOK.md` before any live call.
 
-The task set is pre-registered. Model/client parameters and oracle dry-run remain required before status can become `frozen_ready`.
+The older GitHub Models/synthetic carrier on the native branch is superseded and not authorized as the current product-proof experiment.

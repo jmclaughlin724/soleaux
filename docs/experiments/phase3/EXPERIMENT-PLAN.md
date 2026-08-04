@@ -1,14 +1,27 @@
 # Phase 3 Experiment Plan
 
+**Status:** deferred by owner direction. Do not execute until explicitly reactivated and re-frozen.
+
 ## Purpose
 
-Test the north-star claim:
+Test both required claims:
 
-> Soleaux replaces waste context at equal or better final task success.
+1. **Market-value gate:** native Soleaux replaces waste context at equal-or-better task success than ordinary client repository access without Soleaux.
+2. **Compatibility-regression gate:** native Soleaux does not regress the useful historical Python/FastMCP lineage.
 
-## Pre-registered implementations
+## Why three arms are required
 
-### Baseline
+A historical-Soleaux-versus-native-Soleaux comparison cannot prove value versus not using Soleaux. A no-Soleaux comparison cannot prove that unification retained the original product's useful capabilities. Phase 3 therefore uses all three arms.
+
+## Pre-registered arms
+
+### Control — no Soleaux
+
+The selected authenticated client uses only its ordinary built-in repository/file/search/edit capabilities. No Soleaux MCP, historical server, hidden equivalent MCP, or precompiled Soleaux packet is attached.
+
+The exact allowed client tools must be captured before the first run.
+
+### Historical compatibility baseline
 
 ```text
 Repository: jmclaughlin724/soleaux
@@ -17,7 +30,7 @@ Surface:    Python/FastMCP public lineage
 Label:      0.1.0-unreleased
 ```
 
-### Treatment
+### Native treatment
 
 ```text
 Repository: jmclaughlin724/soleaux
@@ -35,87 +48,80 @@ Commit:     2b7a0fab88dbc202f75b5e443725c825f7dc4fa2
 Profile:    Turborepo + Next.js monorepo
 ```
 
+## Superseded experiment
+
+`native/0.4.0-dev.5/phase3/experiment-design.json` and its GitHub Models/synthetic-task carriers are historical development evidence. They are not authorized as the current Phase 3 experiment because they do not include a no-Soleaux control and do not use the registered real target tasks. They must be archived or removed during source consolidation.
+
 ## Fixed tasks
 
-The task definitions in `TASKS.json` are frozen before the first live call:
+The three tasks in `TASKS.json` remain frozen before live execution:
 
-- `P3-T01` repository architecture trace;
-- `P3-T02` Next.js route and Turborepo boundary analysis;
-- `P3-T03` bounded validation-test change.
+- architecture trace;
+- Next.js/Turborepo route and boundary analysis;
+- bounded duplicate-card-ID validation-test change.
 
-No task may be removed after the first run. Any changed task requires a new experiment ID and complete restart.
+No task or prompt may change after the first live call. A change requires a new experiment ID and complete restart.
 
-## Model and client lock
+## Model, client, and environment lock
 
-The run is blocked until these are recorded in `STATUS.json`:
+Before execution, record:
 
-- client name and exact build;
-- model identifier;
-- protocol version;
-- temperature;
-- top-p;
-- seed or explicit null;
+- exact client and build;
+- exact model identifier;
+- MCP protocol version;
+- temperature, top-p, seed or null;
+- system/developer/task prompts;
+- host resources;
+- maximum context and output budgets;
+- maximum tool calls if constrained;
+- timeout and retry policy;
+- tokenizer/estimation method;
+- cost source;
 - credentials availability.
 
-The baseline and treatment use identical values.
+All three arms use identical values except the registered repository-intelligence surface.
 
-## Budgets
+## Oracle dry-run
 
-Before the first run, record identical:
+Before live calls, independently derive and freeze:
 
-- task prompt;
-- host resources;
-- file/context budget;
-- maximum tool calls if constrained;
-- timeout;
-- retry policy.
-
-Soleaux's compiled packet may use its normal internal budget, but the final host/model budget must match the baseline arm.
+- required facts and acceptable gaps for the two analysis tasks;
+- canonical card-ID owner, minimal patch, authoritative test taxonomy, and validation commands for the mutation task;
+- scoring inputs and hard-fail conditions;
+- clean-worktree and changed-file checks.
 
 ## Repetition
 
-Minimum:
+Minimum blocking run: one attempt per task per arm (nine runs). Preferred: three attempts per task per arm when deterministic/controlled repetition and cost allow (twenty-seven runs). All attempts and failures remain in the dataset.
 
-- one run per task per arm for the first blocking result;
-- three runs per task per arm when the client/model supports deterministic or controlled repeatability and cost permits.
+## Primary gates
 
-All attempts remain in the dataset.
+```text
+mean native score >= mean no-Soleaux control score
+AND native hard-fail rate <= control hard-fail rate
+AND native mutation-task oracle passes
+```
 
-## Primary outcome
+Compatibility gate:
 
-Aggregate correctness must be equal or better in the treatment arm.
+```text
+mean native score >= mean historical Python score
+AND native hard-fail rate <= historical hard-fail rate
+```
 
-## Secondary outcomes
+Context economy is reported against the no-Soleaux control and cannot compensate for lower correctness.
 
-- root schema tokens;
-- tool calls;
-- file-read tokens;
-- compiled-context tokens;
-- elapsed time;
-- retries;
-- cost;
-- coverage gaps;
-- secret redactions.
+## Treatment integrity
 
-## Integrity conditions
+Native treatment is invalid when:
 
-Treatment runs are invalid when:
-
-- root tools are not exactly 12;
-- a selected parser/LSP is non-native;
+- tools/list is not exactly twelve;
+- a selected parser or LSP is non-native;
 - Context Packet V2 fails validation;
 - required fields are silently omitted;
 - secrets leak;
-- hidden tools or a Python treatment mode are used.
+- hidden tools or Python treatment mode are used.
 
 ## Closure
 
-Phase 3 closes only after:
-
-- all runs and failures are retained;
-- scoring is complete;
-- aggregate correctness gate passes;
-- context-economy results are reported;
-- artifact digests and commits are independently verified;
-- exact receipt is written;
-- `productionClaimAllowed` remains false.
+Phase 3 closes only after every run/failure is retained, both correctness gates pass, context economy is reported, exact receipts and artifact digests exist, independent verification passes, and `productionClaimAllowed` remains false.
