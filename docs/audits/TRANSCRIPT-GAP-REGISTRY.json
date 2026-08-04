@@ -1,0 +1,133 @@
+{
+  "asOfDate": "2026-08-04",
+  "gaps": [
+    {
+      "area": "phase3-product-proof",
+      "id": "GAP-001",
+      "status": "deferred_reconciliation_required",
+      "summary": "The synthetic GitHub Models harness and the real anilize task package conflict. Any future efficacy claim requires no-Soleaux control, historical Python baseline, and native treatment using one authenticated model/client.",
+      "tasks": ["P3-005", "P3-006", "P3-007", "P3-008", "P3-009", "P3-010", "P3-011", "P3-012"]
+    },
+    {
+      "area": "native-correctness",
+      "id": "GAP-002",
+      "status": "open",
+      "summary": "Close current-source defects in request-schema validation, stale index refresh, edit rollback integrity, idempotency reservation, redaction coverage, transactional adopt/revert, truthful coverage gaps, SQL error semantics, LSP capability advertisement, and preview concurrency metadata.",
+      "tasks": ["P4-017", "P4-018", "P4-019", "P4-020", "P4-021", "P4-022", "P4-023", "P4-024", "P4-025", "P4-026"]
+    },
+    {
+      "area": "canonical-data-plane",
+      "id": "GAP-003",
+      "status": "open",
+      "summary": "Implement accounts, native mappings, sessions, turns, messages, content parts, memory claims/lifecycle, handoffs, runs, subagents, approvals, artifacts, materializations, conflicts, cursors, audit, tombstones, and retention.",
+      "tasks": ["P4-010", "P4-011", "P4-012", "P5-007", "P5-018", "P5-019", "P5-020"]
+    },
+    {
+      "area": "security-and-artifacts",
+      "id": "GAP-004",
+      "status": "open",
+      "summary": "Implement encrypted content-addressed artifacts, OS-keychain master keys, per-workspace key separation, short-lived attenuated capabilities, peer credentials, comprehensive redaction, policy, backup, repair, and recovery.",
+      "tasks": ["P4-011", "P4-012", "P4-013", "P7-003", "P7-004", "P7-005"]
+    },
+    {
+      "area": "cli-service-ipc",
+      "id": "GAP-005",
+      "status": "open",
+      "summary": "Complete the exact CLI/runbook, per-user daemon lifecycle, typed local IPC, JSON/dry-run behavior, install/service/doctor/CI/cache/index/integrate/handoff/backup/restore/export/repair/uninstall flows.",
+      "tasks": ["P4-014", "P4-015"]
+    },
+    {
+      "area": "platform-adapters",
+      "id": "GAP-006",
+      "status": "open",
+      "summary": "Implement and live-test Claude Code Agent SDK/SessionStore/hooks, Claude Desktop supported MCP/export-import boundaries, Codex generated app-server client, and OpenCode generated OpenAPI/SSE/plugin adapter with safe mode on unknown versions.",
+      "tasks": ["P5-002", "P5-003", "P5-004", "P5-005", "P5-014", "P5-015", "P5-016", "P5-017"]
+    },
+    {
+      "area": "memory-sessions-handoffs",
+      "id": "GAP-007",
+      "status": "open",
+      "summary": "Implement memory proposal/validation/supersession/tombstones, session/history projection, same-platform resume/fork/archive, and signed cross-platform handoff packets carrying Git/code state, artifacts, exclusions, permissions, and lineage.",
+      "tasks": ["P5-007", "P5-018", "P5-019"]
+    },
+    {
+      "area": "runs-subagents-approvals",
+      "id": "GAP-008",
+      "status": "open",
+      "summary": "Implement durable command/run/approval/subagent orchestration with leases, idempotency, budgets, worktree isolation, capability attenuation, crash reconciliation, cancellation propagation, and result aggregation.",
+      "tasks": ["P4-012", "P5-020"]
+    },
+    {
+      "area": "intelligence-depth",
+      "id": "GAP-009",
+      "status": "open",
+      "summary": "Complete Oxc extraction, Tree-sitter query packs/injections/incremental watcher corpus, LibCST write worker, mvdan shell semantics/sandbox, real LSP matrix, Turbo documented CLI/probes, Next Oxc static index plus capability-driven DevTools merge, scale and pathological-file behavior.",
+      "tasks": ["P5-009", "P5-010", "P5-021", "P5-022", "P5-023", "P5-024", "P5-025", "P7-001", "P7-002", "P7-011"]
+    },
+    {
+      "area": "materializers-and-catalog",
+      "id": "GAP-010",
+      "status": "open",
+      "summary": "Complete cross-host rules/skills/agents compatibility compiler, guidance-versus-enforcement reporting, diff/backup/atomic apply/rollback, object/revision/origin/idempotency metadata, echo-loop prevention, and native load verification.",
+      "tasks": ["P5-008"]
+    },
+    {
+      "area": "extensibility-and-automation",
+      "id": "GAP-011",
+      "status": "open",
+      "summary": "Add versioned parser/workspace/route/context/materializer/gateway provider interfaces, stable native-daemon SDKs, non-interactive CI mode, editor extension, and capability-gated webhook/SIEM export.",
+      "tasks": ["P5-026", "P5-027", "P5-028"]
+    },
+    {
+      "area": "search",
+      "id": "GAP-012",
+      "status": "open_optional",
+      "summary": "Add optional licensed/checksummed hybrid lexical-vector-graph search with sensitivity exclusions, incremental embedding, migrations, rebuild, and corruption recovery after core correctness.",
+      "tasks": ["P5-029"]
+    },
+    {
+      "area": "desktop-mobile-remote",
+      "id": "GAP-013",
+      "status": "open",
+      "summary": "Build the Tauri desktop, one Expo/React Native mobile app, onboarding, Context Inspector, sessions/runs/subagents, approvals, catalog/memory, diagnostics, pairing, device certificates, LAN, E2E relay, push, revocation, updates, backup/restore, and installer lifecycle.",
+      "tasks": ["P6-001", "P6-002", "P6-003", "P6-004", "P6-005", "P6-006", "P6-007", "P6-008", "P6-009", "P6-010", "P6-011", "P6-012", "P6-013", "P6-014", "P6-015", "P6-016"]
+    },
+    {
+      "area": "assurance-and-scale",
+      "id": "GAP-014",
+      "status": "open",
+      "summary": "Complete measured performance, fuzzing, cross-workspace and prompt-injection tests, external penetration/privacy/license/accessibility review, OS parity, signed SBOM/provenance, relay hardening, incident/rollback exercises, and enterprise gates after the local product.",
+      "tasks": ["P7-001", "P7-002", "P7-003", "P7-004", "P7-005", "P7-006", "P7-007", "P7-008", "P7-009", "P7-010", "P7-011", "P7-012", "P7-013"]
+    },
+    {
+      "area": "release",
+      "id": "GAP-015",
+      "status": "open",
+      "summary": "Produce signed/notarized desktop and signed Windows packages, TestFlight/Play builds, staged design-partner/public rollout, support/privacy/compatibility materials, explicit production-claim decision, and GA verification only after all prior evidence gates.",
+      "tasks": ["P8-001", "P8-002", "P8-003", "P8-004", "P8-005", "P8-006", "P8-007", "P8-008"]
+    },
+    {
+      "area": "superseded-proposals",
+      "id": "GAP-016",
+      "status": "prohibited",
+      "summary": "Do not reintroduce agent-OS positioning, premature RC/GA claims, a production Node daemon, parallel SwiftUI/Compose product trees, standalone SSE as primary MCP transport, GPL parsers in core, direct vendor DB writes, false cross-platform native resume, or root-tool inflation beyond twelve.",
+      "tasks": []
+    }
+  ],
+  "locked": {
+    "contextPacketV2Sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
+    "productionClaimAllowed": false,
+    "productVersion": "0.4.0-dev.5",
+    "publicToolCeiling": 12,
+    "unifiedMcpProfileSha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+  },
+  "reviewedSources": [
+    "system-design-proposal-transcript-2026-08-03.md",
+    "grok-session-transcript-timestamped-2026-08-03.md",
+    "current main",
+    "Phase 0-2 receipts and Phase 2 independent artifact",
+    "PR #6 source-consolidation review",
+    "active PR #7 LSP capability repair"
+  ],
+  "schemaVersion": "soleaux.transcript-gap-registry/v3"
+}
