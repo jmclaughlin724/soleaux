@@ -1,0 +1,77 @@
+name: Verify transcript reconciliation exact source
+
+on:
+  push:
+    branches:
+      - docs/transcript-gap-reconciliation-final-0.4.0-dev.5
+    paths:
+      - PROJECT-STATUS.json
+      - PROJECT-STATUS.md
+      - ROADMAP.md
+      - TASKS.md
+      - HANDOFF.md
+      - CHANGELOG.md
+      - docs/**
+      - scripts/check_documentation_consistency.py
+      - .github/workflows/verify-transcript-reconciliation-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-transcript-reconciliation-final-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  documentation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify normal documentation source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .ci/apply-transcript-reconciliation.py
+          test ! -e .ci/augment-transcript-tasks.py
+          test ! -e .ci/check-transcript-reconciliation.py
+          test ! -e .github/workflows/apply-transcript-reconciliation-final.yml
+          python3 scripts/check_documentation_consistency.py
+          python3 -m json.tool PROJECT-STATUS.json >/dev/null
+          python3 -m json.tool docs/DOCUMENTATION-MANIFEST.json >/dev/null
+          python3 -m json.tool docs/audits/TRANSCRIPT-GAP-REGISTRY.json >/dev/null
+          git diff --check
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+
+      - name: Write exact-head receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python3 - <<'PY'
+          import json, os, pathlib
+          receipt = {
+              "schemaVersion": "soleaux.documentation-receipt/v1",
+              "sourceCommit": os.environ["GITHUB_SHA"],
+              "workflowRunId": os.environ["GITHUB_RUN_ID"],
+              "conclusion": "success",
+              "version": "0.4.0-dev.5",
+              "currentPhase": 4,
+              "phase3": "deferred_reconciliation_required",
+              "productionClaimAllowed": False,
+              "publicToolCeiling": 12,
+          }
+          pathlib.Path("evidence/TRANSCRIPT-RECONCILIATION-RECEIPT.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          PY
+          sha256sum evidence/TRANSCRIPT-RECONCILIATION-RECEIPT.json > evidence/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-transcript-reconciliation-${{ github.sha }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
