@@ -1,0 +1,67 @@
+name: Apply P4-018 fresh repository reads
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .ci/apply-p4-018.py
+      - .github/workflows/apply-p4-018.yml
+  push:
+    branches:
+      - fix/stale-index-read-freshness-0.4.0-dev.5
+    paths:
+      - .ci/apply-p4-018.py
+      - .github/workflows/apply-p4-018.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-p4-018-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stale-index-read-freshness-0.4.0-dev.5
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply P4-018
+        run: python3 .ci/apply-p4-018.py
+
+      - name: Focused native gates
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo check -p soleaux-mcp --all-targets --all-features --locked
+          cargo clippy -p soleaux-mcp --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-mcp --all-features --locked structural_reads_refresh_external_mutations_and_deletions
+          cargo test -p soleaux-mcp --all-features --locked concurrent_structural_reads_share_a_serial_refresh_barrier
+          cargo test -p soleaux-mcp --all-features --locked canonical_profile_is_exactly_twelve_in_locked_order
+
+      - name: Commit normal source and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .ci/apply-p4-018.py
+          git rm .github/workflows/apply-p4-018.yml
+          git add native/daemon/mcp/src/lib.rs
+          git diff --cached --check
+          git commit -m "fix(index): refresh structural state before repository reads"
+          git push origin HEAD:fix/stale-index-read-freshness-0.4.0-dev.5
