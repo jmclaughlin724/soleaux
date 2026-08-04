@@ -57,6 +57,7 @@ jobs:
           grep -R 'rollback_after_failure' native/daemon/mcp/src/editor.rs
           grep -R 'post_write_failure_restores_source_preview_and_receipt' \
             native/daemon/mcp/src/editor.rs
+          grep -R 'refresh_repository_read_state' native/daemon/mcp/src/lib.rs
           echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
           echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
 
@@ -124,7 +125,10 @@ jobs:
               encoding="utf-8",
           )
           PY
-          sha256sum evidence/P4-019-NATIVE-GATE-RECEIPT.json > evidence/SHA256SUMS
+          (
+            cd evidence
+            sha256sum P4-019-NATIVE-GATE-RECEIPT.json > SHA256SUMS
+          )
 
       - uses: actions/upload-artifact@v4
         with:
