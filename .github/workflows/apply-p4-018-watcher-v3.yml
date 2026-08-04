@@ -50,6 +50,9 @@ jobs:
           old_lines = []
           new_lines = []
           changed = 0
+          texts = {}
+          cursors = {}
+          dirty_paths = set()
 
           def flush_hunk():
               global old_lines, new_lines, changed
@@ -61,15 +64,25 @@ jobs:
               new = ''.join(new_lines)
               old_lines = []
               new_lines = []
-              if old == new:
-                  return
+              if not old:
+                  raise SystemExit(f'{current_path}: empty replacement anchor is not allowed')
               path = Path(current_path)
-              text = path.read_text(encoding='utf-8')
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: replacement context matched {count} times')
-              path.write_text(text.replace(old, new, 1), encoding='utf-8')
-              changed += 1
+              text = texts.setdefault(path, path.read_text(encoding='utf-8'))
+              cursor = cursors.get(path, 0)
+              position = text.find(old, cursor)
+              if position < 0:
+                  raise SystemExit(
+                      f'{path}: ordered replacement anchor not found after byte {cursor}; '
+                      f'total matches={text.count(old)}'
+                  )
+              if old != new:
+                  text = text[:position] + new + text[position + len(old):]
+                  texts[path] = text
+                  dirty_paths.add(path)
+                  changed += 1
+                  cursors[path] = position + len(new)
+              else:
+                  cursors[path] = position + len(old)
 
           for line in patch_lines:
               if line.startswith('diff --git '):
@@ -98,7 +111,9 @@ jobs:
           flush_hunk()
           if changed == 0:
               raise SystemExit('watcher repair made no source replacements')
-          print(f'applied {changed} exact source replacements')
+          for path in sorted(dirty_paths):
+              path.write_text(texts[path], encoding='utf-8')
+          print(f'applied {changed} ordered source replacements across {len(dirty_paths)} files')
           PY
 
       - name: Resolve and lock the pinned watcher dependency
