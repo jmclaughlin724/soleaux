@@ -22,9 +22,9 @@ resolver = "2"
 version = "0.4.0-dev.5"
 edition = "2024"
 rust-version = "1.97.1"
-license = "Apache-2.0"
+license = "MIT"
 authors = ["Soleaux"]
-repository = "https://github.com/soleaux/soleaux"
+repository = "https://github.com/jmclaughlin724/soleaux"
 
 [workspace.dependencies]
 axum = { version = "=0.8.9", features = ["json", "tokio", "http1"] }
