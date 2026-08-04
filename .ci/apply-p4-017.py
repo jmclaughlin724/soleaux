@@ -20,33 +20,24 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-if len(PARTS) != 9:
-    raise SystemExit(f"expected 9 schema carrier parts, found {len(PARTS)}")
-chunks = [
-    part.read_bytes().replace(b"\n", b"").replace(b"\r", b"")
-    for part in PARTS
-]
-encoded = b"".join(chunks)
-if len(encoded) == EXPECTED_B64_BYTES - 1:
-    boundaries = [0]
-    for chunk in chunks:
-        boundaries.append(boundaries[-1] + len(chunk))
-    alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
-    repaired = None
-    for offset in sorted(set(boundaries)):
-        for character in alphabet:
-            candidate = encoded[:offset] + bytes([character]) + encoded[offset:]
-            if hashlib.sha256(candidate).hexdigest() == EXPECTED_B64_SHA256:
-                repaired = candidate
-                print(f"repaired one omitted carrier character at boundary {offset}")
-                break
-        if repaired is not None:
-            break
-    if repaired is None:
+EXPECTED_PART_BYTES = [3800] * 8 + [348]
+if len(PARTS) != len(EXPECTED_PART_BYTES):
+    raise SystemExit(
+        f"expected {len(EXPECTED_PART_BYTES)} schema carrier parts, found {len(PARTS)}"
+    )
+chunks = []
+for part, expected_size in zip(PARTS, EXPECTED_PART_BYTES, strict=True):
+    raw = part.read_bytes().replace(b"\n", b"").replace(b"\r", b"")
+    if len(raw) < expected_size:
         raise SystemExit(
-            "base64 carrier is one byte short and no hash-valid boundary repair exists"
+            f"{part.name} is short: expected {expected_size}, received {len(raw)}"
         )
-    encoded = repaired
+    if len(raw) > expected_size:
+        print(
+            f"trimmed {len(raw) - expected_size} duplicated carrier bytes from {part.name}"
+        )
+    chunks.append(raw[:expected_size])
+encoded = b"".join(chunks)
 if len(encoded) != EXPECTED_B64_BYTES:
     raise SystemExit(f"unexpected base64 size: {len(encoded)}")
 if hashlib.sha256(encoded).hexdigest() != EXPECTED_B64_SHA256:
