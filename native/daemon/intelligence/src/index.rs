@@ -11,11 +11,11 @@ use soleaux_storage::{
     IndexedFileRecord, Store, StoreStats, SymbolHit, SymbolRecord, WorkspaceRecord, unix_ms,
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Component, Path, PathBuf},
-    sync::Arc,
-    time::Instant,
+    sync::{Arc, RwLock},
+    time::{Instant, UNIX_EPOCH},
 };
 use uuid::Uuid;
 
@@ -55,6 +55,26 @@ pub struct IndexReport {
     pub cancelled: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileFingerprint {
+    modified_ns: u128,
+    byte_length: u64,
+}
+
+impl FileFingerprint {
+    fn from_metadata(metadata: &fs::Metadata) -> Self {
+        let modified_ns = metadata
+            .modified()
+            .ok()
+            .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+            .map_or(0, |duration| duration.as_nanos());
+        Self {
+            modified_ns,
+            byte_length: metadata.len(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct RepositoryIndex {
     root: Arc<PathBuf>,
@@ -62,6 +82,7 @@ pub struct RepositoryIndex {
     store: Store,
     parse_cache: ParseCache,
     config: IndexConfig,
+    fingerprints: Arc<RwLock<BTreeMap<String, FileFingerprint>>>,
 }
 
 impl RepositoryIndex {
@@ -93,6 +114,7 @@ impl RepositoryIndex {
             store,
             parse_cache: ParseCache::new(256 * 1024 * 1024),
             config,
+            fingerprints: Arc::new(RwLock::new(BTreeMap::new())),
         })
     }
 
@@ -130,12 +152,27 @@ impl RepositoryIndex {
     }
 
     pub async fn refresh(&self) -> Result<IndexReport> {
+        self.refresh_internal(false).await
+    }
+
+    pub async fn refresh_incremental(&self) -> Result<IndexReport> {
+        self.refresh_internal(true).await
+    }
+
+    async fn refresh_internal(&self, incremental: bool) -> Result<IndexReport> {
         let started = Instant::now();
         let mut scanned_files = 0usize;
         let mut indexed_files = 0usize;
         let mut skipped_files = 0usize;
         let mut parse_errors = 0usize;
         let mut present = BTreeSet::new();
+        let previous_fingerprints = self
+            .fingerprints
+            .read()
+            .expect("repository fingerprint lock poisoned")
+            .clone();
+        let mut next_fingerprints = BTreeMap::new();
+        let mut changed_files = 0usize;
         let walker = WalkBuilder::new(self.root())
             .standard_filters(true)
             .hidden(false)
@@ -199,6 +236,13 @@ impl RepositoryIndex {
                     continue;
                 }
             };
+            let fingerprint = FileFingerprint::from_metadata(&metadata);
+            if incremental && previous_fingerprints.get(&relative).copied() == Some(fingerprint) {
+                present.insert(relative.clone());
+                next_fingerprints.insert(relative, fingerprint);
+                indexed_files += 1;
+                continue;
+            }
             let source = match fs::read(&canonical_path) {
                 Ok(value) => value,
                 Err(_) => {
@@ -221,13 +265,26 @@ impl RepositoryIndex {
                     continue;
                 }
             };
+            let content_hash = blake3::hash(source.as_slice()).to_hex().to_string();
+            if self
+                .store
+                .file(self.workspace_id, &relative)?
+                .is_some_and(|existing| existing.content_hash == content_hash)
+            {
+                present.insert(relative.clone());
+                next_fingerprints.insert(relative, fingerprint);
+                indexed_files += 1;
+                continue;
+            }
             match self
                 .index_file(&relative, language, text, metadata.len())
                 .await
             {
                 Ok(()) => {
                     present.insert(relative.clone());
+                    next_fingerprints.insert(relative.clone(), fingerprint);
                     indexed_files += 1;
+                    changed_files += 1;
                 }
                 Err(error) => {
                     tracing::warn!(path = %relative, error = %error, "repository parse failed; stale index entry will be removed");
@@ -247,17 +304,25 @@ impl RepositoryIndex {
                 removed_files += 1;
             }
         }
-        self.store.append_event(
-            "workspace.indexed",
-            Some(self.workspace_id),
-            serde_json::json!({
-                "scannedFiles": scanned_files,
-                "indexedFiles": indexed_files,
-                "skippedFiles": skipped_files,
-                "removedFiles": removed_files,
-                "parseErrors": parse_errors,
-            }),
-        )?;
+        changed_files = changed_files.saturating_add(removed_files);
+        *self
+            .fingerprints
+            .write()
+            .expect("repository fingerprint lock poisoned") = next_fingerprints;
+        if changed_files > 0 || parse_errors > 0 {
+            self.store.append_event(
+                "workspace.indexed",
+                Some(self.workspace_id),
+                serde_json::json!({
+                    "scannedFiles": scanned_files,
+                    "indexedFiles": indexed_files,
+                    "changedFiles": changed_files,
+                    "skippedFiles": skipped_files,
+                    "removedFiles": removed_files,
+                    "parseErrors": parse_errors,
+                }),
+            )?;
+        }
         Ok(IndexReport {
             workspace_id: self.workspace_id,
             root: self.root.to_string_lossy().to_string(),
@@ -414,7 +479,15 @@ impl RepositoryIndex {
         let language = language_for_path(&canonical)
             .with_context(|| format!("unsupported language for indexed edit: {relative}"))?;
         self.index_file(relative, language, source, metadata.len())
-            .await
+            .await?;
+        self.fingerprints
+            .write()
+            .expect("repository fingerprint lock poisoned")
+            .insert(
+                relative.to_string(),
+                FileFingerprint::from_metadata(&metadata),
+            );
+        Ok(())
     }
 
     pub fn files(&self, limit: usize) -> Result<Vec<IndexedFileRecord>> {
@@ -448,6 +521,36 @@ impl RepositoryIndex {
         self.store.file(self.workspace_id, relative)
     }
 
+    pub fn validate_indexed_file(&self, relative: &str) -> Result<bool> {
+        let Some(file) = self.indexed_file(relative)? else {
+            return Ok(false);
+        };
+        let absolute = self.root.join(relative);
+        let source = match fs::read(&absolute) {
+            Ok(source) => source,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.fingerprints
+                    .write()
+                    .expect("repository fingerprint lock poisoned")
+                    .remove(relative);
+                return Ok(false);
+            }
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("reading indexed file {}", absolute.display()));
+            }
+        };
+        let current_hash = blake3::hash(source.as_slice()).to_hex().to_string();
+        let current = current_hash == file.content_hash;
+        if !current {
+            self.fingerprints
+                .write()
+                .expect("repository fingerprint lock poisoned")
+                .remove(relative);
+        }
+        Ok(current)
+    }
+
     pub fn read_source_range(
         &self,
         relative: &str,
@@ -458,7 +561,18 @@ impl RepositoryIndex {
         if end_byte < start_byte || end_byte.saturating_sub(start_byte) > maximum_bytes {
             bail!("requested source range exceeds the configured cap");
         }
+        let file = self
+            .indexed_file(relative)?
+            .with_context(|| format!("file is not in the structural index: {relative}"))?;
         let source = fs::read(self.resolve_existing_path(relative)?)?;
+        let current_hash = blake3::hash(source.as_slice()).to_hex().to_string();
+        if current_hash != file.content_hash {
+            self.fingerprints
+                .write()
+                .expect("repository fingerprint lock poisoned")
+                .remove(relative);
+            bail!("indexed file changed before source-range hydration: {relative}");
+        }
         let slice = source
             .get(start_byte..end_byte)
             .context("source range is outside the file")?;
@@ -555,5 +669,61 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].name, "compileContext");
         assert!(index.resolve_existing_path("../outside").is_err());
+    }
+
+    #[tokio::test]
+    async fn incremental_refresh_skips_unchanged_files_and_preserves_generation() {
+        let directory = tempdir().expect("tempdir");
+        fs::create_dir_all(directory.path().join("src")).expect("src");
+        fs::write(
+            directory.path().join("src/context.ts"),
+            "export function compileContext() { return true; }",
+        )
+        .expect("fixture");
+        let store = Store::open(directory.path().join("soleaux.db")).expect("store");
+        let index =
+            RepositoryIndex::open(directory.path(), store, IndexConfig::default()).expect("index");
+        index.refresh().await.expect("initial refresh");
+        let before = index.store_stats().expect("stats before");
+        let report = index
+            .refresh_incremental()
+            .await
+            .expect("incremental refresh");
+        let after = index.store_stats().expect("stats after");
+        assert_eq!(report.indexed_files, 1);
+        assert_eq!(report.removed_files, 0);
+        assert_eq!(before.event_count, after.event_count);
+    }
+
+    #[tokio::test]
+    async fn stale_source_ranges_fail_closed_and_force_revalidation() {
+        let directory = tempdir().expect("tempdir");
+        fs::create_dir_all(directory.path().join("src")).expect("src");
+        let path = directory.path().join("src/context.ts");
+        fs::write(&path, "export function oldState() { return true; }").expect("fixture");
+        let store = Store::open(directory.path().join("soleaux.db")).expect("store");
+        let index =
+            RepositoryIndex::open(directory.path(), store, IndexConfig::default()).expect("index");
+        index.refresh().await.expect("initial refresh");
+        fs::write(&path, "export function newState() { return true; }").expect("mutation");
+        assert!(
+            !index
+                .validate_indexed_file("src/context.ts")
+                .expect("validation")
+        );
+        assert!(
+            index
+                .read_source_range("src/context.ts", 0, 8, 1024)
+                .is_err()
+        );
+        index
+            .refresh_incremental()
+            .await
+            .expect("refresh changed file");
+        assert!(
+            index
+                .validate_indexed_file("src/context.ts")
+                .expect("validation after refresh")
+        );
     }
 }
