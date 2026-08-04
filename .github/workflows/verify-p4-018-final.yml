@@ -1,15 +1,6 @@
 name: Verify P4-018 exact normal source
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - native/**
-      - src/soleaux/gateway.py
-      - tests/test_process_topology.py
-      - .github/workflows/verify-p4-018-final.yml
-      - P4-018-SOURCE-VALIDATION.md
   push:
     branches:
       - fix/stale-index-read-freshness-0.4.0-dev.5
@@ -18,21 +9,22 @@ on:
       - src/soleaux/gateway.py
       - tests/test_process_topology.py
       - .github/workflows/verify-p4-018-final.yml
+      - P4-018-SOURCE-VALIDATION.md
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: verify-p4-018-final-${{ github.event.pull_request.head.sha || github.sha }}
-  cancel-in-progress: true
+  group: verify-p4-018-final-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   native:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
-      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      SOURCE_COMMIT: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
