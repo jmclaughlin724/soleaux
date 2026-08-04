@@ -1,11 +1,26 @@
-use std::{collections::{HashMap, HashSet}, convert::Infallible, net::SocketAddr, path::PathBuf, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{collections::{BTreeSet, HashMap, HashSet}, convert::Infallible, net::SocketAddr, path::{Path as FilePath, PathBuf}, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
 
-use axum::{extract::{Path, Query, State}, http::StatusCode, response::{sse::Event, IntoResponse, Sse}, routing::{get, post}, Json, Router};
+use axum::{body::Body, extract::{Path, Query, Request, State}, http::{header, HeaderMap, HeaderValue, Method, StatusCode}, middleware::{self, Next}, response::{sse::Event, IntoResponse, Response, Sse}, routing::{get, post}, Json, Router};
 use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use subtle::ConstantTimeEq;
 use sysinfo::{Pid, System};
 use tokio::{sync::RwLock, time};
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::{cors::{AllowOrigin, CorsLayer}, services::ServeDir, trace::TraceLayer};
+
+const TOKEN_ENV: &str = "SOLEAUX_DAEMON_TOKEN";
+const TOKEN_FILE_ENV: &str = "SOLEAUX_DAEMON_TOKEN_FILE";
+const ALLOWED_ORIGINS_ENV: &str = "SOLEAUX_DAEMON_ALLOWED_ORIGINS";
+const MIN_TOKEN_CHARACTERS: usize = 32;
+const GENERATED_TOKEN_BYTES: usize = 32;
+const DEFAULT_DASHBOARD_ORIGINS: [&str; 3] = ["http://127.0.0.1:43121", "http://localhost:43121", "http://[::1]:43121"];
+
+#[derive(Clone)]
+struct SecurityConfig {
+    bearer_token: Arc<String>,
+    allowed_origins: Arc<BTreeSet<String>>,
+}
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -226,7 +241,11 @@ struct SnapshotEvent {
 
 const DEFAULT_DASHBOARD_PORT: u16 = 43_121;
 
+#[derive(Debug, PartialEq)]
 struct DaemonOptions {
+    token: Option<String>,
+    token_file: Option<PathBuf>,
+    allowed_origins: Vec<String>,
     dashboard_dist: Option<PathBuf>,
     dashboard_port: u16,
 }
@@ -236,38 +255,71 @@ fn parse_daemon_options(
     env_dist: Option<String>,
     env_port: Option<String>,
 ) -> Result<DaemonOptions, String> {
-    let mut dashboard_dist = env_dist.filter(|value| !value.is_empty()).map(PathBuf::from);
-    let mut dashboard_port = match env_port.filter(|value| !value.is_empty()) {
-        Some(value) => value.parse().map_err(|_| format!("invalid SOLEAUX_DASHBOARD_PORT: {value}"))?,
-        None => DEFAULT_DASHBOARD_PORT,
+    let mut options = DaemonOptions {
+        token: None,
+        token_file: None,
+        allowed_origins: Vec::new(),
+        dashboard_dist: env_dist.filter(|value| !value.is_empty()).map(PathBuf::from),
+        dashboard_port: match env_port.filter(|value| !value.is_empty()) {
+            Some(value) => value.parse().map_err(|_| format!("invalid SOLEAUX_DASHBOARD_PORT: {value}"))?,
+            None => DEFAULT_DASHBOARD_PORT,
+        },
     };
-    let mut arguments = args.iter();
-    while let Some(argument) = arguments.next() {
-        match argument.as_str() {
-            "--dashboard-dist" => {
-                let value = arguments.next().ok_or("--dashboard-dist requires a path")?;
-                dashboard_dist = Some(PathBuf::from(value));
-            }
-            "--dashboard-port" => {
-                let value = arguments.next().ok_or("--dashboard-port requires a port")?;
-                dashboard_port = value.parse().map_err(|_| format!("invalid --dashboard-port: {value}"))?;
-            }
-            other => return Err(format!("unknown argument: {other}")),
+    let mut index = 0;
+    while index < args.len() {
+        let argument = args[index].as_str();
+        let (flag, mut inline) = match argument.split_once('=') {
+            Some((flag, value)) => (flag, Some(value.to_string())),
+            None => (argument, None),
+        };
+        if !matches!(
+            flag,
+            "--token" | "--token-file" | "--allowed-origin" | "--dashboard-dist" | "--dashboard-port"
+        ) {
+            return Err(format!("unknown argument: {flag}"));
         }
+        let value = match inline.take() {
+            Some(value) => value,
+            None => {
+                index += 1;
+                args.get(index).cloned().ok_or_else(|| format!("{flag} requires a value"))?
+            }
+        };
+        match flag {
+            "--token" => options.token = Some(value),
+            "--token-file" => options.token_file = Some(PathBuf::from(value)),
+            "--allowed-origin" => options.allowed_origins.push(value),
+            "--dashboard-dist" => options.dashboard_dist = Some(PathBuf::from(value)),
+            _ => {
+                options.dashboard_port =
+                    value.parse().map_err(|_| format!("invalid --dashboard-port: {value}"))?;
+            }
+        }
+        index += 1;
     }
-    Ok(DaemonOptions { dashboard_dist, dashboard_port })
+    Ok(options)
 }
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "soleaux_daemon=info,tower_http=info".into())).init();
-    let options = parse_daemon_options(
-        &std::env::args().skip(1).collect::<Vec<_>>(),
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let options = match parse_daemon_options(
+        &arguments,
         std::env::var("SOLEAUX_DASHBOARD_DIST").ok(),
         std::env::var("SOLEAUX_DASHBOARD_PORT").ok(),
-    ).expect("invalid Soleaux daemon options");
+    ) {
+        Ok(options) => options,
+        Err(message) => { eprintln!("soleaux-daemon: {message}"); std::process::exit(2); }
+    };
+    let (security, token_source) = match resolve_security(&options) {
+        Ok(resolved) => resolved,
+        Err(message) => { eprintln!("soleaux-daemon: {message}"); std::process::exit(2); }
+    };
+    let allowed_origins = security.allowed_origins.iter().cloned().collect::<Vec<_>>().join(", ");
+    tracing::info!(%token_source, %allowed_origins, "daemon API requires a bearer token; /api/v1/health stays open");
     let state = AppState::default();
-    let app = build_router(state.clone());
+    let app = secure_api_router(build_router(state.clone()), security);
 
     if let Some(dist) = options.dashboard_dist {
         assert!(dist.is_dir(), "dashboard dist directory not found: {}", dist.display());
@@ -290,6 +342,87 @@ fn build_dashboard_router(state: AppState, dist: &std::path::Path) -> Router {
     build_router(state).fallback_service(ServeDir::new(dist))
 }
 
+fn resolve_security(options: &DaemonOptions) -> Result<(SecurityConfig, String), String> {
+    let environment_token = std::env::var(TOKEN_ENV).ok().map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+    let (token, token_source) = if let Some(token) = options.token.as_deref() {
+        (validated_token(token)?, "--token".to_string())
+    } else if let Some(token) = environment_token {
+        (validated_token(&token)?, TOKEN_ENV.to_string())
+    } else {
+        let path = token_file_path(options)?;
+        let token = load_or_generate_token(&path)?;
+        (token, path.display().to_string())
+    };
+    let environment_origins = std::env::var(ALLOWED_ORIGINS_ENV).ok();
+    let allowed_origins = resolve_allowed_origins(&options.allowed_origins, environment_origins.as_deref());
+    let security = SecurityConfig { bearer_token: Arc::new(token), allowed_origins: Arc::new(allowed_origins) };
+    Ok((security, token_source))
+}
+
+fn validated_token(token: &str) -> Result<String, String> {
+    let token = token.trim();
+    if token.chars().count() < MIN_TOKEN_CHARACTERS {
+        return Err(format!("bearer token must contain at least {MIN_TOKEN_CHARACTERS} characters"));
+    }
+    Ok(token.to_string())
+}
+
+fn token_file_path(options: &DaemonOptions) -> Result<PathBuf, String> {
+    if let Some(path) = &options.token_file {
+        return Ok(path.clone());
+    }
+    if let Some(path) = std::env::var_os(TOKEN_FILE_ENV).filter(|value| !value.is_empty()) {
+        return Ok(PathBuf::from(path));
+    }
+    let home = std::env::var_os("HOME").filter(|value| !value.is_empty()).ok_or_else(|| format!("no bearer token configured and HOME is unset; pass --token, set {TOKEN_ENV}, or set {TOKEN_FILE_ENV}"))?;
+    Ok(PathBuf::from(home).join(".soleaux").join("telemetry").join("daemon.token"))
+}
+
+fn load_or_generate_token(path: &FilePath) -> Result<String, String> {
+    if path.exists() {
+        let stored = std::fs::read_to_string(path).map_err(|error| format!("reading bearer token file {}: {error}", path.display()))?;
+        return validated_token(&stored).map_err(|message| format!("{message} in {}", path.display()));
+    }
+    let token = generate_token()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| format!("creating token directory {}: {error}", parent.display()))?;
+        restrict_permissions(parent, 0o700)?;
+    }
+    std::fs::write(path, format!("{token}\n")).map_err(|error| format!("writing bearer token file {}: {error}", path.display()))?;
+    restrict_permissions(path, 0o600)?;
+    Ok(token)
+}
+
+fn generate_token() -> Result<String, String> {
+    let mut bytes = [0_u8; GENERATED_TOKEN_BYTES];
+    getrandom::fill(&mut bytes).map_err(|error| format!("generating bearer token: {error}"))?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+#[cfg(unix)]
+fn restrict_permissions(path: &FilePath, mode: u32) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|error| format!("restricting permissions on {}: {error}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn restrict_permissions(_path: &FilePath, _mode: u32) -> Result<(), String> {
+    Ok(())
+}
+
+fn resolve_allowed_origins(flag_origins: &[String], environment_origins: Option<&str>) -> BTreeSet<String> {
+    let mut origins: BTreeSet<String> = flag_origins.iter().map(|origin| origin.trim().to_string()).filter(|origin| !origin.is_empty()).collect();
+    if origins.is_empty() {
+        if let Some(environment_origins) = environment_origins {
+            origins = environment_origins.split(',').map(|origin| origin.trim().to_string()).filter(|origin| !origin.is_empty()).collect();
+        }
+    }
+    if origins.is_empty() {
+        origins = DEFAULT_DASHBOARD_ORIGINS.iter().map(|origin| (*origin).to_string()).collect();
+    }
+    origins
+}
+
 fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/health", get(health))
@@ -305,7 +438,76 @@ fn build_router(state: AppState) -> Router {
         .route("/api/v1/mcp/summary", get(mcp_summary))
         .route("/api/v1/stream", get(stream_snapshots))
         .with_state(state)
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(request_span))
+}
+
+fn secure_api_router(router: Router, security: SecurityConfig) -> Router {
+    let cors = cors_layer(&security);
+    router
+        .layer(middleware::from_fn_with_state(security, guard_api_request))
+        .layer(cors)
+}
+
+const HEALTH_PATH: &str = "/api/v1/health";
+const STREAM_PATH: &str = "/api/v1/stream";
+
+async fn guard_api_request(State(security): State<SecurityConfig>, request: Request, next: Next) -> Response {
+    if let Some(origin) = request.headers().get(header::ORIGIN) {
+        let allowed = origin.to_str().is_ok_and(|origin| security.allowed_origins.contains(origin));
+        if !allowed {
+            return (StatusCode::FORBIDDEN, Json(json!({ "error": "origin not permitted" }))).into_response();
+        }
+    }
+    let path = request.uri().path();
+    if path == HEALTH_PATH {
+        return next.run(request).await;
+    }
+    let supplied = header_token(request.headers());
+    if supplied.is_some_and(|token| bearer_matches(&security, token)) {
+        return next.run(request).await;
+    }
+    if path == STREAM_PATH && query_access_token(request.uri().query()).is_some_and(|token| bearer_matches(&security, &token)) {
+        return next.run(request).await;
+    }
+    match supplied {
+        Some(_) => unauthorized("invalid bearer token"),
+        None => unauthorized("missing bearer token"),
+    }
+}
+
+#[derive(Deserialize)]
+struct StreamQuery {
+    access_token: Option<String>,
+}
+
+fn query_access_token(query: Option<&str>) -> Option<String> {
+    serde_urlencoded::from_str::<StreamQuery>(query.unwrap_or_default()).ok().and_then(|parsed| parsed.access_token)
+}
+
+fn request_span(request: &axum::http::Request<Body>) -> tracing::Span {
+    tracing::info_span!("request", method = %request.method(), path = %request.uri().path())
+}
+
+fn cors_layer(security: &SecurityConfig) -> CorsLayer {
+    let origins: Vec<HeaderValue> = security.allowed_origins.iter().filter_map(|origin| HeaderValue::from_str(origin).ok()).collect();
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+}
+
+fn bearer_matches(security: &SecurityConfig, supplied: &str) -> bool {
+    let expected = security.bearer_token.as_bytes();
+    let supplied = supplied.as_bytes();
+    expected.len() == supplied.len() && bool::from(expected.ct_eq(supplied))
+}
+
+fn header_token(headers: &HeaderMap) -> Option<&str> {
+    headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()).and_then(|value| value.strip_prefix("Bearer "))
+}
+
+fn unauthorized(message: &'static str) -> Response {
+    (StatusCode::UNAUTHORIZED, [(header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"))], Json(json!({ "error": message }))).into_response()
 }
 
 async fn health() -> impl IntoResponse { Json(HealthResponse { status: "ok", service: "soleaux-daemon", protocol_version: 2 }) }
@@ -607,7 +809,7 @@ fn collect_processes(sessions: &[Session]) -> (SystemSnapshot, Vec<ProcessSnapsh
         let session_id = attributed.get(&pid_value).cloned();
         let snapshot = ProcessSnapshot {
             identity: identity.clone(), parent_pid: process.parent().map(Pid::as_u32), session_id: session_id.clone(),
-            executable: process.name().to_string_lossy().into_owned(), command: process.cmd().iter().map(|value| value.to_string_lossy().into_owned()).collect(),
+            executable: process.name().to_string_lossy().into_owned(), command: redacted_command(process.cmd().iter().map(|value| value.to_string_lossy().into_owned()).collect()),
             cpu_percent: process.cpu_usage(), resident_memory_bytes: process.memory(), runtime_seconds: process.run_time(),
             attribution_method: if known_roots.contains(&pid_value) { "registered-root" } else if session_id.is_some() { "ancestor" } else { "unattributed" },
             attribution_confidence: if known_roots.contains(&pid_value) { 1.0 } else if session_id.is_some() { 0.95 } else { 0.0 },
@@ -618,6 +820,17 @@ fn collect_processes(sessions: &[Session]) -> (SystemSnapshot, Vec<ProcessSnapsh
         processes.push(snapshot);
     }
     (SystemSnapshot { cpu_percent: system.global_cpu_usage(), memory_used_bytes: system.used_memory(), memory_total_bytes: system.total_memory(), process_count: system.processes().len() }, processes, alerts)
+}
+
+fn redacted_command(command: Vec<String>) -> Vec<String> {
+    let mut parts = command.into_iter();
+    let Some(program) = parts.next() else { return Vec::new(); };
+    let hidden = parts.count();
+    match hidden {
+        0 => vec![program],
+        1 => vec![program, "[1 argument redacted]".to_string()],
+        _ => vec![program, format!("[{hidden} arguments redacted]")],
+    }
 }
 
 fn average(values: &[f64]) -> Option<f64> { if values.is_empty() { None } else { Some(values.iter().sum::<f64>() / values.len() as f64) } }
@@ -941,5 +1154,218 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
         std::fs::remove_dir_all(&dist).ok();
+    }
+
+    const TEST_TOKEN: &str = "0123456789abcdef0123456789abcdef";
+    const TEST_ORIGIN: &str = "http://127.0.0.1:43121";
+
+    fn test_security() -> SecurityConfig {
+        SecurityConfig {
+            bearer_token: Arc::new(TEST_TOKEN.to_string()),
+            allowed_origins: Arc::new(BTreeSet::from([TEST_ORIGIN.to_string()])),
+        }
+    }
+
+    fn secured_app() -> Router {
+        secure_api_router(build_router(AppState::default()), test_security())
+    }
+
+    async fn secured_get(app: &Router, uri: &str, authorization: Option<&str>, origin: Option<&str>) -> axum::response::Response {
+        let mut builder = Request::builder().uri(uri);
+        if let Some(value) = authorization {
+            builder = builder.header("authorization", value);
+        }
+        if let Some(value) = origin {
+            builder = builder.header("origin", value);
+        }
+        app.clone()
+            .oneshot(builder.body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond")
+    }
+
+    #[tokio::test]
+    async fn secured_requests_without_token_are_unauthorized() {
+        let app = secured_app();
+        let response = secured_get(&app, "/api/v1/sessions", None, None).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.headers().get("www-authenticate").and_then(|value| value.to_str().ok()), Some("Bearer"));
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/mcp/events")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"operation":"tools/call","backend":"local","tool_name":"search","duration_ms":1.0,"ok":true,"error_type":null,"at":"2026-07-31T10:00:00+00:00"}"#))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn secured_requests_with_wrong_token_are_unauthorized() {
+        let app = secured_app();
+        let response = secured_get(&app, "/api/v1/sessions", Some("Bearer ffffffffffffffffffffffffffffffff"), None).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn secured_requests_with_correct_token_succeed() {
+        let app = secured_app();
+        let authorization = format!("Bearer {TEST_TOKEN}");
+        for uri in ["/api/v1/sessions", "/api/v1/quotas", "/api/v1/usage/summary"] {
+            let response = secured_get(&app, uri, Some(&authorization), None).await;
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+    }
+
+    #[tokio::test]
+    async fn health_stays_unauthenticated() {
+        let app = secured_app();
+        let response = secured_get(&app, "/api/v1/health", None, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn stream_requires_token_and_accepts_query_parameter() {
+        let app = secured_app();
+        let response = secured_get(&app, "/api/v1/stream", None, None).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let response = secured_get(&app, "/api/v1/stream?access_token=ffffffffffffffffffffffffffffffff", None, None).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let response = secured_get(&app, &format!("/api/v1/stream?access_token={TEST_TOKEN}"), None, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response.headers().get("content-type").and_then(|value| value.to_str().ok()).unwrap_or_default();
+        assert!(content_type.starts_with("text/event-stream"));
+        let response = secured_get(&app, "/api/v1/stream", Some(&format!("Bearer {TEST_TOKEN}")), None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn disallowed_origins_are_rejected() {
+        let app = secured_app();
+        let authorization = format!("Bearer {TEST_TOKEN}");
+        let response = secured_get(&app, "/api/v1/sessions", Some(&authorization), Some("http://evil.example")).await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let response = secured_get(&app, "/api/v1/health", None, Some("http://evil.example")).await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let response = secured_get(&app, "/api/v1/sessions", Some(&authorization), Some(TEST_ORIGIN)).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get("access-control-allow-origin").and_then(|value| value.to_str().ok()),
+            Some(TEST_ORIGIN),
+        );
+    }
+
+    #[tokio::test]
+    async fn preflight_reflects_only_allowed_origins() {
+        let app = secured_app();
+        let preflight = |origin: &'static str| {
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/api/v1/sessions")
+                .header("origin", origin)
+                .header("access-control-request-method", "GET")
+                .body(Body::empty())
+                .expect("request should build")
+        };
+        let response = app.clone().oneshot(preflight(TEST_ORIGIN)).await.expect("router should respond");
+        assert_eq!(
+            response.headers().get("access-control-allow-origin").and_then(|value| value.to_str().ok()),
+            Some(TEST_ORIGIN),
+        );
+        let response = app.clone().oneshot(preflight("http://evil.example")).await.expect("router should respond");
+        assert!(response.headers().get("access-control-allow-origin").is_none());
+    }
+
+    #[tokio::test]
+    async fn process_listing_redacts_command_arguments() {
+        let app = secured_app();
+        let response = secured_get(&app, "/api/v1/processes", Some(&format!("Bearer {TEST_TOKEN}")), None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("body should read");
+        let processes: Vec<serde_json::Value> = serde_json::from_slice(&body).expect("processes should deserialize");
+        assert!(!processes.is_empty());
+        for process in &processes {
+            let command = process["command"].as_array().expect("command should be an array");
+            assert!(command.len() <= 2);
+            if command.len() == 2 {
+                let marker = command[1].as_str().expect("marker should be a string");
+                assert!(marker.starts_with('[') && marker.ends_with("redacted]"));
+            }
+        }
+    }
+
+    #[test]
+    fn redacted_command_keeps_only_the_program() {
+        assert_eq!(redacted_command(vec![]), Vec::<String>::new());
+        assert_eq!(redacted_command(vec!["node".to_string()]), vec!["node".to_string()]);
+        assert_eq!(
+            redacted_command(vec!["node".to_string(), "--secret=value".to_string()]),
+            vec!["node".to_string(), "[1 argument redacted]".to_string()],
+        );
+        assert_eq!(
+            redacted_command(vec!["claude".to_string(), "-p".to_string(), "prompt".to_string(), "--key".to_string()]),
+            vec!["claude".to_string(), "[3 arguments redacted]".to_string()],
+        );
+    }
+
+    #[test]
+    fn parse_arguments_supports_token_and_origin_flags() {
+        let arguments = ["--token".to_string(), "a".repeat(32), "--allowed-origin".to_string(), "http://127.0.0.1:43121".to_string(), "--allowed-origin=http://localhost:43121".to_string(), "--token-file=/tmp/example.token".to_string()];
+        let options = parse_daemon_options(&arguments, None, None).expect("arguments should parse");
+        assert_eq!(options.token.as_deref(), Some("a".repeat(32).as_str()));
+        assert_eq!(options.token_file.as_deref(), Some(FilePath::new("/tmp/example.token")));
+        assert_eq!(options.allowed_origins, vec!["http://127.0.0.1:43121".to_string(), "http://localhost:43121".to_string()]);
+        assert!(parse_daemon_options(&["--unknown".to_string()], None, None).is_err());
+        assert!(parse_daemon_options(&["--token".to_string()], None, None).is_err());
+    }
+
+    #[test]
+    fn validated_token_enforces_minimum_length() {
+        assert!(validated_token(&"a".repeat(31)).is_err());
+        assert_eq!(validated_token(&format!(" {} \n", "a".repeat(32))).as_deref(), Ok("a".repeat(32).as_str()));
+    }
+
+    #[test]
+    fn resolve_allowed_origins_prefers_flags_then_environment_then_defaults() {
+        let flagged = resolve_allowed_origins(&["http://one.test".to_string()], Some("http://two.test"));
+        assert_eq!(flagged, BTreeSet::from(["http://one.test".to_string()]));
+        let environment = resolve_allowed_origins(&[], Some("http://two.test, http://three.test"));
+        assert_eq!(environment, BTreeSet::from(["http://two.test".to_string(), "http://three.test".to_string()]));
+        let defaults = resolve_allowed_origins(&[], None);
+        assert_eq!(defaults, DEFAULT_DASHBOARD_ORIGINS.iter().map(|origin| (*origin).to_string()).collect());
+    }
+
+    #[test]
+    fn query_access_token_decodes_url_encoding() {
+        assert_eq!(query_access_token(None), None);
+        assert_eq!(query_access_token(Some("other=value")), None);
+        assert_eq!(query_access_token(Some("access_token=abc123")), Some("abc123".to_string()));
+        assert_eq!(query_access_token(Some("access_token=a%2Bb")), Some("a+b".to_string()));
+    }
+
+    #[test]
+    fn token_file_is_generated_once_with_user_only_permissions() {
+        let directory = std::env::temp_dir().join(format!("soleaux-daemon-token-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        let path = directory.join("nested").join("daemon.token");
+        let first = load_or_generate_token(&path).expect("token should generate");
+        assert_eq!(first.len(), GENERATED_TOKEN_BYTES * 2);
+        assert!(first.chars().all(|character| character.is_ascii_hexdigit()));
+        let second = load_or_generate_token(&path).expect("token should reload");
+        assert_eq!(first, second);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let file_mode = std::fs::metadata(&path).expect("token file should exist").permissions().mode() & 0o777;
+            assert_eq!(file_mode, 0o600);
+            let directory_mode = std::fs::metadata(path.parent().expect("token file should have a parent")).expect("token directory should exist").permissions().mode() & 0o777;
+            assert_eq!(directory_mode, 0o700);
+        }
+        let _ = std::fs::remove_dir_all(&directory);
     }
 }
