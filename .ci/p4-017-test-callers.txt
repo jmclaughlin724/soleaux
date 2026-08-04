@@ -1,0 +1,10 @@
+===== parity_for_previously_python_only_tools =====
+===== semantic_lsp_tools_use_live_or_pending_behavior =====
+===== restart_lsp_restarts_selected_session =====
+===== lsp_unavailable_semantic_tools_fail_closed =====
+===== lsp_capability_advertisement_is_truthful =====
+===== lsp_range_capabilities_remain_unadvertised =====
+===== preview_and_edit_reject_stale_preimages =====
+===== edit_validates_preview_workspace_scope =====
+===== edit_consumes_preview_once =====
+===== tools_emit_v2_envelopes_and_provenance =====
