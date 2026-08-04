@@ -1,0 +1,75 @@
+name: Apply P4-017 locked-contract handlers
+
+on:
+  push:
+    branches:
+      - fix/mcp-input-schema-validation-0.4.0-dev.5
+    paths:
+      - .ci/patch-p4-017-contract-handlers.py
+      - .github/workflows/apply-p4-017-contract-handlers.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-p4-017-contract-handlers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mcp-input-schema-validation-0.4.0-dev.5
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply locked-contract boundary fixes
+        run: python3 .ci/patch-p4-017-contract-handlers.py
+
+      - name: Run focused and compatibility gates
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo check -p soleaux-mcp --all-targets --all-features --locked
+          cargo clippy -p soleaux-mcp --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-mcp --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          python3 scripts/phase1_mcp_smoke.py target/release/soleaux . /tmp/phase1-smoke.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/phase2-smoke.json
+
+      - name: Commit normal source and remove diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f \
+            .ci/patch-p4-017-contract-handlers.py \
+            .ci/p4-017-test-callers.txt \
+            .ci/p4-017-selected-schemas.json \
+            .ci/p4-017-smoke-callers.txt \
+            .github/workflows/locate-p4-017-test-callers.yml \
+            .github/workflows/apply-p4-017-contract-handlers.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(mcp): align handlers and smokes with locked schemas"
+          git push origin HEAD:fix/mcp-input-schema-validation-0.4.0-dev.5
