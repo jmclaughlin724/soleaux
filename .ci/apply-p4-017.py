@@ -22,9 +22,31 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 if len(PARTS) != 9:
     raise SystemExit(f"expected 9 schema carrier parts, found {len(PARTS)}")
-encoded = b"".join(
-    part.read_bytes().replace(b"\n", b"").replace(b"\r", b"") for part in PARTS
-)
+chunks = [
+    part.read_bytes().replace(b"\n", b"").replace(b"\r", b"")
+    for part in PARTS
+]
+encoded = b"".join(chunks)
+if len(encoded) == EXPECTED_B64_BYTES - 1:
+    boundaries = [0]
+    for chunk in chunks:
+        boundaries.append(boundaries[-1] + len(chunk))
+    alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+    repaired = None
+    for offset in sorted(set(boundaries)):
+        for character in alphabet:
+            candidate = encoded[:offset] + bytes([character]) + encoded[offset:]
+            if hashlib.sha256(candidate).hexdigest() == EXPECTED_B64_SHA256:
+                repaired = candidate
+                print(f"repaired one omitted carrier character at boundary {offset}")
+                break
+        if repaired is not None:
+            break
+    if repaired is None:
+        raise SystemExit(
+            "base64 carrier is one byte short and no hash-valid boundary repair exists"
+        )
+    encoded = repaired
 if len(encoded) != EXPECTED_B64_BYTES:
     raise SystemExit(f"unexpected base64 size: {len(encoded)}")
 if hashlib.sha256(encoded).hexdigest() != EXPECTED_B64_SHA256:
@@ -113,9 +135,8 @@ text = replace_once(
     #[test]
     fn locked_tool_input_schemas_are_supported_and_closed() {
         for definition in all_tool_definitions().values() {
-            schema::validate_schema_definition(&definition.input_schema).unwrap_or_else(
-                |error| panic!("{} has unsupported input schema: {error}", definition.name),
-            );
+            schema::validate_schema_definition(&definition.input_schema)
+                .unwrap_or_else(|error| panic!("{} has unsupported input schema: {error}", definition.name));
             assert_eq!(
                 definition.input_schema.get("type").and_then(Value::as_str),
                 Some("object"),
@@ -177,10 +198,7 @@ text = replace_once(
                 }))
                 .await
                 .expect("response");
-            assert_eq!(
-                response.pointer("/error/code").and_then(Value::as_i64),
-                Some(-32602)
-            );
+            assert_eq!(response.pointer("/error/code").and_then(Value::as_i64), Some(-32602));
             assert!(
                 response
                     .pointer("/error/message")
