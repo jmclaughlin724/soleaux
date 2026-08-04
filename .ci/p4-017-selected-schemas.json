@@ -1,0 +1,611 @@
+{
+  "context.compile": {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "default": 50,
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "max_bytes": {
+        "default": 32768,
+        "maximum": 262144,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "objective": {
+        "maxLength": 65536,
+        "minLength": 1,
+        "type": "string"
+      },
+      "paths": {
+        "items": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "type": "string"
+        },
+        "maxItems": 256,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "references": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "maxLength": 65536,
+              "type": "string"
+            },
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "media_type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "provenance": {
+              "additionalProperties": false,
+              "properties": {
+                "catalog_generation": {
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "content_hash": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "engine": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "engine_version": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "generated_at_unix_ms": {
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "grammar_version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "provider": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "provider_version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "range_encoding": {
+                  "enum": [
+                    "utf8-bytes-zero-based",
+                    "utf16-lines-one-based",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "snapshot_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_range_hash": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "workspace_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "provider",
+                "engine",
+                "engine_version",
+                "range_encoding"
+              ],
+              "type": "object"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "trust": {
+              "enum": [
+                "verified_compiled_context",
+                "verified_code_structure",
+                "verified_repository_metadata",
+                "verified_semantic_result",
+                "verified_sql_structure",
+                "retrieved_code_data",
+                "untrusted_external_resource",
+                "inferred",
+                "unavailable"
+              ],
+              "type": "string"
+            },
+            "uri": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "title",
+            "media_type",
+            "content",
+            "sha256",
+            "truncated",
+            "error",
+            "trust",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        "maxItems": 32,
+        "type": "array"
+      },
+      "relation_depth": {
+        "default": 2,
+        "maximum": 3,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "resource_uris": {
+        "items": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 32,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "semantic_mode": {
+        "default": "best_available",
+        "enum": [
+          "syntax_only",
+          "best_available",
+          "semantic_required"
+        ],
+        "type": "string"
+      },
+      "terms": {
+        "items": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 256,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "token_budget": {
+        "default": 8000,
+        "maximum": 64000,
+        "minimum": 256,
+        "type": "integer"
+      },
+      "workspace_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "objective"
+    ],
+    "type": "object"
+  },
+  "edit": {
+    "additionalProperties": false,
+    "properties": {
+      "confirm": {
+        "const": true
+      },
+      "digest": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "preview_id": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "workspace_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "preview_id",
+      "digest",
+      "confirm"
+    ],
+    "type": "object"
+  },
+  "inspect": {
+    "additionalProperties": false,
+    "properties": {
+      "column": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "limit": {
+        "default": 50,
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "line": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "operation": {
+        "enum": [
+          "diagnostics",
+          "completion",
+          "signature_help",
+          "code_actions"
+        ],
+        "type": "string"
+      },
+      "path": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+        "type": "string"
+      },
+      "semantic_mode": {
+        "default": "best_available",
+        "enum": [
+          "syntax_only",
+          "best_available",
+          "semantic_required"
+        ],
+        "type": "string"
+      },
+      "workspace_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "operation",
+      "path",
+      "line",
+      "column"
+    ],
+    "type": "object"
+  },
+  "navigate": {
+    "additionalProperties": false,
+    "oneOf": [
+      {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "line"
+              ]
+            },
+            {
+              "required": [
+                "column"
+              ]
+            }
+          ]
+        },
+        "required": [
+          "symbol_name"
+        ]
+      },
+      {
+        "not": {
+          "required": [
+            "symbol_name"
+          ]
+        },
+        "required": [
+          "path",
+          "line",
+          "column"
+        ]
+      }
+    ],
+    "properties": {
+      "column": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "limit": {
+        "default": 50,
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "line": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "operation": {
+        "enum": [
+          "definition",
+          "references",
+          "implementation",
+          "hover",
+          "call_hierarchy",
+          "incoming_calls",
+          "outgoing_calls"
+        ],
+        "type": "string"
+      },
+      "path": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+        "type": "string"
+      },
+      "semantic_mode": {
+        "default": "best_available",
+        "enum": [
+          "syntax_only",
+          "best_available",
+          "semantic_required"
+        ],
+        "type": "string"
+      },
+      "symbol_kind": {
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
+      },
+      "symbol_name": {
+        "maxLength": 512,
+        "minLength": 1,
+        "type": "string"
+      },
+      "workspace_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "operation"
+    ],
+    "type": "object"
+  },
+  "preview": {
+    "additionalProperties": false,
+    "properties": {
+      "action_index": {
+        "maximum": 99,
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "column": {
+        "minimum": 1,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "end_column": {
+        "minimum": 1,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "end_line": {
+        "minimum": 1,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "line": {
+        "minimum": 1,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "new_name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "operation": {
+        "enum": [
+          "rename",
+          "format_document",
+          "format_range",
+          "code_action",
+          "structural_rewrite"
+        ],
+        "type": "string"
+      },
+      "path": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+        "type": "string"
+      },
+      "paths": {
+        "items": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "type": "string"
+        },
+        "maxItems": 256,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "semantic_mode": {
+        "default": "best_available",
+        "enum": [
+          "syntax_only",
+          "best_available",
+          "semantic_required"
+        ],
+        "type": "string"
+      },
+      "strict": {
+        "default": false,
+        "type": "boolean"
+      },
+      "structural": {
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "symbol_kind": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "symbol_name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "target": {
+        "enum": [
+          null,
+          "name",
+          "position"
+        ],
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ttl_seconds": {
+        "default": 300,
+        "maximum": 3600,
+        "minimum": 30,
+        "type": "integer"
+      },
+      "workspace_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "operation"
+    ],
+    "type": "object"
+  },
+  "restart_lsp": {
+    "additionalProperties": false,
+    "anyOf": [
+      {
+        "required": [
+          "provider"
+        ]
+      },
+      {
+        "required": [
+          "language"
+        ]
+      },
+      {
+        "required": [
+          "path"
+        ]
+      }
+    ],
+    "properties": {
+      "language": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "path": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+        "type": "string"
+      },
+      "provider": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "reason": {
+        "maxLength": 512,
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "workspace_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "type": "object"
+  }
+}
