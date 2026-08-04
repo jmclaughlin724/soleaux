@@ -274,7 +274,9 @@ def base_smoke(binary: pathlib.Path, source: pathlib.Path, context_schema: dict[
         assert edit["data"]["applied"] is True
         assert "return { task };" in target.read_text(encoding="utf-8")
 
-        restart, is_error = mcp.tool("restart_lsp", {})
+        restart, is_error = mcp.tool(
+            "restart_lsp", {"path": "src/context.ts", "reason": "phase1 smoke"}
+        )
         if is_error:
             assert_envelope(restart, source="restart_lsp", error=True)
         else:
