@@ -25,35 +25,38 @@ jobs:
         with:
           ref: fix/mcp-input-schema-validation-0.4.0-dev.5
           fetch-depth: 0
-      - name: Capture exact legacy test callers and surrounding context
+      - name: Capture package inventory, module includes and test callers
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .ci
           output=.ci/p4-017-test-callers.txt
-          : > "$output"
-          tests=(
-            parity_for_previously_python_only_tools
-            semantic_lsp_tools_use_live_or_pending_behavior
-            restart_lsp_restarts_selected_session
-            lsp_unavailable_semantic_tools_fail_closed
-            lsp_capability_advertisement_is_truthful
-            lsp_range_capabilities_remain_unadvertised
-            preview_and_edit_reject_stale_preimages
-            edit_validates_preview_workspace_scope
-            edit_consumes_preview_once
-            tools_emit_v2_envelopes_and_provenance
-          )
-          for test_name in "${tests[@]}"; do
-            echo "===== ${test_name} =====" >> "$output"
-            while IFS=: read -r file line _; do
-              [ -n "$file" ] || continue
-              start=$((line > 45 ? line - 45 : 1))
-              end=$((line + 90))
-              echo "--- ${file}:${line} (${start}-${end}) ---" >> "$output"
-              sed -n "${start},${end}p" "$file" >> "$output"
-            done < <(grep -RIn --exclude-dir=target --exclude='*.lock' "$test_name" native || true)
-          done
+          {
+            echo '===== PACKAGE FILES ====='
+            find native/daemon/mcp -type f -not -path '*/target/*' -print | sort
+            echo '===== RUST MODULE / INCLUDE REFERENCES ====='
+            git grep -n -E 'include!|include_str!|mod tests|cfg\(test\)|\[\[test\]\]' -- native/daemon/mcp native/Cargo.toml || true
+            echo '===== ALL CALL_ASYNC TEST CALLERS ====='
+            git grep -n -C 8 'call_async(' -- native/daemon/mcp || true
+            echo '===== ALL HANDLE_JSON_RPC TEST CALLERS ====='
+            git grep -n -C 8 'handle_json_rpc' -- native/daemon/mcp || true
+            echo '===== TEST NAME SEARCH ACROSS FULL HISTORY ====='
+            for name in \
+              parity_for_previously_python_only_tools \
+              semantic_lsp_tools_use_live_or_pending_behavior \
+              restart_lsp_restarts_selected_session \
+              lsp_unavailable_semantic_tools_fail_closed \
+              lsp_capability_advertisement_is_truthful \
+              lsp_range_capabilities_remain_unadvertised \
+              preview_and_edit_reject_stale_preimages \
+              edit_validates_preview_workspace_scope \
+              edit_consumes_preview_once \
+              tools_emit_v2_envelopes_and_provenance
+            do
+              echo "--- $name ---"
+              git log --all -S"$name" --format='%H %s' --name-only || true
+            done
+          } > "$output"
       - name: Commit diagnostic snapshot
         shell: bash
         run: |
@@ -61,5 +64,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .ci/p4-017-test-callers.txt
-          git commit -m "ci: capture P4-017 legacy test callers"
+          git commit -m "ci: trace P4-017 generated test callers"
           git push origin HEAD:fix/mcp-input-schema-validation-0.4.0-dev.5
