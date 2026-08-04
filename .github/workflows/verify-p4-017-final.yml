@@ -1,0 +1,91 @@
+name: Verify P4-017 exact normal source
+
+on:
+  push:
+    branches:
+      - fix/mcp-input-schema-validation-0.4.0-dev.5
+    paths:
+      - native/**
+      - .github/workflows/verify-p4-017-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-p4-017-final-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Verify exact source and locked identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f native/daemon/mcp/src/schema.rs
+          test ! -e .ci/apply-p4-017.py
+          test ! -e .github/workflows/apply-p4-017.yml
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+          grep -R 'pub const PRODUCT_VERSION: &str = "0.4.0-dev.5"' native/daemon/mcp/src/profile.rs
+          grep -R 'pub const PRODUCTION_CLAIM_ALLOWED: bool = false' native/daemon/mcp/src/profile.rs
+          grep -R 'pub const HARD_CEILING: usize = 12' native/daemon/mcp/src/profile.rs
+
+      - name: Complete native gate
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --help >/dev/null
+          ./target/release/soleaux --version
+          ./target/release/soleauxd --help >/dev/null
+          ./target/release/soleauxd --version
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings
+
+      - name: Write exact-head receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python3 - <<'PY'
+          import json, os, pathlib
+          receipt = {
+              "schemaVersion": "soleaux.phase4-task-receipt/v1",
+              "task": "P4-017",
+              "sourceCommit": os.environ["GITHUB_SHA"],
+              "workflowRunId": os.environ["GITHUB_RUN_ID"],
+              "conclusion": "success",
+              "version": "0.4.0-dev.5",
+              "productionClaimAllowed": False,
+              "publicToolCeiling": 12,
+              "gates": ["fmt", "check", "clippy", "test", "release-build", "binary-smoke", "audit"],
+          }
+          pathlib.Path("evidence/P4-017-RECEIPT.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          PY
+          sha256sum evidence/P4-017-RECEIPT.json > evidence/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-p4-017-${{ github.sha }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
