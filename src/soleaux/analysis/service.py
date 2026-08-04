@@ -359,6 +359,8 @@ class SoleauxService:
         workspaces: AllowedWorkspaceSet,
         *,
         config: ResolvedConfig | None = None,
+        configs: dict[str, ResolvedConfig] | None = None,
+        config_digests: dict[str, str] | None = None,
         cursor_ttl_seconds: float = 300,
         preview_ttl_seconds: float = 300,
         frame_builder: AnalysisFrameBuilder | None = None,
@@ -369,6 +371,8 @@ class SoleauxService:
     ) -> None:
         self._workspaces = workspaces
         self._config = config or ResolvedConfig.default()
+        self._configs = dict(configs) if configs is not None else {}
+        self._config_digests = dict(config_digests) if config_digests is not None else {}
         self._config_digest = config_content_digest or config_digest(
             resolved_config_bytes(self._config)
         )
@@ -384,6 +388,7 @@ class SoleauxService:
             )
         self._frames = frame_builder or AnalysisFrameBuilder(
             config=self._config,
+            configs=self._configs or None,
             config_content_digest=self._config_digest,
             storage_namespace=self._storage_namespace,
         )
@@ -500,6 +505,74 @@ class SoleauxService:
             config_content_digest=config_digest(b""),
             publication_profile=publication_profile,
         )
+
+    @classmethod
+    def from_registry(
+        cls,
+        path: Path | None = None,
+        *,
+        cursor_ttl_seconds: float = 300,
+        preview_ttl_seconds: float = 300,
+        deployment_transport: DeploymentTransport = "stdio",
+        publication_profile: CatalogPublicationProfile = CatalogPublicationProfile.FULL,
+    ) -> SoleauxService:
+        """Compose the shared per-machine service from the workspace registry.
+
+        The registry is read once here, so later edits take effect only after
+        a restart (frozen-at-launch). Every workspace's own ``soleaux.toml``
+        is loaded eagerly; config reads become per-workspace at selection
+        time. Construction-time concerns (catalog storage, MCP gateway
+        backends) bind to the first registry entry's config.
+        """
+        from soleaux.service.registry import load_workspace_registry
+
+        registry = load_workspace_registry(path)
+        if not registry.entries:
+            raise UnauthorizedRootError("the workspace registry has no workspaces")
+        resolved: list[tuple[str, Path]] = []
+        for entry in registry.entries:
+            try:
+                resolved.append((entry.workspace_id, entry.root.resolve(strict=True)))
+            except FileNotFoundError as error:
+                raise UnauthorizedRootError(
+                    f"registry workspace {entry.workspace_id!r} root does not exist: {entry.root}"
+                ) from error
+        root_paths = [path for _identifier, path in resolved]
+        if len(set(root_paths)) != len(root_paths):
+            raise UnauthorizedRootError("duplicate registry workspace root or symlink alias")
+
+        configs: dict[str, ResolvedConfig] = {}
+        digests: dict[str, str] = {}
+        for identifier, root in resolved:
+            config, raw = load_config_snapshot(root)
+            configs[identifier] = config
+            digests[identifier] = config_digest(raw)
+
+        workspaces = AllowedWorkspaceSet.from_launch(
+            [(identifier, str(path)) for identifier, path in resolved],
+            config_digest=config_digest(registry.raw),
+        )
+        first_id = resolved[0][0]
+        return cls(
+            workspaces,
+            config=configs[first_id],
+            configs=configs,
+            config_digests=digests,
+            cursor_ttl_seconds=cursor_ttl_seconds,
+            preview_ttl_seconds=preview_ttl_seconds,
+            deployment_transport=deployment_transport,
+            config_content_digest=config_digest(registry.raw),
+            publication_profile=publication_profile,
+            configuration_root=resolved[0][1],
+        )
+
+    def _config_for(self, workspace: WorkspaceRoot) -> ResolvedConfig:
+        """The selected workspace's own config, falling back to the launch config."""
+        return self._configs.get(workspace.workspace_id, self._config)
+
+    def _config_digest_for(self, workspace: WorkspaceRoot) -> str:
+        """The digest of the selected workspace's config."""
+        return self._config_digests.get(workspace.workspace_id, self._config_digest)
 
     @staticmethod
     def discover_root(directory: Path) -> Path:
@@ -781,7 +854,7 @@ class SoleauxService:
         started = time.perf_counter()
         try:
             workspace = self._select(request.workspace_id)
-            project_config = self._config.structural.project_config
+            project_config = self._config_for(workspace).structural.project_config
             if project_config is None:
                 return self._error(
                     "lint_unconfigured",
@@ -793,7 +866,7 @@ class SoleauxService:
             generation = self._frames.catalog_for_bundle(bundle)
             result = await WorkspaceStandardsAnalyzer(
                 root=workspace.root,
-                config=self._config.structural,
+                config=self._config_for(workspace).structural,
                 engines=self._engines(workspace),
             ).scan(
                 bundle,
@@ -1148,6 +1221,7 @@ class SoleauxService:
             if request.view is OwnershipView.IDENTITIES:
                 identity_warnings = self._ownership_scope_warnings(
                     catalog_frame,
+                    workspace=workspace,
                     policy_rows=policy_rows,
                     binding_rows=(),
                     selector=request.policy,
@@ -1173,6 +1247,7 @@ class SoleauxService:
             if not policy_ids:
                 not_found_warnings = self._ownership_scope_warnings(
                     catalog_frame,
+                    workspace=workspace,
                     policy_rows=(),
                     binding_rows=(),
                     selector=request.policy,
@@ -1207,6 +1282,7 @@ class SoleauxService:
             for selected_policy in policy_rows:
                 record, record_rows, record_warnings = self._ownership_record(
                     selected_policy,
+                    workspace=workspace,
                     binding_catalog=binding_catalog,
                     conflict_catalog=conflict_catalog,
                     path_prefixes=path_prefixes,
@@ -1599,9 +1675,9 @@ class SoleauxService:
                     "digest": surface.catalog_digest(),
                 },
                 "configuration": {
-                    "schema_version": self._config.schema_version,
-                    "digest": self._config_digest,
-                    "value": self._config.public_payload(),
+                    "schema_version": self._config_for(workspace).schema_version,
+                    "digest": self._config_digest_for(workspace),
+                    "value": self._config_for(workspace).public_payload(),
                 },
                 "semantic_modes": semantic_modes,
                 "tables": {
@@ -2004,7 +2080,7 @@ class SoleauxService:
         report = await doctor_report(
             root=workspace.root,
             workspace_id=workspace.workspace_id,
-            config=self._config,
+            config=self._config_for(workspace),
             product_version=product_version(),
             structural_worker_started=self.structural_worker_started,
             catalog_status=catalog_status,
@@ -2482,6 +2558,7 @@ class SoleauxService:
         self,
         selected_policy: FactRow,
         *,
+        workspace: WorkspaceRoot,
         binding_catalog: Sequence[FactRow],
         conflict_catalog: Sequence[FactRow],
         path_prefixes: tuple[str, ...],
@@ -2579,6 +2656,7 @@ class SoleauxService:
         warnings = list(
             self._ownership_scope_warnings(
                 frame,
+                workspace=workspace,
                 policy_rows=(selected_policy,),
                 binding_rows=binding_rows,
                 selector=policy_id,
@@ -2614,6 +2692,7 @@ class SoleauxService:
         self,
         frame: AnalysisFrame,
         *,
+        workspace: WorkspaceRoot,
         policy_rows: Sequence[FactRow],
         binding_rows: Sequence[FactRow],
         selector: str,
@@ -2630,7 +2709,7 @@ class SoleauxService:
         }
         configured_sources = tuple(
             source
-            for source in self._config.governance.sources
+            for source in self._config_for(workspace).governance.sources
             if source.path in source_paths or source.path == selector
         )
         source_ids = {source.id for source in configured_sources}

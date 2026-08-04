@@ -113,7 +113,7 @@ def test_ast_grep_mcp_ledger_preserves_the_cli_owner() -> None:
 
     workspace = (REPOSITORY_ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8")
     package = json.loads((REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))
-    assert '"@ast-grep/cli": "0.44.1"' in workspace
+    assert '"@ast-grep/cli": 0.45.0' in workspace
     assert package["devDependencies"]["@ast-grep/cli"] == "catalog:"
     assert "ast-grep:validate" in package["scripts"]
 

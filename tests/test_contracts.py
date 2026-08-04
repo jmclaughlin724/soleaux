@@ -23,7 +23,7 @@ def _evidence(**overrides: object) -> soleaux.contracts.evidence.Evidence:
         "evidence_kind": soleaux.contracts.evidence.EvidenceKind.STRUCTURAL,
         "resolution_status": soleaux.contracts.evidence.ResolutionStatus.CANDIDATE,
         "provider": "ast-grep-py",
-        "provider_version": "0.44.1",
+        "provider_version": "0.45.0",
         "authority": soleaux.contracts.evidence.Authority.SOURCE,
         "snapshot_id": "snap-1",
         "path": "src/mod.py",

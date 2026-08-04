@@ -62,9 +62,13 @@ asking.
 
 ## Next executable action
 
-Stage D (`soleaux attach`): new `src/soleaux/provisioning/attach.py` sibling
-to `adopt.py` — see TASKS.md D1–D4. Before that, the Stage C working tree
-needs its user-directed commit.
+Stage E2 (generalized HTTP composition): port `scripts/soleaux/http_service.py`
+into `src/soleaux/http.py` with `--root` (per-repo v2) and `--registry`
+(shared, E1's `SoleauxService.from_registry`) modes; deployment v3 (`mode` +
+`workspace`) in `src/soleaux/contracts/deployment.py`; bridge workspace_id
+injection via header + server middleware — see TASKS.md E2. E1 (machine
+registry + per-workspace config) is complete. Before that, the Stage D + E1
+working tree needs its user-directed commit.
 
 ## Validation (run after each task, through these owners)
 

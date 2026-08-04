@@ -30,18 +30,18 @@ COMMAND = "uvx"
 ARGS: list[str] = ["soleaux"]
 
 
-def _is_healthy(entry: object) -> bool:
+def _is_healthy(entry: object, command: str, args: typing.Sequence[str]) -> bool:
     if not isinstance(entry, dict):
         return False
-    return entry.get("command") == COMMAND and list(entry.get("args") or [])[:1] == ARGS
+    return entry.get("command") == command and list(entry.get("args") or []) == list(args)
 
 
-def _is_healthy_opencode(entry: object) -> bool:
+def _is_healthy_opencode(entry: object, command: str, args: typing.Sequence[str]) -> bool:
     if not isinstance(entry, dict):
         return False
     return (
         entry.get("type") == "local"
-        and entry.get("command") == [COMMAND, *ARGS]
+        and entry.get("command") == [command, *args]
         and entry.get("enabled") is True
     )
 
@@ -60,12 +60,18 @@ def _render_json(data: dict[str, typing.Any]) -> bytes:
     return (json.dumps(data, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def render_mcp_json(current: bytes | None, *, force: bool = False) -> bytes | None:
+def render_mcp_json(
+    current: bytes | None,
+    *,
+    force: bool = False,
+    command: str = COMMAND,
+    args: typing.Sequence[str] = ARGS,
+) -> bytes | None:
     existing = _read_json(current)
     servers = existing.get("mcpServers")
-    if isinstance(servers, dict) and _is_healthy(servers.get(NAME)) and not force:
+    if isinstance(servers, dict) and _is_healthy(servers.get(NAME), command, args) and not force:
         return None
-    entry = fastmcp.mcp_config.StdioMCPServer(command=COMMAND, args=list(ARGS))
+    entry = fastmcp.mcp_config.StdioMCPServer(command=command, args=list(args))
     if not isinstance(servers, dict):
         servers = {}
         existing["mcpServers"] = servers
@@ -76,7 +82,13 @@ def render_mcp_json(current: bytes | None, *, force: bool = False) -> bytes | No
     return _render_json(existing)
 
 
-def render_opencode_json(current: bytes | None, *, force: bool = False) -> bytes | None:
+def render_opencode_json(
+    current: bytes | None,
+    *,
+    force: bool = False,
+    command: str = COMMAND,
+    args: typing.Sequence[str] = ARGS,
+) -> bytes | None:
     data = _read_json(current)
     mcp = data.get("mcp")
     if not isinstance(mcp, dict):
@@ -85,7 +97,7 @@ def render_opencode_json(current: bytes | None, *, force: bool = False) -> bytes
 
     legacy_servers = mcp.get("servers")
     legacy_soleaux = isinstance(legacy_servers, dict) and NAME in legacy_servers
-    if _is_healthy_opencode(mcp.get(NAME)) and not legacy_soleaux and not force:
+    if _is_healthy_opencode(mcp.get(NAME), command, args) and not legacy_soleaux and not force:
         return None
 
     if isinstance(legacy_servers, dict) and NAME in legacy_servers:
@@ -95,13 +107,19 @@ def render_opencode_json(current: bytes | None, *, force: bool = False) -> bytes
 
     mcp[NAME] = {
         "type": "local",
-        "command": [COMMAND, *ARGS],
+        "command": [command, *args],
         "enabled": True,
     }
     return _render_json(data)
 
 
-def render_codex_config(current: bytes | None, *, force: bool = False) -> bytes | None:
+def render_codex_config(
+    current: bytes | None,
+    *,
+    force: bool = False,
+    command: str = COMMAND,
+    args: typing.Sequence[str] = ARGS,
+) -> bytes | None:
     text = current.decode("utf-8") if current is not None else ""
     doc = tomlkit.parse(text) if text else tomlkit.document()
     servers = doc.get("mcp_servers")
@@ -110,14 +128,14 @@ def render_codex_config(current: bytes | None, *, force: bool = False) -> bytes 
         doc["mcp_servers"] = servers  # type: ignore[index]
 
     existing = servers.get(NAME)  # type: ignore[union-attr]
-    if isinstance(existing, dict) and existing.get("command") == COMMAND and not force:
+    if isinstance(existing, dict) and existing.get("command") == command and not force:
         existing_args = existing.get("args")
-        if isinstance(existing_args, list) and list(existing_args)[:1] == ARGS:
+        if isinstance(existing_args, list) and list(existing_args) == list(args):
             return None
 
     table = tomlkit.table()
-    table["command"] = COMMAND
-    table["args"] = list(ARGS)
+    table["command"] = command
+    table["args"] = list(args)
     table["enabled"] = True
     # Policy-owned keys belong to provisioning.policy_writer; a registration
     # rewrite carries them forward instead of silently dropping policy.
@@ -137,14 +155,16 @@ def render_registration(
     current: bytes | None,
     *,
     force: bool = False,
+    command: str = COMMAND,
+    args: typing.Sequence[str] = ARGS,
 ) -> bytes | None:
     """Render a host registration without reopening its admitted path."""
     if target_name == ".mcp.json":
-        return render_mcp_json(current, force=force)
+        return render_mcp_json(current, force=force, command=command, args=args)
     if target_name == "config.toml":
-        return render_codex_config(current, force=force)
+        return render_codex_config(current, force=force, command=command, args=args)
     if target_name == "opencode.json":
-        return render_opencode_json(current, force=force)
+        return render_opencode_json(current, force=force, command=command, args=args)
     return None
 
 

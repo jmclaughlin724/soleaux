@@ -216,7 +216,7 @@ async def doctor_report(
     probe_payload: dict[str, Any] = {
         "requested": probe,
         "completed": not probe,
-        "structural_engine_version": _distribution_version("ast-grep-py", "0.44.1"),
+        "structural_engine_version": _distribution_version("ast-grep-py", "0.45.0"),
         "postgresql_parser_version": managed_parser_version(),
         "typescript_runtime": {
             "available": typescript_installation is not None,
@@ -706,5 +706,5 @@ def _environment_metadata() -> dict[str, str]:
         "python": platform.python_version(),
         "platform": f"{platform.system().lower()}-{platform.machine()}",
         "fastmcp": _distribution_version("fastmcp", "unknown"),
-        "ast_grep_py": _distribution_version("ast-grep-py", "0.44.1"),
+        "ast_grep_py": _distribution_version("ast-grep-py", "0.45.0"),
     }

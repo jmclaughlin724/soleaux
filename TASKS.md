@@ -137,40 +137,51 @@ against the live anilize-temp deployment (env-override and repo-walk-up
 discovery both verified); all gates green (1141 passed/2 skipped).
 
 
-## D. Stage 3 — `soleaux attach` onboarding
+## D. Stage 3 — `soleaux attach` onboarding ✅ (2026-07-31)
 
 Goal: one re-runnable command owns the consumer-integration shape.
 
-- [ ] D1. New `src/soleaux/provisioning/attach.py` sibling to `adopt.py`
-      (reuse `mcp_writer.py` tomlkit/json5 writers, `backup.py`,
-      detect→plan→consent→apply pattern). `soleaux attach [--repo <path>]
+- [x] D1. `src/soleaux/provisioning/attach.py` sibling to `adopt.py`
+      (backup.WorkspaceIo atomic writes, render-then-backup apply, plan
+      rendering). CLI: `soleaux attach [--repo <path>] [--command <launcher>]
       [--shared] [--dry-run] [--yes]`.
-- [ ] D2. Writes/repairs idempotently in a consumer repo:
-      `[mcp_servers.soleaux]` in `.codex/config.toml` (command shape only —
-      never approval-mode keys), `mcpServers.soleaux` in `.mcp.json`, starter
-      `soleaux.toml` if absent (lift `_generate_soleaux_toml` from cli.py into
-      provisioning so both callers share it), and deployment registration
-      (v2 per-repo now; machine registry after Stage E).
-- [ ] D3. Ends by running the `check mcp` consistency logic and printing the
-      validation route.
-- [ ] D4. Tests `tests/test_attach.py`: plan/apply idempotency, dry-run,
-      refusal on unknown extras, backup creation.
-Acceptance: dry-run against anilize, cleat-chasers, supaschema, anilize-temp
-inspected; apply into a scratch repo + `soleaux check mcp --root <p>` passes;
-docs regenerated (`scripts/generate_guidance.py`).
+- [x] D2. Idempotent writes: `mcpServers.soleaux` in `.mcp.json`,
+      `[mcp_servers.soleaux]` in `.codex/config.toml`, `mcp.soleaux` in
+      `opencode.json` (all `<command> soleaux bridge <host>`, command shape
+      only — no approval-mode keys), starter `soleaux.toml` when absent
+      (lifted to `provisioning/soleaux_toml.py`, shared with
+      `generate soleaux-toml`), v2 per-repo `soleaux.deployment.json`.
+      `mcp_writer` renders are parameterized on command/args for this.
+- [x] D3. Closes with the `check mcp` consistency verdict and prints the
+      validation route (`soleaux --root <path> check mcp`).
+- [x] D4. `tests/test_attach.py`: plan coverage, apply idempotency,
+      bridge shape, no-approval-keys assertion, backup-once semantics,
+      extra-missing refusal, --shared warning, unknown-kind rejection, CLI
+      dry-run + apply.
+Acceptance: dry-runs against anilize-temp (3 rewrites), anilize,
+cleat-chasers, and supaschema (5 actions each) reviewed; scratch-repo apply +
+`soleaux --root <p> check mcp` passes; re-apply is a full no-op;
+`scripts/generate_guidance.py` reports no drift (attach is CLI-only).
+
 
 ## E. Stage 4 — shared per-machine service
 
 Goal: one launchd service serves every consumer repo; per-repo v2 mode stays
 supported throughout. Largest stage — keep sub-stages independently shippable.
 
-- [ ] E1. (4a) Machine registry `~/Library/Application Support/Soleaux/workspaces.json`
-      (schema `soleaux.workspace-registry/v1`, one canonical owner in the
-      package, mutated only by attach/detach). `SoleauxService.from_registry(path)`
-      loads each workspace's own `soleaux.toml`. Refactor `SoleauxService` /
-      `AnalysisFrameBuilder` to hold `dict[workspace_id, ResolvedConfig]`;
-      config reads become per-workspace at the selection point. Registry
-      changes require restart (frozen-at-launch semantics preserved).
+- [x] E1. (2026-08-01) Machine registry `~/Library/Application
+      Support/Soleaux/workspaces.json` (schema `soleaux.workspace-registry/v1`)
+      owned by `src/soleaux/service/registry.py` (parse/validate, atomic
+      writes, `SOLEAUX_WORKSPACE_REGISTRY` override). `SoleauxService.from_registry`
+      loads each workspace's own `soleaux.toml` eagerly (frozen-at-launch;
+      missing/duplicate/aliased roots rejected). `SoleauxService` and
+      `AnalysisFrameBuilder` hold `dict[workspace_id, ResolvedConfig]`;
+      config reads (`describe.configuration`, `lint` structural, `doctor`,
+      `ownership` governance, frames' postgresql/governance/structural/
+      coverage/providers/lsp/catalog) resolve per-workspace at selection
+      time via `_config_for`; construction-time concerns (catalog storage,
+      MCP gateway backends) bind to the launch config.
+      Tests: `tests/test_registry.py` (8).
 - [ ] E2. (4b) Port `scripts/soleaux/http_service.py` composition into
       `src/soleaux/http.py` generalized over `--root` (per-repo) or
       `--registry` (shared). deployment.json v3 adds `mode` + `workspace`;

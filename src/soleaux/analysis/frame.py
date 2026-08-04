@@ -1190,6 +1190,7 @@ class AnalysisFrameBuilder:
         supervisor: StructuralWorkerSupervisor | None = None,
         *,
         config: ResolvedConfig | None = None,
+        configs: dict[str, ResolvedConfig] | None = None,
         config_content_digest: str | None = None,
         storage_namespace: str | None = None,
     ) -> None:
@@ -1197,6 +1198,7 @@ class AnalysisFrameBuilder:
         self._semantic: dict[str, SemanticResolver] = {}
         self._structural_engines: dict[str, StructuralEngines] = {}
         self._config = config or ResolvedConfig.default()
+        self._configs = dict(configs) if configs is not None else {}
         self._config_digest = config_content_digest or config_digest(
             resolved_config_bytes(self._config)
         )
@@ -1290,6 +1292,10 @@ class AnalysisFrameBuilder:
     @property
     def active_language_server_count(self) -> int:
         return sum(resolver.active_session_count for resolver in self._semantic.values())
+
+    def _config_for(self, workspace_id: str) -> ResolvedConfig:
+        """One workspace's own config, falling back to the launch config."""
+        return self._configs.get(workspace_id, self._config)
 
     async def capture(
         self,
@@ -1589,9 +1595,15 @@ class AnalysisFrameBuilder:
                 generation.source_fingerprint if generation is not None else None
             ),
             "loaded_from_sqlite": workspace_id in self._catalog_loaded_from_store,
-            "mode": store.mode.value if store is not None else self._config.catalog.mode.value,
+            "mode": (
+                store.mode.value
+                if store is not None
+                else self._config_for(workspace_id).catalog.mode.value
+            ),
             "requested_mode": (
-                store.requested_mode.value if store is not None else self._config.catalog.mode.value
+                store.requested_mode.value
+                if store is not None
+                else self._config_for(workspace_id).catalog.mode.value
             ),
             "storage_namespace": (
                 store.storage_namespace if store is not None else self._storage_namespace
@@ -1870,7 +1882,7 @@ class AnalysisFrameBuilder:
                             source_digest=item.content_hash,
                             source_lane=source_lane_for_path(
                                 item.path,
-                                lane_roots=self._config.postgresql.lane_roots,
+                                lane_roots=self._config_for(workspace_id).postgresql.lane_roots,
                             ),
                         ),
                         workspace_id=workspace_id,
@@ -1928,7 +1940,7 @@ class AnalysisFrameBuilder:
         policies = await asyncio.to_thread(
             collect_policy_facts,
             bundle,
-            self._config.governance,
+            self._config_for(workspace_id).governance,
             workspace_id=workspace_id,
         )
         if (
@@ -1961,7 +1973,7 @@ class AnalysisFrameBuilder:
                         source_digest=postgresql_files[path].content_hash,
                         source_lane=source_lane_for_path(
                             path,
-                            lane_roots=self._config.postgresql.lane_roots,
+                            lane_roots=self._config_for(workspace_id).postgresql.lane_roots,
                         ),
                     ),
                 )
@@ -2041,7 +2053,7 @@ class AnalysisFrameBuilder:
         policies = await asyncio.to_thread(
             collect_policy_facts,
             bundle,
-            self._config.governance,
+            self._config_for(workspace_id).governance,
             workspace_id=workspace_id,
         )
         if policies == generation.facts.policies:
@@ -2057,11 +2069,11 @@ class AnalysisFrameBuilder:
         if store is None:
             store = CatalogStore(
                 root,
-                mode=self._config.catalog.mode,
+                mode=self._config_for(workspace_id).catalog.mode,
                 storage_namespace=self._storage_namespace,
                 config_digest=self._config_digest,
-                retained_generations=self._config.catalog.retained_generations,
-                max_disk_size_mb=self._config.catalog.max_disk_size_mb,
+                retained_generations=self._config_for(workspace_id).catalog.retained_generations,
+                max_disk_size_mb=self._config_for(workspace_id).catalog.max_disk_size_mb,
             )
             self._catalog_stores[workspace_id] = store
         return store
@@ -2318,7 +2330,7 @@ class AnalysisFrameBuilder:
                 prime_tables=prime_tables,
                 policy=WorkspaceStandardsAnalyzer(
                     root=workspace.root,
-                    config=self._config.structural,
+                    config=self._config_for(workspace.workspace_id).structural,
                     engines=self.structural_engines(workspace),
                 ),
             )
@@ -2357,14 +2369,15 @@ class AnalysisFrameBuilder:
             )
         if Producer.AUTHORITY in active_producers:
             authority = AuthorityResolver(
-                governance=self._config.governance,
+                governance=self._config_for(workspace.workspace_id).governance,
                 policy_selectors=policy_selectors,
             )
             producers[Producer.AUTHORITY] = (
                 _BaseAuthorityTableProducer(
                     authority,
                     governance_paths=frozenset(
-                        source.path for source in self._config.governance.sources
+                        source.path
+                        for source in self._config_for(workspace.workspace_id).governance.sources
                     ),
                 )
                 if Producer.STRUCTURAL not in active_producers
@@ -2375,7 +2388,7 @@ class AnalysisFrameBuilder:
         if Producer.IMPORTED in active_producers:
             producers[Producer.IMPORTED] = ImportedTableProducer(
                 workspace.root,
-                self._config.coverage,
+                self._config_for(workspace.workspace_id).coverage,
             )
         if Producer.CATALOG in active_producers and catalog is not None:
             producers[Producer.CATALOG] = CatalogTableProducer(catalog)
@@ -2412,10 +2425,14 @@ class AnalysisFrameBuilder:
     def semantic_resolver(self, workspace: WorkspaceRoot) -> SemanticResolver:
         resolver = self._semantic.get(workspace.workspace_id)
         if resolver is None:
-            registry = build_provider_registry(workspace.root, self._config)
+            registry = build_provider_registry(
+                workspace.root, self._config_for(workspace.workspace_id)
+            )
             resolver = SemanticResolver(
                 registry,
-                diagnostic_timeout_seconds=self._config.lsp.diagnostic_timeout_seconds,
+                diagnostic_timeout_seconds=self._config_for(
+                    workspace.workspace_id
+                ).lsp.diagnostic_timeout_seconds,
                 project_identity_resolver=self._semantic_project_identity,
             )
             self._semantic[workspace.workspace_id] = resolver
@@ -2427,7 +2444,7 @@ class AnalysisFrameBuilder:
             engines = StructuralEngines(
                 self._supervisor,
                 root=workspace.root,
-                config=self._config.structural,
+                config=self._config_for(workspace.workspace_id).structural,
             )
             self._structural_engines[workspace.workspace_id] = engines
         return engines

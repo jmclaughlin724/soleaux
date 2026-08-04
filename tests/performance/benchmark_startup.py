@@ -4,8 +4,7 @@ Proves import / construct / initialize / about-read open zero source files and
 spawn zero subprocesses, then runs the 100-file ast-grep-py probe. Writes
 `tests/performance/baseline.json` with measured values and gates.
 
-Run: ``uv --directory tools/soleaux run --locked --package soleaux \
-python tests/performance/benchmark_startup.py``
+Run: ``uv run --locked python tests/performance/benchmark_startup.py``
 """
 
 from __future__ import annotations
@@ -154,7 +153,7 @@ async def main() -> int:
             "python": sys.version.split()[0],
             "platform": f"{os.uname().sysname.lower()}-{os.uname().machine}",
             "fastmcp": fastmcp.__version__,
-            "ast_grep_py": "0.44.1",
+            "ast_grep_py": "0.45.0",
         },
         "startup": {
             "import_ms": {

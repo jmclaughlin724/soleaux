@@ -87,3 +87,26 @@ class AdoptionResult(_Model):
     created: tuple[str, ...] = ()
     written: tuple[str, ...] = ()
     skipped: tuple[str, ...] = ()
+
+
+class AttachAction(_Model):
+    """One planned attach write."""
+
+    kind: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    target_path: str = Field(min_length=1)
+
+
+class AttachPlan(_Model):
+    workspace_root: str = Field(min_length=1)
+    command: str = Field(min_length=1)
+    actions: tuple[AttachAction, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+
+class AttachResult(_Model):
+    workspace_root: str = Field(min_length=1)
+    backups: tuple[BackupRecord, ...] = ()
+    created: tuple[str, ...] = ()
+    written: tuple[str, ...] = ()
+    skipped: tuple[str, ...] = ()
