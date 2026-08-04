@@ -1,3 +1,4 @@
+# Human-authored exact-source verification trigger after the one-shot applicator.
 name: Verify P4-018 exact normal source
 
 on:
