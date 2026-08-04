@@ -3,7 +3,7 @@
 //! A preview never writes repository files. Apply revalidates the digest,
 //! expiry, workspace, and every whole-file preimage hash before any write.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -12,6 +12,10 @@ use std::{
     collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 use uuid::Uuid;
@@ -61,6 +65,7 @@ pub struct EditorService {
     index: RepositoryIndex,
     preview_dir: PathBuf,
     process_epoch: String,
+    fail_after_write: Arc<AtomicBool>,
 }
 
 impl EditorService {
@@ -72,10 +77,12 @@ impl EditorService {
             .context("Soleaux index database has no parent directory")?;
         let preview_dir = parent.join("previews");
         fs::create_dir_all(preview_dir.join("backups"))?;
+        fs::create_dir_all(preview_dir.join("receipts"))?;
         Ok(Self {
             index,
             preview_dir,
             process_epoch: Uuid::now_v7().to_string(),
+            fail_after_write: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -166,6 +173,11 @@ impl EditorService {
         self.create_preview(arguments, operation, patches, validation_plan, Vec::new())
     }
 
+    #[cfg(test)]
+    fn fail_after_write_once(&self) {
+        self.fail_after_write.store(true, Ordering::SeqCst);
+    }
+
     pub async fn apply(&self, preview_id: &str, digest: &str, confirm: bool) -> Result<Value> {
         if !confirm {
             bail!("edit requires confirm=true");
@@ -206,7 +218,7 @@ impl EditorService {
         }
 
         let receipt_id = Uuid::now_v7().to_string();
-        let mut files = Vec::new();
+        let mut staged = Vec::new();
         for (path, (absolute, preimage, postimage)) in prepared {
             let backup = self.backup_path(&receipt_id, &path);
             if let Some(parent) = backup.parent() {
@@ -214,31 +226,59 @@ impl EditorService {
             }
             fs::write(&backup, &preimage)
                 .with_context(|| format!("writing editor backup {}", backup.display()))?;
-            atomic_replace(&absolute, &postimage)?;
+            staged.push((path, absolute, preimage, postimage, backup));
+        }
+
+        let mut originals = Vec::new();
+        let mut files = Vec::new();
+        for (path, absolute, preimage, postimage, backup) in &staged {
+            if let Err(failure) = atomic_replace(absolute, postimage) {
+                return Err(self
+                    .rollback_after_failure(&mut preview, &receipt_id, &originals, &files, failure)
+                    .await);
+            }
+            originals.push((absolute.clone(), preimage.clone()));
             files.push(AppliedFile {
-                path,
-                preimage_sha256: sha256_hex(&preimage),
-                postimage_sha256: sha256_hex(&postimage),
+                path: path.clone(),
+                preimage_sha256: sha256_hex(preimage),
+                postimage_sha256: sha256_hex(postimage),
                 backup_path: Some(backup.to_string_lossy().to_string()),
             });
         }
 
-        let report = self.index.refresh().await?;
-        let event = self.index.store().append_event(
-            "editor.preview_applied",
-            Some(self.index.workspace_id()),
-            json!({
-                "receipt_id":receipt_id,
-                "preview_id":preview.preview_id,
-                "digest":preview.digest,
-                "files":files,
-                "reindexed":true,
-                "index_report":report,
-            }),
-        )?;
-        preview.consumed = true;
-        preview.writes_performed = true;
-        self.persist(&preview)?;
+        let post_write = async {
+            if self.fail_after_write.swap(false, Ordering::SeqCst) {
+                bail!("injected editor post-write failure");
+            }
+            let report = self.index.refresh().await?;
+            preview.consumed = true;
+            preview.writes_performed = true;
+            self.persist(&preview)?;
+            let event = self.index.store().append_event(
+                "editor.preview_applied",
+                Some(self.index.workspace_id()),
+                json!({
+                    "receipt_id":receipt_id,
+                    "preview_id":preview.preview_id,
+                    "digest":preview.digest,
+                    "files":&files,
+                    "reindexed":true,
+                    "index_report":&report,
+                }),
+            )?;
+            Ok::<_, anyhow::Error>((report, event))
+        }
+        .await;
+
+        let (_report, event) = match post_write {
+            Ok(value) => value,
+            Err(failure) => {
+                return Err(self
+                    .rollback_after_failure(&mut preview, &receipt_id, &originals, &files, failure)
+                    .await);
+            }
+        };
+
         Ok(json!({
             "receipt_id":receipt_id,
             "preview_id":preview.preview_id,
@@ -249,6 +289,83 @@ impl EditorService {
             "reindexed":true,
             "audit_event_hash":event.event_hash,
         }))
+    }
+
+    async fn rollback_after_failure(
+        &self,
+        preview: &mut StoredPreview,
+        receipt_id: &str,
+        originals: &[(PathBuf, Vec<u8>)],
+        files: &[AppliedFile],
+        failure: anyhow::Error,
+    ) -> anyhow::Error {
+        let failure_message = format!("{failure:#}");
+        let mut rollback_errors = Vec::new();
+        for (absolute, preimage) in originals.iter().rev() {
+            if let Err(error) = atomic_replace(absolute, preimage) {
+                rollback_errors.push(format!(
+                    "restoring {} failed: {error:#}",
+                    absolute.display()
+                ));
+            }
+        }
+        if let Err(error) = self.index.refresh().await {
+            rollback_errors.push(format!("refreshing the restored index failed: {error:#}"));
+        }
+        preview.consumed = false;
+        preview.writes_performed = false;
+        if let Err(error) = self.persist(preview) {
+            rollback_errors.push(format!("restoring preview state failed: {error:#}"));
+        }
+
+        let audit_event_hash = match self.index.store().append_event(
+            "editor.preview_rolled_back",
+            Some(self.index.workspace_id()),
+            json!({
+                "receipt_id":receipt_id,
+                "preview_id":preview.preview_id,
+                "failure":failure_message,
+                "files":files,
+                "rollback_errors":rollback_errors,
+            }),
+        ) {
+            Ok(event) => Some(event.event_hash),
+            Err(error) => {
+                rollback_errors.push(format!("recording rollback audit failed: {error:#}"));
+                None
+            }
+        };
+
+        let rolled_back = rollback_errors.is_empty();
+        let receipt = json!({
+            "schema_version":"soleaux.editor-rollback/v1",
+            "receipt_id":receipt_id,
+            "preview_id":preview.preview_id,
+            "failure":failure_message,
+            "rolled_back":rolled_back,
+            "files":files,
+            "rollback_errors":rollback_errors,
+            "audit_event_hash":audit_event_hash,
+            "created_at_unix_ms":unix_ms(),
+        });
+        let receipt_path = self.rollback_receipt_path(receipt_id);
+        if let Err(error) = persist_json_value(&receipt_path, &receipt) {
+            rollback_errors.push(format!(
+                "persisting rollback receipt {} failed: {error:#}",
+                receipt_path.display()
+            ));
+        }
+
+        if rolled_back && rollback_errors.is_empty() {
+            anyhow!(
+                "editor apply failed after repository mutation and was rolled back: {failure_message}"
+            )
+        } else {
+            anyhow!(
+                "editor apply failed after repository mutation: {failure_message}; rollback reconciliation errors: {}",
+                rollback_errors.join("; ")
+            )
+        }
     }
 
     fn create_preview(
@@ -392,6 +509,12 @@ impl EditorService {
             .join(format!("{name}.bak"))
     }
 
+    fn rollback_receipt_path(&self, receipt_id: &str) -> PathBuf {
+        self.preview_dir
+            .join("receipts")
+            .join(format!("{receipt_id}.rollback.json"))
+    }
+
     fn persist(&self, preview: &StoredPreview) -> Result<()> {
         let path = self.preview_path(&preview.preview_id);
         let temporary = path.with_extension(format!("json.{}.tmp", Uuid::now_v7()));
@@ -409,6 +532,16 @@ impl EditorService {
             fs::read(&path).with_context(|| format!("reading preview {}", path.display()))?;
         serde_json::from_slice(&bytes).context("decoding stored preview")
     }
+}
+
+fn persist_json_value(path: &Path, value: &Value) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let temporary = path.with_extension(format!("json.{}.tmp", Uuid::now_v7()));
+    fs::write(&temporary, serde_json::to_vec_pretty(value)?)?;
+    fs::rename(&temporary, path)?;
+    Ok(())
 }
 
 fn validate_non_overlapping(patches: &[EditPatch]) -> Result<()> {
@@ -569,6 +702,63 @@ mod tests {
                 .apply(&preview.preview_id, &preview.digest, true)
                 .await
                 .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn post_write_failure_restores_source_preview_and_receipt() {
+        let directory = tempdir().expect("tempdir");
+        fs::create_dir_all(directory.path().join("src")).expect("src");
+        let source_path = directory.path().join("src/value.ts");
+        fs::write(
+            &source_path,
+            "export const value = 1;
+",
+        )
+        .expect("source");
+        let store = Store::open(directory.path().join("soleaux.db")).expect("store");
+        let index =
+            RepositoryIndex::open(directory.path(), store, IndexConfig::default()).expect("index");
+        index.refresh().await.expect("refresh");
+        let editor = EditorService::new(index).expect("editor");
+        let preview = editor
+            .structural_preview(&json!({
+                "operation":"structural_rewrite",
+                "paths":["src/value.ts"],
+                "structural":{"search":"value = 1","replacement":"value = 2"},
+                "ttl_seconds":300,
+            }))
+            .expect("preview");
+
+        editor.fail_after_write_once();
+        let error = editor
+            .apply(&preview.preview_id, &preview.digest, true)
+            .await
+            .expect_err("injected post-write failure must fail");
+        assert!(format!("{error:#}").contains("was rolled back"));
+        assert_eq!(
+            fs::read_to_string(&source_path).expect("read"),
+            "export const value = 1;
+"
+        );
+        let stored = editor.load(&preview.preview_id).expect("stored preview");
+        assert!(!stored.consumed);
+        assert!(!stored.writes_performed);
+
+        let receipts = fs::read_dir(editor.preview_dir.join("receipts"))
+            .expect("receipt directory")
+            .collect::<std::io::Result<Vec<_>>>()
+            .expect("receipt entries");
+        assert_eq!(receipts.len(), 1);
+        let receipt: Value =
+            serde_json::from_slice(&fs::read(receipts[0].path()).expect("rollback receipt"))
+                .expect("receipt json");
+        assert_eq!(receipt["schema_version"], "soleaux.editor-rollback/v1");
+        assert_eq!(receipt["rolled_back"], true);
+        assert!(
+            receipt["rollback_errors"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
         );
     }
 
