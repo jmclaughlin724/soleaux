@@ -1,3 +1,4 @@
+# Connector-triggered after workflow creation; removed on success.
 name: Apply P4-020 durable operation idempotency
 
 on:
