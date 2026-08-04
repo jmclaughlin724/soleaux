@@ -33,3 +33,8 @@ src/soleaux/resources/build_identity.json
 !.env.example
 .envrc
 .DS_Store
+
+# Local workspace artifacts
+.phase3-tools/
+.tmp/
+.evidence/
