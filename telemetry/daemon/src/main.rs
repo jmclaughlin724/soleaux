@@ -1,11 +1,11 @@
-use std::{collections::{HashMap, HashSet}, convert::Infallible, net::SocketAddr, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{collections::{HashMap, HashSet}, convert::Infallible, net::SocketAddr, path::PathBuf, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
 
 use axum::{extract::{Path, Query, State}, http::StatusCode, response::{sse::Event, IntoResponse, Sse}, routing::{get, post}, Json, Router};
 use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, System};
 use tokio::{sync::RwLock, time};
-use tower_http::trace::TraceLayer;
+use tower_http::{services::ServeDir, trace::TraceLayer};
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -224,15 +224,70 @@ struct SnapshotEvent {
     recent_usage: Vec<UsageEvent>,
 }
 
+const DEFAULT_DASHBOARD_PORT: u16 = 43_121;
+
+struct DaemonOptions {
+    dashboard_dist: Option<PathBuf>,
+    dashboard_port: u16,
+}
+
+fn parse_daemon_options(
+    args: &[String],
+    env_dist: Option<String>,
+    env_port: Option<String>,
+) -> Result<DaemonOptions, String> {
+    let mut dashboard_dist = env_dist.filter(|value| !value.is_empty()).map(PathBuf::from);
+    let mut dashboard_port = match env_port.filter(|value| !value.is_empty()) {
+        Some(value) => value.parse().map_err(|_| format!("invalid SOLEAUX_DASHBOARD_PORT: {value}"))?,
+        None => DEFAULT_DASHBOARD_PORT,
+    };
+    let mut arguments = args.iter();
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--dashboard-dist" => {
+                let value = arguments.next().ok_or("--dashboard-dist requires a path")?;
+                dashboard_dist = Some(PathBuf::from(value));
+            }
+            "--dashboard-port" => {
+                let value = arguments.next().ok_or("--dashboard-port requires a port")?;
+                dashboard_port = value.parse().map_err(|_| format!("invalid --dashboard-port: {value}"))?;
+            }
+            other => return Err(format!("unknown argument: {other}")),
+        }
+    }
+    Ok(DaemonOptions { dashboard_dist, dashboard_port })
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "soleaux_daemon=info,tower_http=info".into())).init();
-    let app = build_router(AppState::default());
+    let options = parse_daemon_options(
+        &std::env::args().skip(1).collect::<Vec<_>>(),
+        std::env::var("SOLEAUX_DASHBOARD_DIST").ok(),
+        std::env::var("SOLEAUX_DASHBOARD_PORT").ok(),
+    ).expect("invalid Soleaux daemon options");
+    let state = AppState::default();
+    let app = build_router(state.clone());
+
+    if let Some(dist) = options.dashboard_dist {
+        assert!(dist.is_dir(), "dashboard dist directory not found: {}", dist.display());
+        let dashboard = build_dashboard_router(state, &dist);
+        let dashboard_address = SocketAddr::from(([127, 0, 0, 1], options.dashboard_port));
+        let dashboard_listener = tokio::net::TcpListener::bind(dashboard_address).await.expect("failed to bind Soleaux dashboard");
+        tracing::info!(%dashboard_address, dist = %dist.display(), "serving Soleaux dashboard");
+        tokio::spawn(async move {
+            axum::serve(dashboard_listener, dashboard).with_graceful_shutdown(shutdown_signal()).await.expect("Soleaux dashboard server failed");
+        });
+    }
 
     let address = SocketAddr::from(([127, 0, 0, 1], 43_120));
     tracing::info!(%address, "starting Soleaux daemon");
     let listener = tokio::net::TcpListener::bind(address).await.expect("failed to bind Soleaux daemon");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await.expect("Soleaux daemon failed");
+}
+
+fn build_dashboard_router(state: AppState, dist: &std::path::Path) -> Router {
+    build_router(state).fallback_service(ServeDir::new(dist))
 }
 
 fn build_router(state: AppState) -> Router {
@@ -804,5 +859,87 @@ mod tests {
         let sorted = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
         assert_eq!(percentile(&sorted, 0.50), Some(5.0));
         assert_eq!(percentile(&sorted, 0.95), Some(10.0));
+    }
+
+    #[test]
+    fn daemon_options_default_to_api_only() {
+        let options = parse_daemon_options(&[], None, None).expect("defaults should parse");
+        assert_eq!(options.dashboard_dist, None);
+        assert_eq!(options.dashboard_port, DEFAULT_DASHBOARD_PORT);
+    }
+
+    #[test]
+    fn daemon_options_read_environment_fallbacks() {
+        let options = parse_daemon_options(&[], Some("/srv/out".into()), Some("50000".into()))
+            .expect("environment options should parse");
+        assert_eq!(options.dashboard_dist, Some(PathBuf::from("/srv/out")));
+        assert_eq!(options.dashboard_port, 50_000);
+    }
+
+    #[test]
+    fn daemon_options_prefer_flags_over_environment() {
+        let args: Vec<String> = ["--dashboard-dist", "/flag/out", "--dashboard-port", "43221"]
+            .map(str::to_string)
+            .into();
+        let options = parse_daemon_options(&args, Some("/env/out".into()), Some("50000".into()))
+            .expect("flag options should parse");
+        assert_eq!(options.dashboard_dist, Some(PathBuf::from("/flag/out")));
+        assert_eq!(options.dashboard_port, 43_221);
+    }
+
+    #[test]
+    fn daemon_options_reject_invalid_input() {
+        assert!(parse_daemon_options(&["--dashboard-dist".into()], None, None).is_err());
+        assert!(parse_daemon_options(&["--dashboard-port".into(), "portless".into()], None, None).is_err());
+        assert!(parse_daemon_options(&["--unknown".into()], None, None).is_err());
+        assert!(parse_daemon_options(&[], None, Some("portless".into())).is_err());
+    }
+
+    #[tokio::test]
+    async fn dashboard_router_serves_static_export_and_same_origin_api() {
+        let dist = std::env::temp_dir().join(format!("soleaux-dashboard-dist-{}", std::process::id()));
+        std::fs::remove_dir_all(&dist).ok();
+        std::fs::create_dir_all(dist.join("mcp")).expect("dist directories should create");
+        std::fs::write(dist.join("index.html"), "<html>overview shell</html>").expect("index should write");
+        std::fs::write(dist.join("mcp").join("index.html"), "<html>mcp shell</html>").expect("mcp index should write");
+
+        let app = build_dashboard_router(AppState::default(), &dist);
+
+        for (path, expected) in [("/", "overview shell"), ("/mcp/", "mcp shell")] {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(path).body(Body::empty()).expect("request should build"))
+                .await
+                .expect("router should respond");
+            assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+            let body = to_bytes(response.into_body(), usize::MAX).await.expect("body should read");
+            assert!(String::from_utf8_lossy(&body).contains(expected), "GET {path}");
+        }
+
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/mcp").body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(response.headers()["location"], "/mcp/");
+
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/api/v1/health").body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("body should read");
+        let health: serde_json::Value = serde_json::from_slice(&body).expect("health should deserialize");
+        assert_eq!(health["service"], "soleaux-daemon");
+
+        let response = app
+            .oneshot(Request::builder().uri("/missing.txt").body(Body::empty()).expect("request should build"))
+            .await
+            .expect("router should respond");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        std::fs::remove_dir_all(&dist).ok();
     }
 }

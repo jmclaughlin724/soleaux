@@ -6,6 +6,7 @@ import type {
   McpBackendSummary,
   McpToolCallEvent,
 } from "@soleaux/protocol";
+import { resolveMonitorApiBase } from "@soleaux/protocol/env";
 import {
   CheckCircle2,
   ChevronDown,
@@ -19,6 +20,10 @@ import { SiteNav } from "../site-nav";
 
 const POLL_INTERVAL_MS = 3_000;
 const DRILL_DOWN_EVENT_LIMIT = 15;
+
+const monitorApiBase = resolveMonitorApiBase(
+  process.env.NEXT_PUBLIC_SOLEAUX_DASHBOARD_EXPORT
+);
 
 const eventTimeFormat = new Intl.DateTimeFormat("en-US", {
   dateStyle: "short",
@@ -116,7 +121,7 @@ function BackendEvents({ backend }: { readonly backend: string }) {
   // The daemon filters, sorts newest-first, and bounds the page server-side
   // so polling never downloads the full retention buffer.
   const { data, reachable } = usePolledJson<McpToolCallEvent[]>(
-    `/api/monitor/mcp/events?backend=${encodeURIComponent(backend)}&limit=${DRILL_DOWN_EVENT_LIMIT}`
+    `${monitorApiBase}/mcp/events?backend=${encodeURIComponent(backend)}&limit=${DRILL_DOWN_EVENT_LIMIT}`
   );
   const recent = data ?? [];
 
@@ -303,7 +308,7 @@ function BackendsPanel({
 
 export default function McpBackendsPage() {
   const { data, reachable } = usePolledJson<McpBackendSummary[]>(
-    "/api/monitor/mcp/summary"
+    `${monitorApiBase}/mcp/summary`
   );
 
   return (

@@ -9,6 +9,7 @@ import type {
   SnapshotEvent,
   UsageEvent,
 } from "@soleaux/protocol";
+import { resolveMonitorApiBase } from "@soleaux/protocol/env";
 import {
   Activity,
   Cpu,
@@ -20,6 +21,10 @@ import {
 } from "lucide-react";
 
 import { SiteNav } from "./site-nav";
+
+const monitorApiBase = resolveMonitorApiBase(
+  process.env.NEXT_PUBLIC_SOLEAUX_DASHBOARD_EXPORT
+);
 
 const initialSnapshot: SnapshotEvent = {
   type: "snapshot",
@@ -369,7 +374,7 @@ export default function SoleauxDashboard() {
   const [selectedSession, setSelectedSession] = React.useState("all");
 
   React.useEffect(() => {
-    const stream = new EventSource("/api/monitor/stream");
+    const stream = new EventSource(`${monitorApiBase}/stream`);
     const handleOpen = () => setConnected(true);
     const handleError = () => setConnected(false);
     const handleSnapshot = (event: MessageEvent<string>) => {

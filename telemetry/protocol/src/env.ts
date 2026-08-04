@@ -5,10 +5,21 @@
  * /api/v1 itself. The default lives here, once.
  */
 export const defaultDaemonOrigin = "http://127.0.0.1:43120";
+export const daemonApiBase = "/api/v1";
+export const monitorProxyApiBase = "/api/monitor";
 
 export function resolveDaemonOrigin(configured: string | undefined): string {
   if (configured === undefined || configured === "") {
     return defaultDaemonOrigin;
   }
   return configured.replace(/\/$/u, "");
+}
+
+export function resolveMonitorApiBase(
+  dashboardExport: string | undefined
+): string {
+  if (dashboardExport === undefined || dashboardExport === "") {
+    return monitorProxyApiBase;
+  }
+  return daemonApiBase;
 }
