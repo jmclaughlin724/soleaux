@@ -32,6 +32,10 @@ Status of the telemetry surface as consolidated into the soleaux product tree (`
 - `telemetry_*` read-only tools on the soleaux MCP server, enabled per workspace via `[telemetry]` in `soleaux.toml`
 - root commands: `soleaux:telemetry:{daemon,daemon:check,dashboard,scan,sync,cli}` and `soleaux:telemetry:verify:upstream`
 - security and privacy baseline, environment template, and loopback-only development infrastructure (pinned TimescaleDB, Redis, optional MinIO)
+- bearer-token auth on the daemon API listener (port 43120), mirroring the `soleauxd http` pattern: `--token` flag, `SOLEAUX_DAEMON_TOKEN` env var, or a token generated on first run into `~/.soleaux/telemetry/daemon.token` (override with `--token-file` / `SOLEAUX_DAEMON_TOKEN_FILE`) with user-only permissions; minimum 32 characters, constant-time comparison, `/api/v1/health` exempt for probes
+- SSE stream auth via `Authorization: Bearer` or, because `EventSource` cannot set headers, the RFC 6750 `access_token` query parameter on `/api/v1/stream` only; request spans log the path without the query string
+- CORS restricted to the configured dashboard origins (default `http://{127.0.0.1,localhost,[::1]}:43121`, parameterized via `--allowed-origin` / `SOLEAUX_DAEMON_ALLOWED_ORIGINS`), plus server-side rejection of disallowed `Origin` headers; auth and CORS wrap the API listener outside `build_router` so the same-origin dashboard listener can mount the routes unwrapped
+- command-argument redaction in process records: process listings and stream snapshots keep `argv[0]` and replace remaining arguments with a redaction marker
 
 Intentionally not shipped: tool-level token allocation, arbitrary waste percentages, subscription-equivalent-day calculations, and projected Soleaux savings. Upstream data does not establish those values; the scanner reports the evidence required instead of estimating.
 
@@ -39,7 +43,7 @@ Intentionally not shipped: tool-level token allocation, arbitrary waste percenta
 
 - `turbo run typecheck test:unit` across all telemetry packages
 - scanner unit and fixture tests (`node --test` in `telemetry/scan`)
-- `cargo check --locked` for the daemon
+- `cargo check --locked` and `cargo test --locked` for the daemon, including auth, CORS/origin, SSE token, and redaction tests
 - Ultracite lint and Prettier formatting across the telemetry tree
 - soleaux package suite including telemetry tool tests (`tests/test_telemetry.py`)
 
@@ -52,7 +56,7 @@ See `LOCAL_IMPLEMENTATION.md`, `USAGE_LIMITS_AND_LLM_TELEMETRY.md`, and `FREE_SC
 3. add SQLite migrations, retention, usage-sync cursors, reconciliation, scan history, and restart recovery
 4. implement user-authorized subscription quota capture where providers do not expose a supported API
 5. add durable tool-execution correlation and process-sample history
-6. implement the security baseline's bearer token, CORS restriction, and command-argument redaction before any non-solo use
+6. propagate the daemon bearer token to the CLI, SDK, sync, dashboard, and soleaux MCP consumers, which do not yet send it
 7. complete unit, integration, synthetic-load, provider-fixture, scanner, and UI tests
 
 ## Required remote implementation
@@ -85,7 +89,7 @@ The first remote release should be read-only. Remote terminate/kill is a separat
 - detached-process recovery after daemon restart is not implemented
 - durable tool invocation hooks beyond transcript and process-tree attribution are not implemented
 - terminate/kill endpoints are not implemented
-- bearer token, restricted CORS, and command-argument redaction are documented requirements but not yet implemented in the daemon
+- the telemetry CLI, SDK, sync worker, dashboard proxy, and soleaux MCP tools do not yet send the daemon bearer token, so ingest and reads against a secured daemon fail until they are updated
 - premium Shadcn Studio source has not been imported
 - desktop packaging and signed installers are not implemented
 - hosted control-plane services do not yet exist
