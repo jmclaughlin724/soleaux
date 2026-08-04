@@ -104,8 +104,8 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .ci/apply-p4-020.py
-          git rm .github/workflows/apply-p4-020.yml
+          git rm -f .ci/apply-p4-020.py
+          git rm -f .github/workflows/apply-p4-020.yml
           git add native/daemon/storage/src/lib.rs native/daemon/mcp/src/editor.rs
           git diff --cached --check
           git commit -m "fix(operations): reserve idempotency before edit side effects"
