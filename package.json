@@ -24,6 +24,7 @@
     "check:ci": "pnpm run ast-grep:validate && uv run --locked ruff check . && uv run --locked ruff format --check . && uv run --locked pyright",
     "check:hooks": "pnpm run husky:test",
     "check:structural-policy": "pnpm run ast-grep:validate && pnpm run check:hooks",
+    "dashboard:export": "pnpm --filter soleaux-dashboard run build:export",
     "husky:test": "vitest run .github/scripts/__tests__/husky.test.mjs",
     "prepare": "husky",
     "service:install": "node scripts/soleaux/service.mjs install",
