@@ -1,24 +1,32 @@
-# Connector-triggered after workflow creation; removed on success.
 name: Apply P4-020 durable operation idempotency
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .ci/apply-p4-020.py
+      - .github/workflows/apply-p4-020.yml
+      - .github/workflows/verify-p4-019-final.yml
   push:
     branches:
       - fix/operation-idempotency-p4-020-0.4.0-dev.5
     paths:
       - .ci/apply-p4-020.py
       - .github/workflows/apply-p4-020.yml
+      - .github/workflows/verify-p4-019-final.yml
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: apply-p4-020-${{ github.ref }}
+  group: apply-p4-020-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   apply:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -58,7 +66,7 @@ jobs:
           cargo test -p soleaux-mcp --all-features --locked \
             post_write_failure_restores_source_preview_and_receipt
 
-      - name: Commit normal source and remove one-shot files
+      - name: Commit normal source and remove staging files
         shell: bash
         run: |
           set -euo pipefail
