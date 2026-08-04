@@ -17,8 +17,8 @@ Treat catalog examples as prototypes rather than repository-ready rules. Some ar
 
 Account for known limitations in the published examples:
 
-- The React Hook example's `^use` regex also matches ordinary names such as `userPathEnd`, `userSpecificAbsolutePaths`, and `usesSecurityInvoker`, while its direct-call check misses qualified hooks such as `React.useEffect`. The maintained R039 adaptation at `tools/ast-grep/rules/r039-unnecessary-react-hook.yml` is warning-only, uses `^use[A-Z0-9]`, and recognizes both direct and qualified Hook calls.
+- The React Hook example's `^use` regex also matches ordinary names such as `userPathEnd`, `userSpecificAbsolutePaths`, and `usesSecurityInvoker`, while its direct-call check misses qualified hooks such as `React.useEffect`. Soleaux does not ship that application-specific policy; any consuming-repository adaptation must avoid prefix-only matching and recognize both direct and qualified Hook calls.
 - The barrel-import rewrite assumes every named import maps to a default export at a same-named subpath; verify the package export topology before applying it.
-- The Remove Async/Await page expresses `rewriters` as a mapping, which the repository-pinned ast-grep 0.44.1 rejects because it requires a sequence. Correcting the shape makes the YAML parse, but does not make the semantic refactor automatically safe.
+- The Remove Async/Await page expresses `rewriters` as a mapping, which the repository-pinned ast-grep 0.45.0 rejects because it requires a sequence. Correcting the shape makes the YAML parse, but does not make the semantic refactor automatically safe.
 - The pytest fixture page's rename example references an undefined `is-fixture-context` utility; supply and test the intended context rule before adapting it.
 - The import examples are syntactic queries, not symbol resolution. In particular, the published Find Import Usage rule also returns the import binding itself and cannot distinguish shadowed identifiers.

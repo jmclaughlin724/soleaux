@@ -1,50 +1,60 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+All notable changes to the unified native Soleaux product are recorded here. Phase receipts are the evidence owners; this file is a readable release narrative.
 
-- Recorded D035: the gateway extends D034 beyond credential-free backends to OAuth-protected MCP servers, becoming the single MCP implementation layer for all LLM hosts. Tokens persist in a py-key-value-aio DiskStore with mode-0600 files under the platformdirs user-data directory by default, with keyring opt-in via `token_store = "keyring"`; tokens never appear in the repository, logs, or worktree. Login is CLI-mediated only — `soleaux mcp login <name>` runs the OAuth flow in the user's foreground shell sharing the daemon's token store, the daemon never launches browsers, and auth failures direct the user to run `soleaux mcp login <name>`. `soleaux.toml` owns per-backend and per-tool allow/ask/deny effects, with host configs (Codex approval modes, OpenCode permissions, Claude deny rules) becoming rendered output. The daemon's threat model changes from credential-free to credential-holder: the Unix-domain-socket ownership model is the access-control anchor and the token store inherits the same user-private posture. FastMCP 4.0.0b1 `fastmcp.client.auth.oauth.OAuth` supplies DCR, CIMD via `client_metadata_url`, pre-registered client credentials, PKCE, and a localhost callback server through a TokenStorageAdapter over py-key-value-aio, following the MCP draft authorization spec registration priority of CIMD > pre-registered > DCR.
-- Upgraded the locked runtime graph to `fastmcp==4.0.0b1`, `fastmcp-slim==4.0.0b1`, `mcp==2.0.0`, and `mcp-types==2.0.0`. The MCP SDK moved from beta pins to the stable 2.0.0 GA range, `mcp.types` resolves again as a permanent alias of `mcp_types` (application code still imports `mcp_types`), upstream removed the server-side sampling and roots push APIs, and the gateway callback probe now records those two as absent while still proving no callback is forwarded.
-- Ratified `soleaux.catalog/v1`: ten registered local tools, seven registered resources, zero prompts, zero resource templates, and no compatibility aliases. Live backend registry and health state rides on `soleaux://about` and `describe` rather than a local resource, so the packaged zero-provider catalog stays fixed. Structural lint remains a CLI delivery surface and ownership remains solely `owners`.
-- Removed the redundant `soleaux_` prefix from every server-local MCP tool identity. Hosts now qualify the bare action names exactly once, yielding labels such as `soleaux.tools.describe` and `soleaux_navigate`; the former prefixed local identities have no compatibility aliases.
-- Aligned gateway lifecycle and result relaying with the exact FastMCP `4.0.0a2` public proxy APIs while preserving the callback-denial boundary and provider failure isolation.
-- Made lifecycle-owned in-memory SQLite the catalog default. The service publishes one atomic generation before serving reads; `context`, `search`, `query`, and `owners` query that generation rather than rebuilding repository semantics per request. Full projection preparation runs off the MCP event loop, including one batched PostgreSQL rebind, resolve, and merge. Explicit content-addressed `disk` mode remains outside analyzed repositories and fails closed on invalid state; legacy explicit `auto` mode is retained only as a nondefault memory-fallback compatibility mode.
-- Added service-controller source/live digest and installed-plist parity, explicit runtime-state classification, and approval-gated reinstall/restart recovery without exposing credentials or distributing a token through process-wide environment state. The workspace service now serves stateful Streamable HTTP over a current-user-owned private Unix-domain socket instead of loopback TCP with per-client Keychain bearer credentials; host clients remain on stdio bridges and MCP client metadata is diagnostics only.
-- Expanded `context` in place into the typed `soleaux.context/v1` task packet. One objective plus optional path scopes and explicit resource URIs now returns bounded source, canonical owners, consumers, constraints, conflicts, validation routes, configured FastMCP resources, and explicit gaps from the already-published SQLite generation. Its human-readable non-JSON content supports native pre-prompt hooks, while structured content preserves the packet for MCP clients; no compatibility alias or version bump was added.
-- Bounded the context request path end to end: repeated unsupported-capability diagnostics aggregate into one counted cause per projection and language, the source excerpt budget no longer terminates fact retrieval, the source quota is authoritative, every selected fact serializes exactly once, packet gaps and coverage omissions carry count-plus-summary cardinality caps, and the serialized response envelope is guaranteed to fit the caller's `max_bytes` or fails closed with `context_response_too_large`.
-- Made LibCST a first-class runtime dependency and the canonical one-parse Python structural extractor for imports, declarations, references, calls, and rewrite-safe syntax. ast-grep remains lazy for explicit structural rules and rewrites rather than duplicating Python catalog parsing.
-- Completed offline PostgreSQL 17 catalog promotion: ordered statements, object lifecycle, references, calls, parser diagnostics, PL/pgSQL provenance, repository resolution, semantic engine registration, and generic table materialization. Source-lane paths are caller-supplied configuration; Soleaux ships no repository-specific lane defaults.
-- Relocated repository hook-policy modules out of the distributable Soleaux runtime. The package consumes generic configured governance and structural evidence without importing this repository's policy implementation.
-- Added one automatic pre-prompt `context` bridge for Codex, Claude, and OpenCode through the public FastMCP client/proxy APIs. The bridge preserves every required semantic section within the host envelope and fails with explicit `host_context_limit` instead of silently dropping required context when those sections cannot fit.
-- Split host approval ownership between the Codex adoption writer and a dedicated policy applier. Registrations declare only the launch shape and preserve existing approval keys; `provisioning/policy_writer.py` owns merging the rendered `[policy]` bundle into `.codex/config.toml`, `opencode.json`, and `.claude/settings.json` through the provisioning backups, driven by `soleaux adopt` after registration and by `soleaux generate host-policy --apply` on demand. Adoption revert now also removes files the apply created (such as a fresh `AGENTS.md`), restoring the exact pre-adoption state.
-- Hardened the gateway review findings: `local` and `telemetry` are reserved `[mcp.*]` namespace names so they cannot collide with the metrics sentinel or the attached telemetry tools; canonical local tool identities are excluded before namespace-prefix metrics attribution; non-success telemetry ingest responses count as dropped events; `soleaux mcp login` reports unreachable or denied OAuth flows as controlled `[FAIL]` results instead of tracebacks; and the guidance writer rejects incomplete, duplicate, or reversed marker pairs instead of pairing first literal matches across human-authored content.
-- Added the request-local governance graph and read-only `owners` MCP interface. It discovers explicitly canonical Markdown or structured record sources without filename conventions or mapping configuration, preserves consumer-authored schemas and roles, traces neutral repository evidence, reports declaration conflicts and redundancies, and supports `policy:` query selectors.
-- Added `soleaux adopt` workflow for detecting competing language servers (running processes, editor config, and MCP launch registrations) and migrating them under soleaux with an interactive consent flow. Backed by a new `provisioning/` package (`detect_processes`, `detect_editor`, `detect_mcp`, `editor_writer`, `mcp_writer`, `backup`, `adopt`) and an optional `[adopt]` extra that pulls in `psutil`, `tomlkit`, and `json5` without affecting the base install footprint.
-- Added first-run stderr nudge in `soleaux serve` pointing at `soleaux adopt` when no `soleaux.toml` exists in the resolved workspace.
-- Hardened `pyproject.toml` for PyPI publication: added `project.urls`, `authors`, `keywords`, `classifiers`, `readme`, and `license-files`; widened `requires-python` from `>=3.14,<3.15` to `>=3.14` (per PyPA guidance against upper bounds); removed the hardcoded `0.1.0` version fallback in `product_version()` so install drift fails loud instead of masking silently.
-- Added `adopt-guide.md` to the packaged docs and updated `quickstart.md` and the README with the adopt workflow and the corrected Python 3.14+ requirement.
-- Bounded the `context` packet against high-cardinality generation coverage: structural-projection omissions are aggregated per projection and language with file counts and path samples instead of one note per file, `coverage_omission` gaps are capped with an explicit summary gap, the human-readable renderer emits the section index, objective, and retrieval profile before bounded gap detail, and the host bridge collapses duplicate gap codes in its minimal fallback. Required semantic sections now survive repository-scale omission sets within the host envelope; `host_context_limit` remains reserved for genuinely unbounded required content.
-- Pending: PyPI trusted-publish CI lane and explicit user authorization for the external release.
+## [Unreleased] — `0.4.0-dev.5`
 
-- Added a reusable stdio FastMCP server with the fixed ten-tool local catalog (`describe`, `search`, `context`, `query`, `owners`, `navigate`, `inspect`, `preview`, `edit`, `restart_lsp`) and a separate workspace-owned authenticated HTTP composition.
-- Added lifecycle-published structural facts, typed tables, source context, authority resolution, and derived relation views.
-- Added Next.js App and Pages Router registration discovery, including structurally parsed literal `pageExtensions` config and partial-coverage notes for dynamic or unsupported routing options. Routes are derived from the frozen snapshot, so enumeration needs no build, no running dev server, and no Node.js.
-- Added `capabilities.frameworks` to `describe`, naming each framework detector and the conventions it claims so an agent can discover registration support without reading source.
-- Added honest unsupported coverage for a declared structural table that has no producer: `query` now reports `partial` or `unsupported` with a named omitted reason instead of returning zero rows under `complete`.
-- Added a ten-server built-in LSP catalog (BuiltinProvider): TypeScript, Pyright, Go, Rust, Bash, Deno, Astro, Prisma, YAML, and experimental PostgreSQL. Detection-based Deno/TypeScript partition uses `deno.json`.
-- Integrated bounded PostgreSQL source extraction, statement-aware repository resolution, diagnostics, semantic calls/references, and promotion into generic catalog symbols, chunks, engines, semantic tables, and quality tables. Optional connected-database enrichment remains experimental and outside the default offline release claim.
-- Added merge semantics for `[providers.*]` config: overrides replace built-ins by name, custom providers are appended, disabled built-ins are removed.
-- Added config-driven LSP provider overrides: `[providers.<name>]` rows in `soleaux.toml` augment the built-in defaults.
-- Added opt-in, config-driven MCP backends as lazy namespaced providers with on-demand, downstream-session, and shared lifecycles and fail-open local catalog behavior.
-- Added the `soleaux://health/v1` resource and `[health]` config section for workspace retention thresholds.
-- Added the `soleaux://providers/v1` resource exposing the built-in provider catalog with versions and install hints.
-- Added a gated LSP installer (`soleaux install <name>`) with `SOLEAUX_AUTO_INSTALL` env gate, default OFF.
-- Added MCP server suggestions (`soleaux suggest`) scanning package.json and pyproject.toml deps against a 15-server catalog.
-- Added `check mcp --probe` for live backend verification via `Client.ping()` and `Client.list_tools()`.
-- Added position fallback in navigate: retries adjacent line/column when the primary position returns empty results.
-- Added CLI adapters for describe, search, context, query, doctor, inspect, benchmark, check (mcp, health), suggest, install, and generate soleaux-toml workflows.
-- Added the checked-in Playwright, Next DevTools, ESLint, and shadcn MCP profile as additive namespaced providers alongside the unchanged ten-tool local catalog on FastMCP `4.0.0a2`.
-- Added per-provider failure isolation. Host authorization remains separate from Soleaux; local tools introduce no prompt-mode gates, while mutation contracts still require exact targets and explicit confirmation where applicable.
-- Added hash-bound editor previews, preimage validation, one-shot apply, and selected language-server restart.
-- Added wheel, source distribution, packaged guidance, and installed-artifact acceptance coverage.
+### Consolidation (2026-08-03)
 
-The project is licensed under MIT. Publication remains blocked pending the immediate pre-release PyPI name recheck and explicit external-release authorization.
+- Consolidated every lineage into one branch bound for `main` through a single reviewed merge-commit pull request: the native phase lineage, the unified documentation system, the Python-lineage Stage D attach onboarding and Stage E1 machine service registry, the ast-grep 0.45.0 rule catalog, and the Codex hooks-to-rules migration.
+- Deferred the Phase 3 live same-model experiment by owner direction; it remains a frozen optional claims-gate and no longer blocks source consolidation, release work, or the merge to `main`. Removed the superseded Grok-era Phase 3 fixture harness, its unpacker, and the executed one-shot phase gate workflows; receipts and annotated tags preserve exact-commit provenance.
+- Preserved the independently verified Phase 2 evidence artifact (`8858165328`, SHA-256 `3fa99fa2de889c7eb081e8ff2a913e66cb7c2027a1696f6ad4eb1c0d0b963ebe`) ahead of its 2026-08-17 retention expiry as the Phase 4 materialization source.
+- Scoped the local pre-commit gate to the change under commit and removed the full-suite post-commit hook; continuous integration remains the full-suite owner. Retired the local Claude bash-policy guard scripts by owner direction.
+- Routed the next-devtools MCP backend through the soleaux gateway in `soleaux.toml`; host configurations register only the single soleaux server.
+
+### Documentation and governance
+
+- Established one authoritative documentation hierarchy for product purpose, status, roadmap, tasks, testing, rollout, experiments, releases, and public claims.
+- Replaced root documentation that still described the historical Python/FastMCP `0.1.0` product.
+- Added a machine-readable current status and fail-closed documentation consistency gate.
+- Added the pre-registered Phase 3 live experiment package.
+- Preserved the locked MCP and Context Packet V2 contracts without modification.
+
+### Phase 2 — closed
+
+- Added native namespaced MCP gateway registration.
+- Added CLI-mediated credentials stored outside the worktree.
+- Added native skills, agents, rules, ownership, tables, and backend registry domains.
+- Added native adopt/attach planning, application, backup, reversal, and registration.
+- Added governance ownership, constraint, and validation-route materialization.
+- Preserved exact 12-tool canonical and optional-substitution profiles.
+- Passed the exact native gate and independent artifact verification on source commit `6768d9de2aa8a61ba90356409033c0d69b2d5afc`.
+
+### Phase 1 — closed
+
+- Unified the public catalog at exactly 12 ordered tools.
+- Implemented `soleaux.context/v2`.
+- Added native code search, memory search, symbols, registry, repository identity, LSP navigation/inspection, hash-bound preview/edit, and LSP restart.
+- Passed exact native compilation, lint, test, build, audit, MCP, and schema gates on `d3eecd45867e82d5777e57753c581483971214dd`.
+
+### Phase 0 — closed
+
+- Locked the unified MCP profile and Context Packet V2.
+- Locked version `0.4.0-dev.5`, hard ceiling 12, and `productionClaimAllowed=false`.
+- Established native Rust compilation and exact receipt evidence on `a31820d26f46d258175b52fe30fdbecf7b650265`.
+
+### Pending
+
+- Phase 3 live same-model / same-task product proof.
+- Canonical native source/default-branch consolidation.
+- Live client, LSP, framework, and design-partner matrices.
+- Desktop/mobile/installers.
+- External assurance and signed distribution.
+
+## Historical Python lineage — `0.1.0` unreleased
+
+The Python/FastMCP lineage supplied important capabilities that were absorbed into the native product: typed context, LSP navigation/inspection, governance, gateway/OAuth behavior, skills, adopt, editor safety, framework discovery, and PostgreSQL analysis.
+
+Its complete change history remains available in Git history and is indexed in [`docs/history/PYTHON-LINEAGE.md`](docs/history/PYTHON-LINEAGE.md). It is not the current product/version authority.
+
+The project is licensed under MIT.

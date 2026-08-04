@@ -1,0 +1,21 @@
+schema_version = "soleaux.config/v1"
+
+[structural]
+project_config = "sgconfig.yml"
+
+[skills]
+enabled = true
+roots = [".agents/skills"]
+supporting_files = "template"
+
+[mcp.context7]
+url = "https://mcp.context7.com/mcp"
+
+[mcp."openai-docs"]
+url = "https://developers.openai.com/mcp"
+
+[mcp.zod]
+url = "https://mcp.inkeep.com/zod/mcp"
+
+[mcp.next-devtools]
+command = ["npx", "-y", "next-devtools-mcp@0.4.0"]

@@ -151,7 +151,7 @@ def test_deployment_config_owns_the_private_socket_endpoint() -> None:
     assert deployment.socket_relative_path == "Library/Caches/Soleaux/soleaux.sock"
     assert deployment.socket_path == Path.home() / deployment.socket_relative_path
     assert len(str(deployment.socket_path)) <= 100
-    assert deployment.workspace_root is None
+    assert deployment.workspace_root == _REPOSITORY_ROOT
 
 
 def test_deployment_discovery_prefers_the_environment_override(

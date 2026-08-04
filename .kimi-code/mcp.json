@@ -1,7 +1,11 @@
 {
   "mcpServers": {
     "soleaux": {
-      "args": ["scripts/soleaux/client.py", "bridge", "claude"],
+      "args": [
+        "scripts/soleaux/client.py",
+        "bridge",
+        "claude"
+      ],
       "command": ".venv/bin/python",
       "type": "stdio"
     }

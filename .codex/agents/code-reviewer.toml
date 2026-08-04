@@ -1,5 +1,5 @@
 name = "code-reviewer"
-description = "Use to review Anilize changes for defects, regressions, and missing tests."
+description = "Use to review Soleaux changes for defects, regressions, and missing tests."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "xhigh"
 sandbox_mode = "read-only"

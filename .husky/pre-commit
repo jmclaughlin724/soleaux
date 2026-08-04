@@ -1,1 +1,1 @@
-pnpm exec turbo run check:ci --affected
+TURBO_SCM_BASE=HEAD pnpm exec turbo run check:ci --affected

@@ -1,0 +1,18 @@
+diff --git a/daemon/mcp/src/lib.rs b/daemon/mcp/src/lib.rs
+index 2e6b079..8d62f25 100644
+--- a/daemon/mcp/src/lib.rs
++++ b/daemon/mcp/src/lib.rs
+@@ -380,12 +380,8 @@ impl PublicMcpServer {
+     }
+ 
+     pub async fn handle_json_rpc_async(&self, request: &Value) -> Option<Value> {
+-        let id = request.get("id").cloned();
++        let id = request.get("id").cloned()?;
+         let method = request.get("method").and_then(Value::as_str).unwrap_or_default();
+-        if id.is_none() {
+-            return None;
+-        }
+-        let id = id.unwrap_or(Value::Null);
+         if !is_supported_rpc_method(method) {
+             return Some(json_rpc_error(
+                 id,

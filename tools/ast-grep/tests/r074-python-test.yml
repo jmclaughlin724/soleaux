@@ -1,0 +1,5 @@
+id: r074-python
+valid:
+  - 'logger.info("rule served", extra={"rule": rule_id})'
+invalid:
+  - 'print("debug", rule_id)'

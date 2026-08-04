@@ -1,0 +1,131 @@
+{
+  "asOfDate": "2026-08-03",
+  "branches": {
+    "canonical": "main",
+    "consolidation": "All native, documentation, and provisioning lineages merge into main through one reviewed merge-commit pull request; historical phase branches are deleted after receipt tags are pushed.",
+    "mergePolicy": "No force-push. No squash of the consolidation merge: committed receipts pin exact commits that must stay reachable from main.",
+    "receiptTags": [
+      "receipts/phase0-source-diagnostic",
+      "receipts/phase0-gate",
+      "receipts/phase1-gate",
+      "receipts/phase2-gate-source",
+      "receipts/phase2-gate-receipt",
+      "receipts/phase2-verification",
+      "archive/native-wedge-0.4.0-dev.4",
+      "archive/phase2-native-lineage-a-0.4.0-dev.5",
+      "archive/phase3-live-wedge-0.4.0-dev.5"
+    ]
+  },
+  "currentPhase": {
+    "name": "Canonical source consolidation and alpha foundation",
+    "number": 4,
+    "plan": "ROADMAP.md",
+    "primaryBlocker": "The verified Phase 2 native source must be materialized as a normal in-tree Rust workspace with direct-checkout CI before any release-facing work.",
+    "status": "in_progress"
+  },
+  "lockedContracts": {
+    "contextPacketV2": {
+      "path": "contracts/context-packet-v2.schema.json",
+      "sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f"
+    },
+    "unifiedMcpProfile": {
+      "path": "contracts/unified-mcp-profile-v2.json",
+      "sha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+    }
+  },
+  "nextActions": [
+    "Merge the consolidated working branch into main through one reviewed merge-commit pull request.",
+    "Push the receipt and archive tags, then delete the historical phase branches.",
+    "Materialize the verified Phase 2 native source at native/ and verify parity against the evidence artifact (P4-001, P4-002).",
+    "Replace carrier assembly with direct-checkout native CI (P4-004)."
+  ],
+  "phases": [
+    {
+      "implementationSourceCommit": "a31820d26f46d258175b52fe30fdbecf7b650265",
+      "name": "Contract lock and native foundation",
+      "number": 0,
+      "receipt": "PHASE0-NATIVE-GATE-RECEIPT.json",
+      "status": "closed",
+      "workflowRunId": 30766171022
+    },
+    {
+      "implementationSourceCommit": "d3eecd45867e82d5777e57753c581483971214dd",
+      "name": "Unified public catalog and Context Packet V2",
+      "number": 1,
+      "receipt": "PHASE1-NATIVE-GATE-RECEIPT.json",
+      "status": "closed",
+      "workflowRunId": 30773147694
+    },
+    {
+      "artifactId": 8858165328,
+      "implementationSourceCommit": "6768d9de2aa8a61ba90356409033c0d69b2d5afc",
+      "independentVerification": "PHASE2-INDEPENDENT-VERIFICATION.json",
+      "name": "Gateway, catalog domains, provisioning, and governance",
+      "number": 2,
+      "receipt": "PHASE2-CLOSURE-RECEIPT.json",
+      "status": "closed",
+      "workflowRunId": 30818963313
+    },
+    {
+      "exitGate": "Equal-or-better correctness with measurable context/tool reduction, exact receipt, and independent verification.",
+      "name": "Live same-model / same-task product proof",
+      "note": "Deferred as an optional claims-gate by owner direction on 2026-08-03. It gates efficacy claims only and no longer blocks any later phase.",
+      "number": 3,
+      "status": "deferred"
+    },
+    {
+      "name": "Canonical source consolidation and alpha foundation",
+      "number": 4,
+      "status": "in_progress"
+    },
+    {
+      "name": "Shared service, live adapters, and consumer onboarding",
+      "number": 5,
+      "status": "blocked_by_phase_4"
+    },
+    {
+      "name": "Desktop, mobile, installers, and operational UX",
+      "number": 6,
+      "status": "blocked_by_phase_5"
+    },
+    {
+      "name": "Compatibility, performance, security, privacy, and accessibility assurance",
+      "number": 7,
+      "status": "blocked_by_phase_6"
+    },
+    {
+      "name": "Release candidate and general availability rollout",
+      "number": 8,
+      "status": "blocked_by_phase_7"
+    }
+  ],
+  "product": "Soleaux",
+  "productDefinition": "Unified repository intelligence: one lean MCP, one governed catalog, and accurate capped context for existing AI coding agents.",
+  "productionClaimAllowed": false,
+  "productionReadiness": "prohibited",
+  "publicMcp": {
+    "canonicalTools": [
+      "context.compile",
+      "code.search",
+      "memory.search",
+      "get_symbols",
+      "registry.list",
+      "registry.read",
+      "repo_info",
+      "navigate",
+      "inspect",
+      "preview",
+      "edit",
+      "restart_lsp"
+    ],
+    "hardCeiling": 12,
+    "optionalSubstitutionCandidates": [
+      "parse_and_validate_postgres_sql",
+      "turborepo.packages",
+      "next.get_routes"
+    ],
+    "substitutionRule": "one-for-one replacement; optional tools never append"
+  },
+  "schemaVersion": "soleaux.project-status/v1",
+  "version": "0.4.0-dev.5"
+}

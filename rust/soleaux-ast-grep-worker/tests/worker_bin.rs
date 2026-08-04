@@ -68,7 +68,7 @@ fn binary_serves_jsonl_and_exits_on_shutdown() {
             "id": 1,
             "ok": true,
             "engine": "rust",
-            "engine_version": "0.44.1",
+            "engine_version": "0.45.0",
             "capabilities": ["soleaux.structural/v1"],
         })
     );

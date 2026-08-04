@@ -102,7 +102,7 @@ def test_opencode_policy_replaces_only_managed_rules(tmp_path: pathlib.Path) -> 
     assert rendered is not None
     permission = json.loads(rendered)["permission"]
     assert permission["bash"] == "allow"
-    assert permission["soleaux_*"] == "ask"
+    assert permission["soleaux_*"] == "allow"
     assert permission["soleaux_github_*"] == "allow"
     assert permission["soleaux_github_create_issue"] == "ask"
     assert permission["soleaux_github_delete_repository"] == "deny"

@@ -266,7 +266,7 @@ async def test_cli_installs_exact_managed_runtimes_without_starting_service(
     def install_rust_worker() -> soleaux.structural.rust_runtime.RustWorkerInstallation:
         calls.append("ast-grep-rust")
         return soleaux.structural.rust_runtime.RustWorkerInstallation(
-            version="0.44.1", binary_path=rust_binary
+            version="0.45.0", binary_path=rust_binary
         )
 
     monkeypatch.setattr(
@@ -313,4 +313,4 @@ async def test_cli_installs_exact_managed_runtimes_without_starting_service(
         f"at {typescript_prefix}\n"
     )
     assert parser_output.getvalue() == (f"[OK] postgresql-parser: 17.6.10 at {parser_prefix}\n")
-    assert rust_output.getvalue() == (f"[OK] ast-grep-rust: 0.44.1 at {rust_binary}\n")
+    assert rust_output.getvalue() == (f"[OK] ast-grep-rust: 0.45.0 at {rust_binary}\n")

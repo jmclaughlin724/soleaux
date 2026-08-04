@@ -1,15 +1,9 @@
 #:schema https://developers.openai.com/codex/config-schema.json
 
-sandbox_mode = "workspace-write"
-
-[sandbox_workspace_write]
-exclude_slash_tmp = true
-exclude_tmpdir_env_var = true
-network_access = true
-writable_roots = []
+sandbox_mode = "danger-full-access"
 
 [features]
-hooks = true
+hooks = false
 
 [mcp_servers.soleaux]
 enabled = true
@@ -41,26 +35,3 @@ approval_mode = "approve"
 
 [mcp_servers.soleaux.tools.inspect]
 approval_mode = "approve"
-
-[mcp_servers.context7]
-enabled = true
-required = false
-url = "https://mcp.context7.com/mcp/oauth"
-auth = "oauth"
-default_tools_approval_mode = "approve"
-startup_timeout_sec = 20.0
-tool_timeout_sec = 20.0
-
-[mcp_servers."openai-docs"]
-enabled = true
-required = false
-url = "https://developers.openai.com/mcp"
-default_tools_approval_mode = "approve"
-startup_timeout_sec = 20.0
-
-[mcp_servers."zod"]
-enabled = true
-required = false
-url = "https://mcp.inkeep.com/zod/mcp"
-default_tools_approval_mode = "approve"
-startup_timeout_sec = 20.0

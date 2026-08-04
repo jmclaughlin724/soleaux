@@ -1,0 +1,48 @@
+{
+  "baseline": {
+    "commit": "8ec7abcdf180130448c59127c8487a9ec0515611",
+    "implementation": "Python/FastMCP public lineage",
+    "repository": "jmclaughlin724/soleaux",
+    "versionLabel": "0.1.0-unreleased"
+  },
+  "measurementSchema": "docs/experiments/phase3/MEASUREMENT-SCHEMA.json",
+  "model": {
+    "client": null,
+    "clientVersion": null,
+    "modelId": null,
+    "seed": null,
+    "status": "required_before_first_run",
+    "temperature": null,
+    "topP": null
+  },
+  "phase": 3,
+  "phase2Closed": true,
+  "phase3Started": false,
+  "productionClaimAllowed": false,
+  "rubric": "docs/experiments/phase3/SCORING-RUBRIC.md",
+  "runAuthorization": {
+    "allowed": false,
+    "blockers": [
+      "owner reactivation of the deferred experiment",
+      "model and client identity not recorded",
+      "sampling parameters not recorded",
+      "credentials not confirmed",
+      "oracle dry-run not recorded"
+    ]
+  },
+  "schemaVersion": "soleaux.phase3.status/v1",
+  "status": "deferred",
+  "targetRepository": {
+    "commit": "2b7a0fab88dbc202f75b5e443725c825f7dc4fa2",
+    "reason": "Real Turborepo/Next.js monorepo with loan-officer dashboard surfaces.",
+    "repository": "jmclaughlin724/anilize"
+  },
+  "tasksFile": "docs/experiments/phase3/TASKS.json",
+  "treatment": {
+    "commit": "6768d9de2aa8a61ba90356409033c0d69b2d5afc",
+    "implementation": "Unified native Rust Soleaux",
+    "publicToolCeiling": 12,
+    "repository": "jmclaughlin724/soleaux",
+    "versionLabel": "0.4.0-dev.5"
+  }
+}

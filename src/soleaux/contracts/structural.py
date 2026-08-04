@@ -31,7 +31,7 @@ class StructuralBackend(enum.StrEnum):
 
 
 class FixTransformKind(enum.StrEnum):
-    """The stable ast-grep 0.44.1 metavariable transformations."""
+    """The stable ast-grep 0.45.0 metavariable transformations."""
 
     REPLACE = "replace"
     SUBSTRING = "substring"

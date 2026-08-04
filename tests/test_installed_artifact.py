@@ -657,7 +657,7 @@ def test_installed_artifact_acceptance(
         cwd=consumer,
         environment=rust_environment,
     )
-    rust_prefix = "[OK] ast-grep-rust: 0.44.1 at "
+    rust_prefix = "[OK] ast-grep-rust: 0.45.0 at "
     assert rust_install.stdout.startswith(rust_prefix)
     rust_binary = pathlib.Path(rust_install.stdout.removeprefix(rust_prefix).strip()).resolve()
     assert rust_binary.is_relative_to(rust_home.resolve())

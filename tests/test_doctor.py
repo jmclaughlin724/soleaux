@@ -67,7 +67,7 @@ async def test_doctor_probe_is_bounded_and_does_not_start_analyzer(tmp_path: pat
     probe = _data(data["probe"])
     assert probe["requested"] is True
     assert probe["completed"] is True
-    assert probe["structural_engine_version"] == "0.44.1"
+    assert probe["structural_engine_version"] == "0.45.0"
     assert "ast_grep" not in sys.modules
     assert "ast_grep_py" not in sys.modules
 

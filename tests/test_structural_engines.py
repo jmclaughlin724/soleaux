@@ -257,7 +257,7 @@ async def test_external_engine_identity_mismatch_fails_closed(
     try:
         with _assertions.raises_with_message(
             soleaux.structural.engines.StructuralEngineError,
-            "did not prove the expected 0.44.1 engine/version/capability identity",
+            "did not prove the expected 0.45.0 engine/version/capability identity",
         ) as excinfo:
             await client.request(
                 {"op": "structural"},

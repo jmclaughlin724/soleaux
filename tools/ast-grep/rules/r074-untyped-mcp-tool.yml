@@ -1,0 +1,78 @@
+id: r074-untyped-mcp-tool
+language: Python
+severity: error
+metadata:
+  heuristic: "false"
+message: FastMCP tool is missing parameter or return annotations (r074)
+note: "Annotate every tool parameter and its return type so FastMCP derives precise schemas; when the tool decorator defines a non-None output_schema explicitly, a return annotation is optional."
+files:
+  - src/soleaux/**
+rule:
+  all:
+    - kind: function_definition
+    - inside:
+        all:
+          - kind: decorated_definition
+          - has:
+              matches: tool-decorator
+              stopBy: neighbor
+        stopBy: neighbor
+    - any:
+        - all:
+            - not:
+                has:
+                  field: return_type
+                  kind: type
+                  stopBy: neighbor
+            - not:
+                inside:
+                  all:
+                    - kind: decorated_definition
+                    - has:
+                        all:
+                          - matches: tool-decorator
+                          - has:
+                              all:
+                                - kind: keyword_argument
+                                - pattern:
+                                    context: tool(output_schema=$SCHEMA)
+                                    selector: keyword_argument
+                                - not:
+                                    pattern:
+                                      context: tool(output_schema=None)
+                                      selector: keyword_argument
+                              stopBy: end
+                        stopBy: neighbor
+                  stopBy: neighbor
+        - has:
+            any:
+              - all:
+                  - kind: identifier
+                  - inside:
+                      kind: parameters
+                      stopBy: neighbor
+              - all:
+                  - kind: default_parameter
+                  - inside:
+                      kind: parameters
+                      stopBy: neighbor
+              - all:
+                  - kind: list_splat_pattern
+                  - inside:
+                      kind: parameters
+                      stopBy: neighbor
+              - all:
+                  - kind: dictionary_splat_pattern
+                  - inside:
+                      kind: parameters
+                      stopBy: neighbor
+            stopBy: end
+utils:
+  tool-decorator:
+    all:
+      - kind: decorator
+      - any:
+          - pattern: "@tool"
+          - pattern: "@tool($$$ARGS)"
+          - pattern: "@$OWNER.tool"
+          - pattern: "@$OWNER.tool($$$ARGS)"
