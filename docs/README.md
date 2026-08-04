@@ -5,26 +5,29 @@
 1. Normative contracts.
 2. Exact phase receipts and independent verification.
 3. `PROJECT-STATUS.json`.
-4. Current status, roadmap, and tasks.
+4. Current status, roadmap, tasks and transcript gap registry.
 5. Current phase execution documents.
 6. Public documentation.
 7. Historical material.
 
 See [`governance/DOCUMENTATION-SYSTEM.md`](governance/DOCUMENTATION-SYSTEM.md).
 
-## Product and architecture
-
-- [`architecture/PRODUCT-DEFINITION.md`](architecture/PRODUCT-DEFINITION.md)
-- [`architecture/SYSTEM-ARCHITECTURE.md`](architecture/SYSTEM-ARCHITECTURE.md)
-- [`../UNIFIED-MCP-PROFILE.md`](../UNIFIED-MCP-PROFILE.md)
-- [`../CONTEXT-PACKET-V2.md`](../CONTEXT-PACKET-V2.md)
-
-## Current program
+## Current program and audit
 
 - [`../PROJECT-STATUS.md`](../PROJECT-STATUS.md)
 - [`../ROADMAP.md`](../ROADMAP.md)
 - [`../TASKS.md`](../TASKS.md)
 - [`../HANDOFF.md`](../HANDOFF.md)
+- [`audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md`](audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md)
+- [`audits/TRANSCRIPT-GAP-REGISTRY.json`](audits/TRANSCRIPT-GAP-REGISTRY.json)
+
+## Product and architecture
+
+- [`architecture/PRODUCT-DEFINITION.md`](architecture/PRODUCT-DEFINITION.md)
+- [`architecture/SYSTEM-ARCHITECTURE.md`](architecture/SYSTEM-ARCHITECTURE.md)
+- [`architecture/CAPABILITY-ABSORPTION-MAP.md`](architecture/CAPABILITY-ABSORPTION-MAP.md)
+- [`../UNIFIED-MCP-PROFILE.md`](../UNIFIED-MCP-PROFILE.md)
+- [`../CONTEXT-PACKET-V2.md`](../CONTEXT-PACKET-V2.md)
 
 ## Testing and evidence
 
@@ -32,13 +35,16 @@ See [`governance/DOCUMENTATION-SYSTEM.md`](governance/DOCUMENTATION-SYSTEM.md).
 - [`testing/TEST-MATRIX.md`](testing/TEST-MATRIX.md)
 - [`operations/EVIDENCE-AND-RECEIPTS.md`](operations/EVIDENCE-AND-RECEIPTS.md)
 
-## Current experiment
+## Deferred product-proof experiment
 
 - [`experiments/phase3/README.md`](experiments/phase3/README.md)
+- [`experiments/phase3/STATUS.json`](experiments/phase3/STATUS.json)
 - [`experiments/phase3/EXPERIMENT-PLAN.md`](experiments/phase3/EXPERIMENT-PLAN.md)
 - [`experiments/phase3/RUNBOOK.md`](experiments/phase3/RUNBOOK.md)
 - [`experiments/phase3/SCORING-RUBRIC.md`](experiments/phase3/SCORING-RUBRIC.md)
 - [`experiments/phase3/RESULTS.md`](experiments/phase3/RESULTS.md)
+
+Phase 3 is deferred and requires three-arm reconciliation before use.
 
 ## Release and rollout
 
@@ -59,4 +65,4 @@ See [`governance/DOCUMENTATION-SYSTEM.md`](governance/DOCUMENTATION-SYSTEM.md).
 - [`history/README.md`](history/README.md)
 - [`history/PYTHON-LINEAGE.md`](history/PYTHON-LINEAGE.md)
 
-Historical material is not current status.
+Historical material and transcript implementation claims are not current status unless current source or exact receipts support them.
