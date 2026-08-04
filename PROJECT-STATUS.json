@@ -1,9 +1,10 @@
 {
-  "asOfDate": "2026-08-03",
+  "asOfDate": "2026-08-04",
   "branches": {
     "canonical": "main",
-    "consolidation": "All native, documentation, and provisioning lineages merge into main through one reviewed merge-commit pull request; historical phase branches are deleted after receipt tags are pushed.",
-    "mergePolicy": "No force-push. No squash of the consolidation merge: committed receipts pin exact commits that must stay reachable from main.",
+    "consolidation": "PR #5 merged every receipt-bearing lineage to main with preserved ancestry. PR #6 materialized native source and direct CI. Historical phase branches were deleted after receipt/archive tags were pushed.",
+    "currentAuditBranch": "docs/transcript-gap-reconciliation-0.4.0-dev.5",
+    "mergePolicy": "No force-push or squash of receipt-bearing history. New implementation uses short-lived branches into main.",
     "receiptTags": [
       "receipts/phase0-source-diagnostic",
       "receipts/phase0-gate",
@@ -16,13 +17,16 @@
       "archive/phase3-live-wedge-0.4.0-dev.5"
     ]
   },
+  "capabilityAbsorptionMap": "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
   "currentPhase": {
-    "name": "Canonical source consolidation and alpha foundation",
+    "audit": "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md",
+    "name": "Durable native alpha foundation",
     "number": 4,
     "plan": "ROADMAP.md",
-    "primaryBlocker": "The verified Phase 2 native source must be materialized as a normal in-tree Rust workspace with direct-checkout CI before any release-facing work.",
+    "primaryBlocker": "Close the remaining native correctness defects, then implement canonical state, durability, artifact/policy, exact CLI, per-user service, typed IPC, and independently verified alpha packaging.",
     "status": "in_progress"
   },
+  "gapRegistry": "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
   "lockedContracts": {
     "contextPacketV2": {
       "path": "contracts/context-packet-v2.schema.json",
@@ -34,10 +38,11 @@
     }
   },
   "nextActions": [
-    "Merge the consolidated working branch into main through one reviewed merge-commit pull request.",
-    "Push the receipt and archive tags, then delete the historical phase branches.",
-    "Materialize the verified Phase 2 native source at native/ and verify parity against the evidence artifact (P4-001, P4-002).",
-    "Replace carrier assembly with direct-checkout native CI (P4-004)."
+    "Merge the transcript gap audit and expanded executable registry after documentation and repository CI pass.",
+    "Execute P4-017 through P4-024 and P4-026 with focused regression tests and the full native gate; P4-025 is closed by PR #7.",
+    "Implement P4-010 through P4-015: canonical data plane, durability/recovery, transactional idempotency and leases, artifact/policy foundation, exact CLI, per-user service, and typed local IPC.",
+    "Produce an unsigned alpha with install/service/doctor/backup/restore/repair/uninstall smoke, an exact Phase 4 receipt, and independent artifact verification.",
+    "Proceed through the expanded Phase 5-8 registry; keep Phase 3 deferred until an efficacy claim is requested and its three-arm design is frozen."
   ],
   "phases": [
     {
@@ -67,29 +72,36 @@
       "workflowRunId": 30818963313
     },
     {
-      "exitGate": "Equal-or-better correctness with measurable context/tool reduction, exact receipt, and independent verification.",
+      "exitGate": "If reactivated, native correctness must meet both no-Soleaux market-value and historical-compatibility gates with lower waste context, exact receipt, and independent verification.",
       "name": "Live same-model / same-task product proof",
-      "note": "Deferred as an optional claims-gate by owner direction on 2026-08-03. It gates efficacy claims only and no longer blocks any later phase.",
+      "note": "Deferred by owner direction. It gates quantified efficacy claims and productionClaimAllowed review, but not implementation phases.",
       "number": 3,
-      "status": "deferred"
+      "status": "deferred_reconciliation_required"
     },
     {
-      "name": "Canonical source consolidation and alpha foundation",
+      "completedMilestones": [
+        "main is canonical through PR #5",
+        "native source and direct CI materialized through PR #6",
+        "LSP capability truthfulness repaired through PR #7",
+        "telemetry auth/CORS/redaction baseline through PR #8",
+        "same-origin daemon-served dashboard export through PR #10"
+      ],
+      "name": "Durable native alpha foundation",
       "number": 4,
       "status": "in_progress"
     },
     {
-      "name": "Shared service, live adapters, and consumer onboarding",
+      "name": "Adapters, data lifecycle, intelligence depth, and extensibility",
       "number": 5,
       "status": "blocked_by_phase_4"
     },
     {
-      "name": "Desktop, mobile, installers, and operational UX",
+      "name": "Desktop, mobile, remote control, installers, and operations",
       "number": 6,
       "status": "blocked_by_phase_5"
     },
     {
-      "name": "Compatibility, performance, security, privacy, and accessibility assurance",
+      "name": "Assurance, scale, parity, and enterprise readiness",
       "number": 7,
       "status": "blocked_by_phase_6"
     },
@@ -126,6 +138,16 @@
     ],
     "substitutionRule": "one-for-one replacement; optional tools never append"
   },
-  "schemaVersion": "soleaux.project-status/v1",
+  "schemaVersion": "soleaux.project-status/v2",
+  "unimplementedProgramAreas": [
+    "remaining native correctness defects and truthful coverage",
+    "canonical sessions/history/memory/handoff/run/subagent/artifact/policy data plane",
+    "exact CLI, per-user service, typed IPC, backup/repair/uninstall and alpha packaging",
+    "live Claude/Claude Desktop/Codex/OpenCode adapters",
+    "complete Oxc/Tree-sitter/LSP/shell/Turbo/Next production depth",
+    "materializer compiler, stable SDK/provider APIs, CI mode, editor integration and event export",
+    "Tauri desktop, Expo mobile, pairing/relay/installers",
+    "performance/security/privacy/accessibility/OS/release assurance"
+  ],
   "version": "0.4.0-dev.5"
 }
