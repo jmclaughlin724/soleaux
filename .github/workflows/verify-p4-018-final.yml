@@ -1,0 +1,171 @@
+name: Verify P4-018 exact normal source
+
+on:
+  push:
+    branches:
+      - fix/stale-index-read-freshness-0.4.0-dev.5
+    paths:
+      - native/**
+      - src/soleaux/gateway.py
+      - tests/test_process_topology.py
+      - .github/workflows/verify-p4-018-final.yml
+      - P4-018-SOURCE-VALIDATION.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-p4-018-final-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.28"
+          enable-cache: true
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Verify exact source and locked identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test ! -e .ci/apply-p4-018.py
+          test ! -e .ci/p4-018-freshness-v2.patch.xz.b64
+          test ! -e .ci/p4-018-watcher-v3.patch.xz.b64
+          test ! -e .github/workflows/apply-p4-018.yml
+          test ! -e .github/workflows/apply-p4-018-final-review.yml
+          test ! -e .github/workflows/apply-gateway-cancellation-shield.yml
+          test ! -e .github/workflows/apply-p4-018-freshness-v2.yml
+          test ! -e .github/workflows/apply-p4-018-watcher-v3.yml
+          grep -R 'refresh_repository_read_state' native/daemon/mcp/src/lib.rs
+          grep -R 'let registry = scan_registry' native/daemon/mcp/src/lib.rs
+          grep -R 'validate_indexed_file' native/daemon/intelligence/src/index.rs
+          grep -R 'RecommendedWatcher' native/daemon/intelligence/src/index.rs
+          grep -R 'WATCH_RECONCILE_INTERVAL' native/daemon/intelligence/src/index.rs
+          grep -R 'structural_reads_refresh_external_mutations_and_deletions' \
+            native/daemon/mcp/src/lib.rs
+          grep -R 'stale_structural_hits_are_never_returned_as_verified_evidence' \
+            native/daemon/mcp/src/lib.rs
+          grep -R 'watcher_drives_incremental_reconciliation_without_per_read_walks' \
+            native/daemon/intelligence/src/index.rs
+          grep -R 'with anyio.CancelScope(shield=True)' src/soleaux/gateway.py
+          grep -R '"restart_lsp", {"path": "src/context.ts", "reason": "phase1 smoke"}' \
+            native/scripts/phase1_mcp_smoke.py
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+
+      - name: Complete native and compatibility gate
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --help >/dev/null
+          ./target/release/soleaux --version
+          ./target/release/soleauxd --help >/dev/null
+          ./target/release/soleauxd --version
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . /tmp/phase1-smoke.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/phase2-smoke.json
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings
+
+      - name: Validate Python process lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --locked
+          uv run --locked ruff check src/soleaux/gateway.py tests/test_process_topology.py
+          uv run --locked pyright
+          SOLEAUX_REQUIRE_CONFORMANCE=1 uv run --locked pytest \
+            tests/test_process_topology.py -vv
+
+      - name: Validate repository documentation
+        run: python3 scripts/check_documentation_consistency.py
+
+      - name: Write exact-head receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = {
+              "schemaVersion": "soleaux.phase4-task-receipt/v1",
+              "task": "P4-018",
+              "sourceCommit": os.environ["SOURCE_COMMIT"],
+              "workflowRunId": os.environ["GITHUB_RUN_ID"],
+              "conclusion": "success",
+              "version": "0.4.0-dev.5",
+              "productionClaimAllowed": False,
+              "publicToolCeiling": 12,
+              "gates": [
+                  "watcher-backed-incremental-refresh",
+                  "content-hash-revalidation",
+                  "stale-result-rejection",
+                  "fresh-read-regressions",
+                  "serialized-refresh-barrier",
+                  "registry-lock-scope",
+                  "cancellation-safe-gateway-cleanup",
+                  "fmt",
+                  "check",
+                  "clippy",
+                  "test",
+                  "release-build",
+                  "canonical-mcp-smoke",
+                  "substitution-smoke",
+                  "context-v2-smoke",
+                  "audit",
+                  "documentation",
+              ],
+          }
+          Path("evidence/P4-018-RECEIPT.json").write_text(
+              json.dumps(receipt, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd evidence
+            sha256sum P4-018-RECEIPT.json > SHA256SUMS
+          )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-p4-018-${{ env.SOURCE_COMMIT }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
