@@ -1,0 +1,10 @@
+{
+  "contextSchemaSha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
+  "contextSchemaVersion": "soleaux.context/v2",
+  "hardCeiling": 12,
+  "product": "Soleaux",
+  "productionClaimAllowed": false,
+  "profileManifestSha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc",
+  "profileSchemaVersion": "soleaux.mcp.profile/v2",
+  "version": "0.4.0-dev.5"
+}
