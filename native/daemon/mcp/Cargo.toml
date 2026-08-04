@@ -1,0 +1,28 @@
+[package]
+name = "soleaux-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+blake3.workspace = true
+dirs.workspace = true
+http.workspace = true
+ignore.workspace = true
+glob.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+soleaux-intelligence = { path = "../intelligence" }
+soleaux-storage = { path = "../storage" }
+subtle.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
