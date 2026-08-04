@@ -1,0 +1,65 @@
+{
+  "frozen": true,
+  "schemaVersion": "soleaux.phase3.tasks/v1",
+  "targetCommit": "2b7a0fab88dbc202f75b5e443725c825f7dc4fa2",
+  "targetRepository": "jmclaughlin724/anilize",
+  "tasks": [
+    {
+      "id": "P3-T01",
+      "mutationAllowed": false,
+      "objective": "Trace the loan-officer dashboard card registry to the rendered workspace components and data providers. Identify exact files, package ownership, key symbols, consumers, constraints, and validation routes. Make no edits.",
+      "pathScopes": [
+        "apps/portal/features/dashboard/workspace/loan-officers",
+        "apps/portal/lib/dashboard/loan-officers"
+      ],
+      "requiredFacts": [
+        "registry owner",
+        "rendered grid/content consumers",
+        "at least three data-provider modules",
+        "package and framework context",
+        "validation commands"
+      ],
+      "success": "All required facts are supported by repository evidence and no unsupported ownership or completeness claim is made.",
+      "type": "repository_analysis"
+    },
+    {
+      "id": "P3-T02",
+      "mutationAllowed": false,
+      "objective": "Identify the Next.js route and layouts that render the loan-officer dashboard, then explain the Turborepo package boundary and dependency scope that should constrain a change to that surface. Make no edits.",
+      "pathScopes": [
+        "apps/portal",
+        "packages",
+        "turbo.json",
+        "pnpm-workspace.yaml"
+      ],
+      "requiredFacts": [
+        "route and layout chain",
+        "portal package identity",
+        "relevant workspace dependencies",
+        "boundary evidence",
+        "affected validation route"
+      ],
+      "success": "The answer names an evidence-backed route/package scope and explicitly reports any unresolved route or boundary gap.",
+      "type": "framework_boundary_analysis"
+    },
+    {
+      "id": "P3-T03",
+      "mutationAllowed": true,
+      "objective": "Add a repository-conformant validation test that detects duplicate loan-officer dashboard card identifiers without changing navigation, component class names, or runtime data behavior. Use the existing test taxonomy and run the smallest authoritative validation set.",
+      "pathScopes": [
+        "apps/portal/lib/dashboard/loan-officers/registry",
+        "packages/testing",
+        "apps/portal"
+      ],
+      "requiredFacts": [
+        "canonical card identifier owner",
+        "existing test taxonomy",
+        "minimal changed files",
+        "authoritative validation command"
+      ],
+      "safety": "Execute only in isolated experiment branches/worktrees; baseline and treatment start from identical repository commits.",
+      "success": "A minimal patch and test pass; no unrelated formatting, navigation, class-name, or data-source change; changed-file and validation evidence retained.",
+      "type": "bounded_code_change"
+    }
+  ]
+}

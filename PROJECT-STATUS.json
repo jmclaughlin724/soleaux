@@ -1,0 +1,120 @@
+{
+  "asOfDate": "2026-08-03",
+  "branches": {
+    "documentationConsolidation": "docs/unified-project-system-0.4.0-dev.5",
+    "historicalDefault": "main",
+    "mergePolicy": "No force-push or merge to main without reviewed source consolidation and release evidence.",
+    "nativePhase2": "phase2/native-lineage-a-0.4.0-dev.5"
+  },
+  "currentPhase": {
+    "name": "Live same-model / same-task product proof",
+    "number": 3,
+    "plan": "docs/experiments/phase3/EXPERIMENT-PLAN.md",
+    "primaryBlocker": "A model/client identity and credentials must be locked before the first live run.",
+    "status": "unblocked_not_started"
+  },
+  "lockedContracts": {
+    "contextPacketV2": {
+      "path": "contracts/context-packet-v2.schema.json",
+      "sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f"
+    },
+    "unifiedMcpProfile": {
+      "path": "contracts/unified-mcp-profile-v2.json",
+      "sha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+    }
+  },
+  "nextActions": [
+    "Review and merge the documentation consolidation into the native Phase 2 branch.",
+    "Fill and freeze the Phase 3 model/client fields before the first live call.",
+    "Run the pre-registered baseline and treatment arms without changing tasks or budgets.",
+    "Independently verify all Phase 3 artifacts before closing the phase."
+  ],
+  "phases": [
+    {
+      "implementationSourceCommit": "a31820d26f46d258175b52fe30fdbecf7b650265",
+      "name": "Contract lock and native foundation",
+      "number": 0,
+      "receipt": "PHASE0-NATIVE-GATE-RECEIPT.json",
+      "status": "closed",
+      "workflowRunId": 30766171022
+    },
+    {
+      "implementationSourceCommit": "d3eecd45867e82d5777e57753c581483971214dd",
+      "name": "Unified public catalog and Context Packet V2",
+      "number": 1,
+      "receipt": "PHASE1-NATIVE-GATE-RECEIPT.json",
+      "status": "closed",
+      "workflowRunId": 30773147694
+    },
+    {
+      "artifactId": 8858165328,
+      "implementationSourceCommit": "6768d9de2aa8a61ba90356409033c0d69b2d5afc",
+      "independentVerification": "PHASE2-INDEPENDENT-VERIFICATION.json",
+      "name": "Gateway, catalog domains, provisioning, and governance",
+      "number": 2,
+      "receipt": "PHASE2-CLOSURE-RECEIPT.json",
+      "status": "closed",
+      "workflowRunId": 30818963313
+    },
+    {
+      "exitGate": "Equal-or-better correctness with measurable context/tool reduction, exact receipt, and independent verification.",
+      "name": "Live same-model / same-task product proof",
+      "number": 3,
+      "status": "unblocked_not_started"
+    },
+    {
+      "name": "Canonical source consolidation and alpha foundation",
+      "number": 4,
+      "status": "blocked_by_phase_3"
+    },
+    {
+      "name": "Shared service, live adapters, and consumer onboarding",
+      "number": 5,
+      "status": "blocked_by_phase_4"
+    },
+    {
+      "name": "Desktop, mobile, installers, and operational UX",
+      "number": 6,
+      "status": "blocked_by_phase_5"
+    },
+    {
+      "name": "Compatibility, performance, security, privacy, and accessibility assurance",
+      "number": 7,
+      "status": "blocked_by_phase_6"
+    },
+    {
+      "name": "Release candidate and general availability rollout",
+      "number": 8,
+      "status": "blocked_by_phase_7"
+    }
+  ],
+  "product": "Soleaux",
+  "productDefinition": "Unified repository intelligence: one lean MCP, one governed catalog, and accurate capped context for existing AI coding agents.",
+  "productionClaimAllowed": false,
+  "productionReadiness": "prohibited",
+  "publicMcp": {
+    "canonicalTools": [
+      "context.compile",
+      "code.search",
+      "memory.search",
+      "get_symbols",
+      "registry.list",
+      "registry.read",
+      "repo_info",
+      "navigate",
+      "inspect",
+      "preview",
+      "edit",
+      "restart_lsp"
+    ],
+    "hardCeiling": 12,
+    "optionalSubstitutionCandidates": [
+      "parse_and_validate_postgres_sql",
+      "turborepo.packages",
+      "next.get_routes"
+    ],
+    "substitutionRule": "one-for-one replacement; optional tools never append"
+  },
+  "schemaVersion": "soleaux.project-status/v1",
+  "version": "0.4.0-dev.5"
+}

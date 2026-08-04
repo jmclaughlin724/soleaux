@@ -1,0 +1,287 @@
+{
+  "$id": "https://soleaux.local/schemas/phase3-run-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "arm": {
+      "enum": [
+        "baseline",
+        "treatment"
+      ]
+    },
+    "artifacts": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "client": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "protocolVersion"
+      ],
+      "type": "object"
+    },
+    "context": {
+      "additionalProperties": false,
+      "properties": {
+        "compiledBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "compiledTokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fileReadBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fileReadTokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "gaps": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "returnedItems": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "secretRedactions": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fileReadBytes",
+        "fileReadTokens",
+        "compiledBytes",
+        "compiledTokens",
+        "returnedItems",
+        "gaps",
+        "secretRedactions"
+      ],
+      "type": "object"
+    },
+    "correctness": {
+      "additionalProperties": false,
+      "properties": {
+        "humanNotes": {
+          "type": "string"
+        },
+        "maxScore": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "oracleResults": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "score": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "score",
+        "maxScore",
+        "oracleResults",
+        "humanNotes"
+      ],
+      "type": "object"
+    },
+    "cost": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "amount",
+        "source"
+      ],
+      "type": "object"
+    },
+    "experimentId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "failClosed": {
+      "additionalProperties": false,
+      "properties": {
+        "nativeSelectionsHeld": {
+          "type": "boolean"
+        },
+        "secretLeakage": {
+          "type": "boolean"
+        },
+        "silentTruncation": {
+          "type": "boolean"
+        },
+        "toolCeilingHeld": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "toolCeilingHeld",
+        "nativeSelectionsHeld",
+        "secretLeakage",
+        "silentTruncation"
+      ],
+      "type": "object"
+    },
+    "model": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "temperature": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "topP": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "temperature",
+        "topP",
+        "seed"
+      ],
+      "type": "object"
+    },
+    "repositoryCommit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "soleaux.phase3.run/v1"
+    },
+    "serverCommit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "blocked"
+      ]
+    },
+    "taskId": {
+      "pattern": "^P3-T[0-9]{2}$",
+      "type": "string"
+    },
+    "timing": {
+      "additionalProperties": false,
+      "properties": {
+        "elapsedMs": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "retries": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "elapsedMs",
+        "retries"
+      ],
+      "type": "object"
+    },
+    "toolSurface": {
+      "additionalProperties": false,
+      "properties": {
+        "rootToolCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaBytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaTokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "toolCalls": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "rootToolCount",
+        "schemaBytes",
+        "schemaTokens",
+        "toolCalls"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "experimentId",
+    "arm",
+    "taskId",
+    "repositoryCommit",
+    "serverCommit",
+    "client",
+    "model",
+    "parameters",
+    "status",
+    "correctness",
+    "toolSurface",
+    "context",
+    "timing",
+    "cost",
+    "artifacts",
+    "failClosed"
+  ],
+  "title": "Soleaux Phase 3 Run Record",
+  "type": "object"
+}
