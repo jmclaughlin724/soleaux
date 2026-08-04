@@ -1,5 +1,5 @@
 name = "ui-designer"
-description = "Use to design or review Anilize interfaces and design-system usage."
+description = "Use to design or review Soleaux interfaces and design-system usage."
 model = "gpt-5.6-sol"
 model_reasoning_effort = "xhigh"
 sandbox_mode = "read-only"

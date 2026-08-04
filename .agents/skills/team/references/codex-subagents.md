@@ -1,6 +1,6 @@
 # Local Codex Subagents
 
-Source verified 2026-07-24:
+Source verified 2026-08-03:
 
 - https://learn.chatgpt.com/docs/agent-configuration/subagents
 - https://learn.chatgpt.com/docs/config-file/config-reference
@@ -111,5 +111,5 @@ A persistent serial objective (such as a Codex Goal or a multi-step plan) can st
 
 - Confirm every requested agent returned, failed explicitly, or was intentionally cancelled, and completed threads were closed.
 - Inspect role selection, applied instructions, effective sandbox and permission behavior, and the required return shape in a fresh task.
-- For custom agents, validate TOML with the repository's owning command and run `codex doctor --json`; require successful config loading and no agent-role startup warning.
+- For custom agents, validate TOML with the repository's owning command and run `codex --strict-config doctor --json`; require successful config loading and no agent-role startup warning.
 - Exercise a live parent permission override and relevant noninteractive behavior when permission semantics changed.

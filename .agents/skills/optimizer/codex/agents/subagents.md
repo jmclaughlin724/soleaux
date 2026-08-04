@@ -1,6 +1,6 @@
 # Subagents Playbook
 
-Sources verified 2026-07-12:
+Sources verified 2026-08-03:
 
 - https://developers.openai.com/api/docs/guides/responses-multi-agent
 - https://learn.chatgpt.com/docs/agent-configuration/subagents
@@ -48,8 +48,8 @@ The parent agent must wait for all requested subagents, compare their answers, r
 ## Custom Agent Authoring
 
 - Store custom agents under `.codex/agents/` or `~/.codex/agents/`.
-- Required fields: `name`, `description`, `developer_instructions`.
-- Optional fields: `nickname_candidates`, `model`, `model_reasoning_effort`, `sandbox_mode`, `mcp_servers`, and `skills.config`.
+- Treat each TOML as one standalone custom agent and require nonblank `name`, `description`, and `developer_instructions` fields.
+- Optional runtime fields include `nickname_candidates`, `model`, `model_reasoning_effort`, `sandbox_mode`, `mcp_servers`, and `skills.config`.
 - Treat `name` as source of truth; do not rely on filename semantics.
 - Keep `developer_instructions` output-oriented: scope, allowed actions, required evidence, and report format.
 - Keep local `.claude/agents/**` prompts title-first and output-oriented: `# Title`, `## Mission`, `## Workflow`, and `## Output Contract`.
@@ -57,11 +57,11 @@ The parent agent must wait for all requested subagents, compare their answers, r
 
 ## Runtime Controls
 
-- Use `[agents].max_threads` to cap concurrent open agent threads; the documented default is `6`.
-- Use `[agents].max_depth` to cap recursive delegation; the default `1` allows direct children but prevents deeper spawning.
-- Use `[agents].job_max_runtime_seconds` only to set the default per-worker timeout for `spawn_agents_on_csv`; ordinary subagent turns are not governed by it.
+- Use `[agents].max_concurrent_threads_per_session` to cap concurrently open spawned-agent threads. When unset, Codex selects the runtime default; `max_threads` remains a legacy alias.
+- Use `[agents].max_depth` only for the V1 agent backend; V2 ignores it.
+- Use `[agents].enabled` only as an explicit multi-agent tool switch. It defaults to `true`.
 - Use `[agents].interrupt_message` to control whether an interrupted agent turn records a model-visible message.
-- This repo explicitly enables `features.multi_agent` and keeps deeper fan-out disabled. Do not invent `[parallelization]` or `[workflow]` config tables.
+- Do not invent `[parallelization]` or `[workflow]` config tables.
 - Remember subagents inherit sandbox constraints and approval behavior from the parent.
 - In Responses API Multi-agent, every agent receives the request's configured tools; account for that shared tool set when configuring the request.
 - Responses API Multi-agent defaults to three concurrent subagents across the full agent tree.
@@ -90,6 +90,6 @@ For implementation planning or task-list preparation, also require each subagent
 
 ## Repo Delivery Pattern
 
-- Codex subagents are hand-authored TOML under `.codex/agents/**`; this repo has no `.claude/agents/` tree and no agent sync step.
+- Codex subagents are hand-authored standalone TOMLs under `.codex/agents/**`; this repo has no `.claude/agents/` tree and no agent sync step.
 - Do not use subagents to bypass owner boundaries or approval policy.
 - Treat parallel implementation as a separate phase after the parent has accepted the research synthesis.
