@@ -291,6 +291,7 @@ impl RegistrySnapshot {
 }
 
 pub fn scan_registry(root: &Path, index: &RepositoryIndex) -> Result<RegistrySnapshot> {
+    let root = &fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let mut entries = Vec::new();
     let mut ownership = Vec::new();
     let walker = WalkBuilder::new(root)
