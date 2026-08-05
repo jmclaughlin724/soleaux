@@ -73,7 +73,10 @@ fn main() -> Result<()> {
     let completed = store.complete_operation(
         &lease.operation_key,
         lease.lease_id.context("acquired lease omitted lease id")?,
-        lease.owner_id.as_deref().context("acquired lease omitted owner")?,
+        lease
+            .owner_id
+            .as_deref()
+            .context("acquired lease omitted owner")?,
         json!({"status":"complete","sessionId":session.id}),
     )?;
     let replay = store.acquire_operation(
