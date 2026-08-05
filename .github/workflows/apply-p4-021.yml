@@ -7,6 +7,7 @@ on:
     paths:
       - native/daemon/redaction/**
       - .ci/apply-p4-021.py
+      - .ci/run-p4-021.py
       - .github/workflows/apply-p4-021.yml
   workflow_dispatch:
 
@@ -40,7 +41,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Apply the scoped source changes
-        run: python3 .ci/apply-p4-021.py
+        run: python3 .ci/run-p4-021.py
 
       - name: Format and update lockfiles
         shell: bash
@@ -73,6 +74,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .ci/apply-p4-021.py
+          git rm .ci/run-p4-021.py
           git rm .github/workflows/apply-p4-021.yml
           git add \
             native/Cargo.toml \
