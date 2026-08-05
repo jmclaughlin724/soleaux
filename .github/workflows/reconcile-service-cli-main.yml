@@ -50,18 +50,9 @@ jobs:
             CONFLICTS="$(git diff --name-only --diff-filter=U | sort)"
             test "$CONFLICTS" = "native/Cargo.toml"
             git checkout --ours native/Cargo.toml
-            printf '%s\n' \
-              'from pathlib import Path' \
-              'path = Path("native/Cargo.toml")' \
-              'text = path.read_text(encoding="utf-8")' \
-              'marker = "  \\\"daemon/state\\\",\\n  \\\"daemon/ipc\\\","' \
-              'replacement = "  \\\"daemon/state\\\",\\n  \\\"daemon/vault\\\",\\n  \\\"daemon/ipc\\\","' \
-              'count = text.count(marker)' \
-              'if count != 2: raise SystemExit(f"combined workspace marker drifted: {count}")' \
-              'path.write_text(text.replace(marker, replacement), encoding="utf-8")' \
-              > /tmp/resolve-service-vault-workspace.py
-            python3 -m py_compile /tmp/resolve-service-vault-workspace.py
-            python3 /tmp/resolve-service-vault-workspace.py
+            test "$(grep -c '"'"'daemon/vault'"'"' native/Cargo.toml || true)" = "0"
+            sed -i '/"daemon\/state",/a\  "daemon/vault",' native/Cargo.toml
+            test "$(grep -c '"'"'daemon/vault'"'"' native/Cargo.toml)" = "2"
             git add native/Cargo.toml
           fi
           cargo fmt --manifest-path native/Cargo.toml --all
