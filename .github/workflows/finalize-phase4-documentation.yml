@@ -20,8 +20,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
+      PHASE4_SOURCE_COMMIT: 34c394efd01c9bb5348ba38e505317e6ca4da190
+      PHASE4_MERGE_COMMIT: f450c1a9cd2cd74d366324b5e2031e4751fb5942
+      PHASE4_WORKFLOW_RUN_ID: '31026328918'
       PHASE4_ARTIFACT_ID: '8939137324'
       PHASE4_ARTIFACT_SHA256: 9917b2dd8335b2d17cdb3f0dc15191699ec7f0d1ff431f9e3b2135e0a1f4684b
+      PHASE4_EVIDENCE_DIR: phase4-evidence
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
