@@ -209,9 +209,8 @@ impl PolicyEngine {
 
     pub fn revoke_grant(&mut self, grant_id: Uuid) -> bool {
         let before = self.grants.len();
-        self.grants.retain(|grant| {
-            grant.id != grant_id && grant.parent_grant_id != Some(grant_id)
-        });
+        self.grants
+            .retain(|grant| grant.id != grant_id && grant.parent_grant_id != Some(grant_id));
         self.grants.len() != before
     }
 
@@ -249,7 +248,10 @@ impl PolicyEngine {
                 continue;
             }
             if request.risk > grant.max_risk {
-                reasons.push(format!("grant {} does not permit the requested risk", grant.id));
+                reasons.push(format!(
+                    "grant {} does not permit the requested risk",
+                    grant.id
+                ));
                 continue;
             }
             if request.sensitivity > grant.max_sensitivity {
@@ -280,7 +282,9 @@ impl PolicyEngine {
                 return PolicyDecision {
                     effect: PolicyEffect::Allow,
                     matching_grant_ids: matching,
-                    reasons: vec!["an explicit grant and matching approval permit the request".to_string()],
+                    reasons: vec![
+                        "an explicit grant and matching approval permit the request".to_string(),
+                    ],
                     approval_id: Some(approval.id),
                 };
             }
@@ -326,10 +330,11 @@ fn validate_attenuation(parent: &CapabilityGrant, child: &CapabilityGrant) -> Re
     if parent.requires_approval && !child.requires_approval {
         bail!("delegation cannot remove a parent approval requirement");
     }
-    if parent
-        .expires_at_unix_ms
-        .is_some_and(|parent_expiry| child.expires_at_unix_ms.is_none_or(|child_expiry| child_expiry > parent_expiry))
-    {
+    if parent.expires_at_unix_ms.is_some_and(|parent_expiry| {
+        child
+            .expires_at_unix_ms
+            .is_none_or(|child_expiry| child_expiry > parent_expiry)
+    }) {
         bail!("delegated expiration must not exceed its parent");
     }
     if !prefixes_are_attenuated(&parent.resource_prefixes, &child.resource_prefixes) {

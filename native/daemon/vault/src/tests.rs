@@ -40,14 +40,20 @@ fn encrypted_artifacts_are_content_addressed_redacted_and_workspace_bound() {
             }),
         )
         .expect("put");
-    assert_eq!(descriptor.content_hash, blake3::hash(plaintext).to_hex().to_string());
+    assert_eq!(
+        descriptor.content_hash,
+        blake3::hash(plaintext).to_hex().to_string()
+    );
     assert!(descriptor.encrypted);
     assert!(descriptor.metadata_redactions >= 2);
     assert_eq!(descriptor.metadata["authorization"], "[REDACTED]");
     assert_eq!(descriptor.metadata["nested"]["api_key"], "[REDACTED]");
 
     let raw = fs::read(&descriptor.storage_path).expect("raw envelope");
-    assert!(!raw.windows(plaintext.len()).any(|window| window == plaintext));
+    assert!(
+        !raw.windows(plaintext.len())
+            .any(|window| window == plaintext)
+    );
     let opened = vault
         .read(workspace_id, &descriptor.content_hash)
         .expect("read");
@@ -156,7 +162,14 @@ fn explicit_file_key_store_persists_versions_without_plaintext_artifacts() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        assert_eq!(fs::metadata(&key_path).expect("metadata").permissions().mode() & 0o777, 0o600);
+        assert_eq!(
+            fs::metadata(&key_path)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
     }
 }
 

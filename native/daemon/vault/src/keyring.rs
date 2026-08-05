@@ -92,8 +92,8 @@ impl KeyRing {
     }
 
     fn decode(encoded: &str) -> Result<Self> {
-        let stored: StoredKeyRing = serde_json::from_str(encoded)
-            .context("decoding Soleaux vault key ring")?;
+        let stored: StoredKeyRing =
+            serde_json::from_str(encoded).context("decoding Soleaux vault key ring")?;
         if stored.schema_version != "soleaux.vault-keyring/v1" {
             bail!("unsupported Soleaux vault key-ring schema");
         }
@@ -218,9 +218,11 @@ impl OsKeyStore {
             let app_data = std::env::var_os("APPDATA")
                 .map(PathBuf::from)
                 .context("APPDATA is unavailable for the Soleaux DPAPI key store")?;
-            app_data
-                .join("Soleaux")
-                .join(format!("{}-{}.dpapi", safe_component(&service), safe_component(&account)))
+            app_data.join("Soleaux").join(format!(
+                "{}-{}.dpapi",
+                safe_component(&service),
+                safe_component(&account)
+            ))
         };
         Ok(Self {
             service,
@@ -234,10 +236,7 @@ impl OsKeyStore {
 impl KeyStore for OsKeyStore {
     fn load(&self) -> Result<Option<KeyRing>> {
         let encoded = load_os_secret(self)?;
-        encoded
-            .as_deref()
-            .map(KeyRing::decode)
-            .transpose()
+        encoded.as_deref().map(KeyRing::decode).transpose()
     }
 
     fn save(&self, key_ring: &KeyRing) -> Result<()> {
@@ -425,7 +424,7 @@ fn restrict_file(_path: &Path) -> Result<()> {
 
 #[cfg(target_os = "windows")]
 fn powershell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\\'', "''"))
+    format!("'{}'", value.replace('\'', "''"))
 }
 
 #[cfg(target_os = "windows")]

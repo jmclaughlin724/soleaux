@@ -9,7 +9,7 @@ use serde_json::Value;
 use soleaux_redaction::redact_json_value;
 use std::{
     fs::{self, File},
-    io::{Read, Write},
+    io::Write,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -333,7 +333,8 @@ fn open(key_ring: &KeyRing, envelope: &[u8]) -> Result<(ArtifactHeader, Vec<u8>)
             .try_into()
             .expect("fixed header length range"),
     ) as usize;
-    if header_length > MAX_HEADER_BYTES || header_start.saturating_add(header_length) > envelope.len()
+    if header_length > MAX_HEADER_BYTES
+        || header_start.saturating_add(header_length) > envelope.len()
     {
         bail!("artifact envelope header is invalid");
     }
