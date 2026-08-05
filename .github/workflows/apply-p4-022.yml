@@ -1,0 +1,59 @@
+name: Materialize P4-022 transactional provisioning source
+
+on:
+  push:
+    branches:
+      - fix/transactional-provisioning-p4-022-0.4.0-dev.5
+    paths:
+      - .github/workflows/apply-p4-022.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-p4-022-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+
+      - name: Apply and format the reviewed source transformation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .ci/apply-p4-022.py
+          test -f .ci/repair-p4-022-applicator.py
+          python3 .ci/repair-p4-022-applicator.py
+          python3 .ci/apply-p4-022.py
+          cargo fmt --manifest-path native/Cargo.toml --all
+          grep -F 'soleaux.provisioning-backup/v2' native/daemon/mcp/src/provisioning.rs
+          grep -F 'apply_rolls_back_all_prior_paths_when_a_late_write_fails' native/daemon/mcp/src/provisioning.rs
+          grep -F 'revert_prevalidates_every_target_before_changing_any_path' native/daemon/mcp/src/provisioning.rs
+          grep -F 'revert_rolls_back_prior_reversions_when_restore_fails' native/daemon/mcp/src/provisioning.rs
+
+      - name: Replace the applicator with normal source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .ci/apply-p4-022.py
+          rm .ci/repair-p4-022-applicator.py
+          rm .github/workflows/apply-p4-022.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add native/daemon/mcp/src/provisioning.rs .ci .github/workflows
+          git diff --cached --check
+          git commit -m 'fix(provisioning): make adopt attach and revert transactional'
+          git push origin HEAD:${{ github.ref_name }}
