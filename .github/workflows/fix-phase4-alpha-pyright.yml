@@ -33,16 +33,8 @@ jobs:
 
           path = Path('scripts/build_unsigned_alpha.py')
           text = path.read_text(encoding='utf-8')
-          old = '''    for node in node_values:
-        dependencies = sorted(
-            id_to_key[str(value)] for value in cast(list[Any], node.get("dependencies", []))
-        )
-'''
-          new = '''    for node in node_values:
-        node_dependencies = sorted(
-            id_to_key[str(value)] for value in cast(list[Any], node.get("dependencies", []))
-        )
-'''
+          old = "    for node in node_values:\n        dependencies = sorted(\n            id_to_key[str(value)] for value in cast(list[Any], node.get(\"dependencies\", []))\n        )\n"
+          new = "    for node in node_values:\n        node_dependencies = sorted(\n            id_to_key[str(value)] for value in cast(list[Any], node.get(\"dependencies\", []))\n        )\n"
           if text.count(old) != 1:
               raise SystemExit(f'node dependency declaration drifted: {text.count(old)}')
           text = text.replace(old, new, 1)
