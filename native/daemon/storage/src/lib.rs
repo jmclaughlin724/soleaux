@@ -17,7 +17,7 @@ use std::{
 };
 use uuid::Uuid;
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -89,6 +89,13 @@ pub enum OperationReservationOutcome {
     Replayed(Value),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum PreviewClaimOutcome {
+    Acquired { claim_id: String },
+    InFlight,
+    Replayed(Value),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStats {
@@ -144,6 +151,28 @@ enum WriteCommand {
     ReleaseOperation {
         operation_key: String,
         request_hash: String,
+        reply: mpsc::SyncSender<std::result::Result<(), String>>,
+    },
+    ClaimPreview {
+        preview_id: String,
+        binding_hash: String,
+        workspace_id: Uuid,
+        expires_at_unix_ms: i64,
+        reply: mpsc::SyncSender<std::result::Result<PreviewClaimOutcome, String>>,
+    },
+    CompletePreviewApplication {
+        preview_id: String,
+        binding_hash: String,
+        claim_id: String,
+        operation_key: String,
+        request_hash: String,
+        result: Value,
+        reply: mpsc::SyncSender<std::result::Result<(), String>>,
+    },
+    ReleasePreviewClaim {
+        preview_id: String,
+        binding_hash: String,
+        claim_id: String,
         reply: mpsc::SyncSender<std::result::Result<(), String>>,
     },
     Shutdown,
@@ -300,6 +329,78 @@ impl Store {
         receiver
             .recv()
             .context("SQLite writer dropped operation release reply")?
+            .map_err(anyhow::Error::msg)
+    }
+
+    pub fn claim_preview(
+        &self,
+        preview_id: impl Into<String>,
+        binding_hash: impl Into<String>,
+        workspace_id: Uuid,
+        expires_at_unix_ms: i64,
+    ) -> Result<PreviewClaimOutcome> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::ClaimPreview {
+                preview_id: preview_id.into(),
+                binding_hash: binding_hash.into(),
+                workspace_id,
+                expires_at_unix_ms,
+                reply: sender,
+            })
+            .context("SQLite writer stopped")?;
+        receiver
+            .recv()
+            .context("SQLite writer dropped preview claim reply")?
+            .map_err(anyhow::Error::msg)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn complete_preview_application(
+        &self,
+        preview_id: impl Into<String>,
+        binding_hash: impl Into<String>,
+        claim_id: impl Into<String>,
+        operation_key: impl Into<String>,
+        request_hash: impl Into<String>,
+        result: Value,
+    ) -> Result<()> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::CompletePreviewApplication {
+                preview_id: preview_id.into(),
+                binding_hash: binding_hash.into(),
+                claim_id: claim_id.into(),
+                operation_key: operation_key.into(),
+                request_hash: request_hash.into(),
+                result,
+                reply: sender,
+            })
+            .context("SQLite writer stopped")?;
+        receiver
+            .recv()
+            .context("SQLite writer dropped preview completion reply")?
+            .map_err(anyhow::Error::msg)
+    }
+
+    pub fn release_preview_claim(
+        &self,
+        preview_id: impl Into<String>,
+        binding_hash: impl Into<String>,
+        claim_id: impl Into<String>,
+    ) -> Result<()> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::ReleasePreviewClaim {
+                preview_id: preview_id.into(),
+                binding_hash: binding_hash.into(),
+                claim_id: claim_id.into(),
+                reply: sender,
+            })
+            .context("SQLite writer stopped")?;
+        receiver
+            .recv()
+            .context("SQLite writer dropped preview release reply")?
             .map_err(anyhow::Error::msg)
     }
 
@@ -613,6 +714,59 @@ fn writer_loop(mut connection: Connection, receiver: mpsc::Receiver<WriteCommand
                         .map_err(|error| error.to_string());
                 let _ = reply.send(result);
             }
+            WriteCommand::ClaimPreview {
+                preview_id,
+                binding_hash,
+                workspace_id,
+                expires_at_unix_ms,
+                reply,
+            } => {
+                let result = write_claim_preview(
+                    &mut connection,
+                    &preview_id,
+                    &binding_hash,
+                    workspace_id,
+                    expires_at_unix_ms,
+                )
+                .map_err(|error| error.to_string());
+                let _ = reply.send(result);
+            }
+            WriteCommand::CompletePreviewApplication {
+                preview_id,
+                binding_hash,
+                claim_id,
+                operation_key,
+                request_hash,
+                result,
+                reply,
+            } => {
+                let outcome = write_complete_preview_application(
+                    &mut connection,
+                    &preview_id,
+                    &binding_hash,
+                    &claim_id,
+                    &operation_key,
+                    &request_hash,
+                    &result,
+                )
+                .map_err(|error| error.to_string());
+                let _ = reply.send(outcome);
+            }
+            WriteCommand::ReleasePreviewClaim {
+                preview_id,
+                binding_hash,
+                claim_id,
+                reply,
+            } => {
+                let result = write_release_preview_claim(
+                    &mut connection,
+                    &preview_id,
+                    &binding_hash,
+                    &claim_id,
+                )
+                .map_err(|error| error.to_string());
+                let _ = reply.send(result);
+            }
             WriteCommand::Shutdown => break,
         }
     }
@@ -717,7 +871,20 @@ fn migrate(connection: &mut Connection) -> Result<()> {
             );
             CREATE INDEX operation_reservations_state
                 ON operation_reservations(state, updated_at_unix_ms);
-            PRAGMA user_version = 2;
+            CREATE TABLE preview_claims (
+                preview_id TEXT PRIMARY KEY,
+                binding_hash TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                claim_id TEXT NOT NULL UNIQUE,
+                state TEXT NOT NULL CHECK(state IN ('claimed', 'consumed')),
+                result_json TEXT,
+                expires_at_unix_ms INTEGER NOT NULL,
+                created_at_unix_ms INTEGER NOT NULL,
+                updated_at_unix_ms INTEGER NOT NULL
+            );
+            CREATE INDEX preview_claims_state_expiry
+                ON preview_claims(state, expires_at_unix_ms, updated_at_unix_ms);
+            PRAGMA user_version = 3;
             COMMIT;
             "#,
         )?;
@@ -739,7 +906,42 @@ fn migrate(connection: &mut Connection) -> Result<()> {
             );
             CREATE INDEX operation_reservations_state
                 ON operation_reservations(state, updated_at_unix_ms);
-            PRAGMA user_version = 2;
+            CREATE TABLE preview_claims (
+                preview_id TEXT PRIMARY KEY,
+                binding_hash TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                claim_id TEXT NOT NULL UNIQUE,
+                state TEXT NOT NULL CHECK(state IN ('claimed', 'consumed')),
+                result_json TEXT,
+                expires_at_unix_ms INTEGER NOT NULL,
+                created_at_unix_ms INTEGER NOT NULL,
+                updated_at_unix_ms INTEGER NOT NULL
+            );
+            CREATE INDEX preview_claims_state_expiry
+                ON preview_claims(state, expires_at_unix_ms, updated_at_unix_ms);
+            PRAGMA user_version = 3;
+            COMMIT;
+            "#,
+        )?;
+    }
+    if version == 2 {
+        connection.execute_batch(
+            r#"
+            BEGIN IMMEDIATE;
+            CREATE TABLE preview_claims (
+                preview_id TEXT PRIMARY KEY,
+                binding_hash TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                claim_id TEXT NOT NULL UNIQUE,
+                state TEXT NOT NULL CHECK(state IN ('claimed', 'consumed')),
+                result_json TEXT,
+                expires_at_unix_ms INTEGER NOT NULL,
+                created_at_unix_ms INTEGER NOT NULL,
+                updated_at_unix_ms INTEGER NOT NULL
+            );
+            CREATE INDEX preview_claims_state_expiry
+                ON preview_claims(state, expires_at_unix_ms, updated_at_unix_ms);
+            PRAGMA user_version = 3;
             COMMIT;
             "#,
         )?;
@@ -843,6 +1045,134 @@ fn write_release_operation(
         "DELETE FROM operation_reservations
          WHERE operation_key = ?1 AND request_hash = ?2 AND state = 'reserved'",
         params![operation_key, request_hash],
+    )?;
+    transaction.commit()?;
+    Ok(())
+}
+
+fn write_claim_preview(
+    connection: &mut Connection,
+    preview_id: &str,
+    binding_hash: &str,
+    workspace_id: Uuid,
+    expires_at_unix_ms: i64,
+) -> Result<PreviewClaimOutcome> {
+    if preview_id.trim().is_empty() || binding_hash.trim().is_empty() {
+        bail!("preview id and binding hash must be non-empty");
+    }
+    let now = unix_ms();
+    if now > expires_at_unix_ms {
+        bail!("preview has expired before it could be claimed");
+    }
+    let workspace = workspace_id.to_string();
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let existing = transaction
+        .query_row(
+            "SELECT binding_hash, workspace_id, claim_id, state, result_json, expires_at_unix_ms
+             FROM preview_claims WHERE preview_id = ?1",
+            [preview_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            },
+        )
+        .optional()?;
+    let outcome = match existing {
+        None => {
+            let claim_id = Uuid::now_v7().to_string();
+            transaction.execute(
+                "INSERT INTO preview_claims(
+                    preview_id, binding_hash, workspace_id, claim_id, state, result_json,
+                    expires_at_unix_ms, created_at_unix_ms, updated_at_unix_ms
+                 ) VALUES (?1, ?2, ?3, ?4, 'claimed', NULL, ?5, ?6, ?6)",
+                params![
+                    preview_id,
+                    binding_hash,
+                    workspace,
+                    claim_id,
+                    expires_at_unix_ms,
+                    now,
+                ],
+            )?;
+            PreviewClaimOutcome::Acquired { claim_id }
+        }
+        Some((existing_binding, existing_workspace, _claim_id, state, result_json, expiry)) => {
+            if existing_binding != binding_hash || existing_workspace != workspace {
+                bail!("preview claim collision: immutable binding differs");
+            }
+            if expiry != expires_at_unix_ms {
+                bail!("preview claim collision: expiration differs");
+            }
+            match state.as_str() {
+                "claimed" => PreviewClaimOutcome::InFlight,
+                "consumed" => {
+                    let encoded =
+                        result_json.context("consumed preview omitted its result receipt")?;
+                    PreviewClaimOutcome::Replayed(
+                        serde_json::from_str(&encoded)
+                            .context("decoding consumed preview result")?,
+                    )
+                }
+                other => bail!("unsupported preview claim state: {other}"),
+            }
+        }
+    };
+    transaction.commit()?;
+    Ok(outcome)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_complete_preview_application(
+    connection: &mut Connection,
+    preview_id: &str,
+    binding_hash: &str,
+    claim_id: &str,
+    operation_key: &str,
+    request_hash: &str,
+    result: &Value,
+) -> Result<()> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let result_json = serde_json::to_string(result)?;
+    let now = unix_ms();
+    let operation_changed = transaction.execute(
+        "UPDATE operation_reservations
+         SET state = 'committed', result_json = ?3, updated_at_unix_ms = ?4
+         WHERE operation_key = ?1 AND request_hash = ?2 AND state = 'reserved'",
+        params![operation_key, request_hash, result_json, now],
+    )?;
+    if operation_changed != 1 {
+        bail!("operation reservation could not be committed with preview consumption");
+    }
+    let preview_changed = transaction.execute(
+        "UPDATE preview_claims
+         SET state = 'consumed', result_json = ?4, updated_at_unix_ms = ?5
+         WHERE preview_id = ?1 AND binding_hash = ?2 AND claim_id = ?3 AND state = 'claimed'",
+        params![preview_id, binding_hash, claim_id, result_json, now],
+    )?;
+    if preview_changed != 1 {
+        bail!("preview claim could not be consumed from the claimed state");
+    }
+    transaction.commit()?;
+    Ok(())
+}
+
+fn write_release_preview_claim(
+    connection: &mut Connection,
+    preview_id: &str,
+    binding_hash: &str,
+    claim_id: &str,
+) -> Result<()> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    transaction.execute(
+        "DELETE FROM preview_claims
+         WHERE preview_id = ?1 AND binding_hash = ?2 AND claim_id = ?3 AND state = 'claimed'",
+        params![preview_id, binding_hash, claim_id],
     )?;
     transaction.commit()?;
     Ok(())
@@ -1198,6 +1528,146 @@ mod tests {
                 .count(),
             7
         );
+    }
+
+    #[test]
+    fn preview_claims_are_atomic_bound_replayable_and_releasable() {
+        use std::sync::Barrier;
+
+        let directory = tempdir().expect("tempdir");
+        let store = Store::open(directory.path().join("soleaux.db")).expect("open store");
+        let workspace_id = Uuid::now_v7();
+        let preview_id = "preview-1";
+        let binding_hash = "binding-1";
+        let expiry = unix_ms().saturating_add(60_000);
+        let barrier = Arc::new(Barrier::new(8));
+        let handles = (0..8)
+            .map(|_| {
+                let store = store.clone();
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    barrier.wait();
+                    store
+                        .claim_preview(preview_id, binding_hash, workspace_id, expiry)
+                        .expect("concurrent preview claim")
+                })
+            })
+            .collect::<Vec<_>>();
+        let outcomes = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("claim thread"))
+            .collect::<Vec<_>>();
+        let claim_ids = outcomes
+            .iter()
+            .filter_map(|outcome| match outcome {
+                PreviewClaimOutcome::Acquired { claim_id } => Some(claim_id.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(claim_ids.len(), 1);
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, PreviewClaimOutcome::InFlight))
+                .count(),
+            7
+        );
+        assert!(
+            store
+                .claim_preview(preview_id, "different-binding", workspace_id, expiry)
+                .is_err()
+        );
+
+        let operation_key = "edit:workspace:preview-1";
+        let request_hash = "request-1";
+        assert_eq!(
+            store
+                .reserve_operation(
+                    operation_key,
+                    request_hash,
+                    "editor.apply",
+                    Some(workspace_id),
+                )
+                .expect("reserve operation"),
+            OperationReservationOutcome::Acquired
+        );
+        let result = serde_json::json!({
+            "schema_version": "soleaux.preview-consumption/v1",
+            "preview_id": preview_id,
+            "applied": true,
+        });
+        store
+            .complete_preview_application(
+                preview_id,
+                binding_hash,
+                claim_ids[0].clone(),
+                operation_key,
+                request_hash,
+                result.clone(),
+            )
+            .expect("atomic completion");
+        assert_eq!(
+            store
+                .claim_preview(preview_id, binding_hash, workspace_id, expiry)
+                .expect("replay consumed preview"),
+            PreviewClaimOutcome::Replayed(result.clone())
+        );
+        assert_eq!(
+            store
+                .reserve_operation(
+                    operation_key,
+                    request_hash,
+                    "editor.apply",
+                    Some(workspace_id),
+                )
+                .expect("replay operation"),
+            OperationReservationOutcome::Replayed(result)
+        );
+
+        let retry_preview = "preview-retry";
+        let acquired = store
+            .claim_preview(retry_preview, binding_hash, workspace_id, expiry)
+            .expect("retry claim");
+        let PreviewClaimOutcome::Acquired { claim_id } = acquired else {
+            panic!("expected acquired retry claim");
+        };
+        store
+            .release_preview_claim(retry_preview, binding_hash, claim_id)
+            .expect("release preview claim");
+        assert!(matches!(
+            store
+                .claim_preview(retry_preview, binding_hash, workspace_id, expiry)
+                .expect("reacquire preview"),
+            PreviewClaimOutcome::Acquired { .. }
+        ));
+    }
+
+    #[test]
+    fn schema_two_database_migrates_preview_claims_to_schema_three() {
+        let directory = tempdir().expect("tempdir");
+        let database = directory.path().join("soleaux.db");
+        let connection = Connection::open(&database).expect("legacy database");
+        connection
+            .execute_batch("PRAGMA user_version = 2;")
+            .expect("legacy schema version");
+        drop(connection);
+        let store = Store::open(&database).expect("migrate store");
+        assert!(matches!(
+            store
+                .claim_preview(
+                    "migration-preview",
+                    "migration-binding",
+                    Uuid::now_v7(),
+                    unix_ms().saturating_add(60_000),
+                )
+                .expect("claim after migration"),
+            PreviewClaimOutcome::Acquired { .. }
+        ));
+        let connection = Connection::open(&database).expect("inspect migrated database");
+        let version: i64 = connection
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("schema version");
+        assert_eq!(version, 3);
     }
 
     #[test]
