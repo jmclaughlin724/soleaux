@@ -96,6 +96,51 @@ replace_once(
     'entity_id\n            .as_ref()\n            .map(|value| value.as_bytes().as_slice())\n            .unwrap_or(&[]),',
     "entity UUID audit bytes",
 )
+replace_once(
+    database,
+    '''fn parse_kind(index: usize, value: &str) -> rusqlite::Result<EntityKind> {
+    EntityKind::parse(value).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(error))
+    })
+}
+
+fn parse_sensitivity(index: usize, value: &str) -> rusqlite::Result<Sensitivity> {
+    Sensitivity::parse(value).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(error))
+    })
+}
+
+fn parse_relationship(index: usize, value: &str) -> rusqlite::Result<RelationshipKind> {
+    RelationshipKind::parse(value).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(error))
+    })
+}
+''',
+    '''fn invalid_text_value(index: usize, error: anyhow::Error) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(
+        index,
+        Type::Text,
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            error.to_string(),
+        )),
+    )
+}
+
+fn parse_kind(index: usize, value: &str) -> rusqlite::Result<EntityKind> {
+    EntityKind::parse(value).map_err(|error| invalid_text_value(index, error))
+}
+
+fn parse_sensitivity(index: usize, value: &str) -> rusqlite::Result<Sensitivity> {
+    Sensitivity::parse(value).map_err(|error| invalid_text_value(index, error))
+}
+
+fn parse_relationship(index: usize, value: &str) -> rusqlite::Result<RelationshipKind> {
+    RelationshipKind::parse(value).map_err(|error| invalid_text_value(index, error))
+}
+''',
+    "canonical SQLite text conversion errors",
+)
 
 workspace = Path("native/Cargo.toml")
 workspace_text = workspace.read_text(encoding="utf-8")
