@@ -1,0 +1,65 @@
+name: Validate and commit P4-024 typed PostgreSQL results
+
+on:
+  push:
+    branches:
+      - fix/typed-postgres-validation-p4-024-0.4.0-dev.5
+    paths:
+      - .github/workflows/repair-p4-024-v2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-p4-024-v2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply normal-source implementation
+        run: |
+          set -euo pipefail
+          python3 .ci/apply-p4-024.py
+          cargo fmt --manifest-path native/Cargo.toml --all
+
+      - name: Validate typed PostgreSQL behavior
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-intelligence --all-features --locked postgres_analysis
+          cargo test -p soleaux-mcp --all-features --locked postgres_sql
+          cargo test -p soleaux-mcp --all-features --locked explicit_substitution
+
+      - name: Commit validated normal source
+        run: |
+          set -euo pipefail
+          rm .ci/apply-p4-024.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add native/daemon/intelligence/src/lib.rs native/daemon/mcp/src/lib.rs .ci/apply-p4-024.py
+          git diff --cached --check
+          git commit -m 'fix(sql): return invalid PostgreSQL as typed validation data'
+          git push origin HEAD:${{ github.ref_name }}
