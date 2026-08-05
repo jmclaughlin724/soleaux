@@ -71,9 +71,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
     normalized_packages: list[dict[str, Any]] = []
     for package in packages:
         dependencies: list[dict[str, Any]] = []
-        dependency_values = cast(
-            list[dict[str, Any]], package.get("dependencies", [])
-        )
+        dependency_values = cast(list[dict[str, Any]], package.get("dependencies", []))
         for dependency in dependency_values:
             dependencies.append(
                 {
@@ -83,12 +81,8 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
                     "requirement": dependency.get("req"),
                     "kind": dependency.get("kind"),
                     "optional": bool(dependency.get("optional", False)),
-                    "usesDefaultFeatures": bool(
-                        dependency.get("uses_default_features", True)
-                    ),
-                    "features": sorted(
-                        cast(list[str], dependency.get("features", []))
-                    ),
+                    "usesDefaultFeatures": bool(dependency.get("uses_default_features", True)),
+                    "features": sorted(cast(list[str], dependency.get("features", []))),
                     "target": dependency.get("target"),
                 }
             )
@@ -109,9 +103,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
                 {
                     "name": target["name"],
                     "kind": sorted(cast(list[str], target.get("kind", []))),
-                    "crateTypes": sorted(
-                        cast(list[str], target.get("crate_types", []))
-                    ),
+                    "crateTypes": sorted(cast(list[str], target.get("crate_types", []))),
                     "requiredFeatures": sorted(
                         cast(list[str], target.get("required-features", []))
                     ),
@@ -128,9 +120,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
                 tuple(cast(list[str], item["crateTypes"])),
             )
         )
-        feature_values = cast(
-            dict[str, list[str]], package.get("features", {})
-        )
+        feature_values = cast(dict[str, list[str]], package.get("features", {}))
         features: dict[str, list[str]] = {
             name: sorted(values) for name, values in sorted(feature_values.items())
         }
@@ -153,24 +143,17 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
     normalized_packages.sort(key=lambda item: str(item["key"]))
 
     resolve_value = metadata.get("resolve")
-    resolve = (
-        cast(dict[str, Any], resolve_value)
-        if isinstance(resolve_value, dict)
-        else {}
-    )
+    resolve = cast(dict[str, Any], resolve_value) if isinstance(resolve_value, dict) else {}
     nodes: list[dict[str, Any]] = []
     node_values = cast(list[dict[str, Any]], resolve.get("nodes", []))
     for node in node_values:
         dependencies = sorted(
-            id_to_key[str(value)]
-            for value in cast(list[Any], node.get("dependencies", []))
+            id_to_key[str(value)] for value in cast(list[Any], node.get("dependencies", []))
         )
         dependency_edges: list[dict[str, Any]] = []
         edge_values = cast(list[dict[str, Any]], node.get("deps", []))
         for edge in edge_values:
-            dep_kind_values = cast(
-                list[dict[str, Any]], edge.get("dep_kinds", [])
-            )
+            dep_kind_values = cast(list[dict[str, Any]], edge.get("dep_kinds", []))
             dependency_edges.append(
                 {
                     "name": edge["name"],
@@ -190,9 +173,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
                     ),
                 }
             )
-        dependency_edges.sort(
-            key=lambda item: (str(item["name"]), str(item["package"]))
-        )
+        dependency_edges.sort(key=lambda item: (str(item["name"]), str(item["package"])))
         nodes.append(
             {
                 "package": id_to_key[str(node["id"])],
@@ -204,9 +185,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
     nodes.sort(key=lambda item: str(item["package"]))
     root = resolve.get("root")
     workspace_members = cast(list[Any], metadata.get("workspace_members", []))
-    workspace_default_members = cast(
-        list[Any], metadata.get("workspace_default_members", [])
-    )
+    workspace_default_members = cast(list[Any], metadata.get("workspace_default_members", []))
     return {
         "schemaVersion": "soleaux.cargo-sbom/v1",
         "cargoMetadataFormatVersion": metadata.get("version"),
