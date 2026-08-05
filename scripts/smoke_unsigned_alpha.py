@@ -10,7 +10,7 @@ import pathlib
 import shutil
 import subprocess
 import time
-from typing import Any
+from typing import Any, cast
 
 
 def write(path: pathlib.Path, text: str) -> None:
@@ -45,8 +45,14 @@ def run_json(
         value = json.loads(result.stdout)
     except json.JSONDecodeError as error:
         raise RuntimeError(f"{name} did not return JSON: {result.stdout!r}") from error
-    write(logs / f"{name}.json", json.dumps(value, indent=2, sort_keys=True) + "\n")
-    return value
+    if not isinstance(value, dict):
+        raise RuntimeError(f"{name} returned a non-object JSON result")
+    typed_value = cast(dict[str, Any], value)
+    write(
+        logs / f"{name}.json",
+        json.dumps(typed_value, indent=2, sort_keys=True) + "\n",
+    )
+    return typed_value
 
 
 def wait_for_endpoint(endpoint: pathlib.Path, process: subprocess.Popen[str]) -> None:
@@ -268,9 +274,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             logs=logs,
             name="uninstall",
         )
-        report = uninstall.get("uninstall")
-        if not isinstance(report, dict):
+        report_value = uninstall.get("uninstall")
+        if not isinstance(report_value, dict):
             raise RuntimeError("uninstall response omitted the typed uninstall report")
+        report = cast(dict[str, Any], report_value)
         if manifest.exists() or cli.exists() or daemon.exists():
             raise RuntimeError("uninstall left installed service or binary files")
         if not pathlib.Path(env["SOLEAUX_HOME"]).is_dir():
