@@ -336,7 +336,25 @@ fn collect_candidates(
 ) -> Vec<MemoryCandidate> {
     let mut candidates = Vec::new();
     for memory_root in roots.iter().filter(|entry| entry.path.is_dir()) {
-        for entry in WalkBuilder::new(&memory_root.path)
+        let canonical_root = match fs::canonicalize(&memory_root.path) {
+            Ok(value) => value,
+            Err(_) => {
+                push_gap(
+                    gaps,
+                    seen_gaps,
+                    gap(
+                        "memory_root_unavailable",
+                        "An attached memory root could not be canonicalized and was omitted.",
+                        "warning",
+                        true,
+                        Some("memory"),
+                        Some(&memory_root.path.to_string_lossy()),
+                    ),
+                );
+                continue;
+            }
+        };
+        for entry in WalkBuilder::new(&canonical_root)
             .standard_filters(true)
             .hidden(false)
             .max_depth(Some(8))
@@ -375,7 +393,7 @@ fn collect_candidates(
                 continue;
             }
             let relative = path
-                .strip_prefix(&memory_root.path)
+                .strip_prefix(&canonical_root)
                 .unwrap_or(path)
                 .to_string_lossy()
                 .replace('\\', "/");
@@ -401,7 +419,7 @@ fn collect_candidates(
             candidates.push(MemoryCandidate {
                 scope: memory_root.scope.clone(),
                 origin: memory_root.origin,
-                root: memory_root.path.clone(),
+                root: canonical_root.clone(),
                 path: path.to_path_buf(),
                 relative,
                 byte_length: metadata.len(),

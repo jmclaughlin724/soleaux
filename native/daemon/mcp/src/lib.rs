@@ -2362,16 +2362,26 @@ mod tests {
 
         fs::write(&source_path, "export function newState() { return 'new'; }")
             .expect("external mutation");
-        let new_after = server
-            .call_async("code.search", &json!({"query": "newState"}))
-            .await
-            .expect("new search");
-        assert!(
-            new_after
+        let mut new_state_observed = false;
+        for _ in 0..100 {
+            let candidate = server
+                .call_async("code.search", &json!({"query": "newState"}))
+                .await
+                .expect("new search");
+            if candidate
                 .data
                 .get("matches")
                 .and_then(Value::as_array)
                 .is_some_and(|matches| !matches.is_empty())
+            {
+                new_state_observed = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            new_state_observed,
+            "watcher-backed refresh did not observe the external mutation"
         );
         let old_after = server
             .call_async("code.search", &json!({"query": "oldState"}))
