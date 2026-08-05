@@ -117,9 +117,7 @@ if gap.get("schemaVersion") != "soleaux.transcript-gap-registry/v5":
 gaps = {item["id"]: item for item in gap["gaps"]}
 if gaps["GAP-003"]["status"] != "closed":
     fail("native correctness gap must be closed")
-if set(gaps["GAP-003"].get("closedTasks", [])) != {
-    f"P4-{number:03d}" for number in range(17, 27)
-}:
+if set(gaps["GAP-003"].get("closedTasks", [])) != {f"P4-{number:03d}" for number in range(17, 27)}:
     fail("native correctness closed-task set drifted")
 if gaps["GAP-006"]["status"] != "closed":
     fail("CLI/service/IPC gap must be closed")
@@ -144,9 +142,7 @@ if [task["id"] for task in phase3_tasks["tasks"]] != [
 
 tasks_text = (ROOT / "TASKS.md").read_text(encoding="utf-8")
 task_ids = [
-    task_id
-    for line in tasks_text.splitlines()
-    if (task_id := task_id_from_line(line)) is not None
+    task_id for line in tasks_text.splitlines() if (task_id := task_id_from_line(line)) is not None
 ]
 if len(task_ids) != len(set(task_ids)):
     fail("duplicate task IDs found")
