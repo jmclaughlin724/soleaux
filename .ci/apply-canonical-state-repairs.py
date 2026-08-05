@@ -98,15 +98,10 @@ replace_once(
 )
 
 workspace = Path("native/Cargo.toml")
-replace_once(
-    workspace,
-    '  "daemon/storage",\n  "apps/cli",',
-    '  "daemon/storage",\n  "daemon/state",\n  "apps/cli",',
-    "workspace state member",
-)
-replace_once(
-    workspace,
-    '  "daemon/storage",\n  "apps/cli",',
-    '  "daemon/storage",\n  "daemon/state",\n  "apps/cli",',
-    "default state member",
-)
+workspace_text = workspace.read_text(encoding="utf-8")
+old = '  "daemon/storage",\n  "apps/cli",'
+new = '  "daemon/storage",\n  "daemon/state",\n  "apps/cli",'
+count = workspace_text.count(old)
+if count != 2:
+    raise SystemExit(f"workspace state member targets drifted: expected 2, observed {count}")
+workspace.write_text(workspace_text.replace(old, new), encoding="utf-8")
