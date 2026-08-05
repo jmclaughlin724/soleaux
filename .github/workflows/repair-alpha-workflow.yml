@@ -1,0 +1,38 @@
+name: Repair Phase 4 alpha operational verifier
+
+on:
+  push:
+    branches:
+      - release/phase4-unsigned-alpha-main-0.4.0-dev.5
+    paths:
+      - .ci/repair-alpha-workflow.py
+      - .github/workflows/repair-alpha-workflow.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Apply deterministic verifier corrections
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .ci/repair-alpha-workflow.py
+          python3 .ci/repair-alpha-workflow.py
+          git diff --check
+          rm .ci/repair-alpha-workflow.py
+          rm .github/workflows/repair-alpha-workflow.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            .github/workflows/verify-phase4-unsigned-alpha.yml \
+            .ci/repair-alpha-workflow.py \
+            .github/workflows/repair-alpha-workflow.yml
+          git diff --cached --check
+          git commit -m 'ci: retain alpha diagnostics and validate nested uninstall receipt'
+          git push origin HEAD:${{ github.ref_name }}
