@@ -1,0 +1,36 @@
+name: Package exact P4-023 base source
+
+on:
+  push:
+    branches:
+      - bootstrap/p4-023-after-provisioning
+    paths:
+      - .github/workflows/package-p4-023-base.yml
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6391d5bfbc7fe659d0712ca3a4eac335bb600beb
+          fetch-depth: 0
+      - name: Package exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "6391d5bfbc7fe659d0712ca3a4eac335bb600beb"
+          mkdir -p snapshot
+          git archive --format=tar HEAD | xz -T0 -6 > snapshot/soleaux-6391d5-source.tar.xz
+          printf '%s\n' "$(git rev-parse HEAD)" > snapshot/SOURCE_COMMIT
+          (cd snapshot && sha256sum soleaux-6391d5-source.tar.xz SOURCE_COMMIT > SHA256SUMS && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-p4-023-base-source
+          path: snapshot/
+          if-no-files-found: error
+          retention-days: 7
