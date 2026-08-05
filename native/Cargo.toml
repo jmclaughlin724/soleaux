@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "daemon/intelligence",
+  "daemon/redaction",
   "daemon/mcp",
   "daemon/engine",
   "daemon/storage",

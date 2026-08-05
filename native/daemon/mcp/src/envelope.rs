@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use soleaux_redaction::{redact_json_in_place, redact_text};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -112,7 +113,7 @@ impl ToolEnvelopeV2 {
             None,
             "none",
         );
-        Self {
+        let mut envelope = Self {
             schema_version: ENVELOPE_SCHEMA_VERSION.to_string(),
             product_version: PRODUCT_VERSION.to_string(),
             request_id,
@@ -138,7 +139,9 @@ impl ToolEnvelopeV2 {
             continuation_cursor: metadata.continuation_cursor,
             sensitivity: metadata.sensitivity,
             duration_us,
-        }
+        };
+        envelope.redact_in_place();
+        envelope
     }
 
     pub fn error(
@@ -149,7 +152,7 @@ impl ToolEnvelopeV2 {
         duration_us: u64,
     ) -> Self {
         let source = source.into();
-        Self {
+        let mut envelope = Self {
             schema_version: ENVELOPE_SCHEMA_VERSION.to_string(),
             product_version: PRODUCT_VERSION.to_string(),
             request_id: Uuid::now_v7().to_string(),
@@ -188,6 +191,40 @@ impl ToolEnvelopeV2 {
             continuation_cursor: None,
             sensitivity: "internal".to_string(),
             duration_us,
+        };
+        envelope.redact_in_place();
+        envelope
+    }
+
+    fn redact_in_place(&mut self) {
+        let mut count = redact_json_in_place(&mut self.data);
+        if let Some(rows) = &mut self.rows {
+            for row in rows {
+                count = count.saturating_add(redact_json_in_place(row));
+            }
+        }
+        for value in &mut self.evidence {
+            count = count.saturating_add(redact_json_in_place(value));
+        }
+        if let Some(value) = &mut self.coverage {
+            count = count.saturating_add(redact_json_in_place(value));
+        }
+        for warning in &mut self.warnings {
+            let redacted = redact_text(warning);
+            *warning = redacted.value;
+            count = count.saturating_add(redacted.count);
+        }
+        for request in &mut self.suggested_next_requests {
+            count = count.saturating_add(redact_json_in_place(request));
+        }
+        if let Some(value) = &mut self.error {
+            count = count.saturating_add(redact_json_in_place(value));
+        }
+        count = count.saturating_add(redact_json_in_place(&mut self.provenance));
+        if count > 0 {
+            self.warnings.push(format!(
+                "Soleaux redacted {count} secret-bearing value(s) at the public MCP boundary."
+            ));
         }
     }
 }
@@ -296,4 +333,47 @@ fn unix_ms() -> u64 {
         .as_millis()
         .try_into()
         .unwrap_or(u64::MAX)
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::*;
+
+    #[test]
+    fn public_envelopes_redact_nested_secrets_and_error_text() {
+        let metadata = SuccessMetadata::repository("test", "test");
+        let envelope = ToolEnvelopeV2::success(
+            Uuid::from_u128(1),
+            "/workspace",
+            json!({
+                "accessToken": "live-access-token-value",
+                "message": "Bearer abcdefghijklmnopqrstuvwxyz123456",
+                "nested": [{"ordinary": "ghp_abcdefghijklmnopqrstuvwxyz1234567890"}]
+            }),
+            Some(vec![json!({"cookie": "session=secret-cookie"})]),
+            1,
+            metadata,
+        );
+        let encoded = serde_json::to_string(&envelope).expect("serialize envelope");
+        assert!(!encoded.contains("live-access-token-value"));
+        assert!(!encoded.contains("abcdefghijklmnopqrstuvwxyz123456"));
+        assert!(!encoded.contains("secret-cookie"));
+        assert!(encoded.contains("[REDACTED]"));
+
+        let envelope = ToolEnvelopeV2::error(
+            Uuid::from_u128(1),
+            "/workspace",
+            "test",
+            ToolError {
+                error_type: "provider_error".to_string(),
+                message: "failed with sk-proj-abcdefghijklmnopqrstuvwxyz1234567890".to_string(),
+                retryable: false,
+                details: json!({"authorization": "Basic c3VwZXItc2VjcmV0LXZhbHVl"}),
+            },
+            1,
+        );
+        let encoded = serde_json::to_string(&envelope).expect("serialize error envelope");
+        assert!(!encoded.contains("sk-proj-"));
+        assert!(!encoded.contains("c3VwZXItc2VjcmV0LXZhbHVl"));
+    }
 }

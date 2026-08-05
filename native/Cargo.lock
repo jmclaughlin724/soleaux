@@ -2031,6 +2031,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "soleaux-redaction",
  "soleaux-storage",
  "tempfile",
  "tokio",
@@ -2058,6 +2059,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "soleaux-intelligence",
+ "soleaux-redaction",
  "soleaux-storage",
  "subtle",
  "tempfile",
@@ -2065,6 +2067,13 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "soleaux-redaction"
+version = "0.4.0-dev.5"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
