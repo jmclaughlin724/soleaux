@@ -1,0 +1,124 @@
+name: Finalize Phase 4 documentation synchronization
+
+on:
+  push:
+    branches:
+      - docs/phase4-closure-phase5-activation-0.4.0-dev.5
+    paths:
+      - .github/workflows/finalize-phase4-documentation.yml
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: finalize-phase4-documentation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PHASE4_ARTIFACT_ID: '8939137324'
+      PHASE4_ARTIFACT_SHA256: 9917b2dd8335b2d17cdb3f0dc15191699ec7f0d1ff431f9e3b2135e0a1f4684b
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Restore independently verified Phase 4 evidence
+        run: |
+          set -euo pipefail
+          rm -rf phase4-evidence phase4-artifact.zip
+          curl --fail --location --retry 3 \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/jmclaughlin724/soleaux/actions/artifacts/${PHASE4_ARTIFACT_ID}/zip" \
+            -o phase4-artifact.zip
+          echo "${PHASE4_ARTIFACT_SHA256}  phase4-artifact.zip" | sha256sum -c -
+          mkdir phase4-evidence
+          unzip -q phase4-artifact.zip -d phase4-evidence
+          (cd phase4-evidence && sha256sum -c SHA256SUMS)
+          cmp phase4-evidence/soleaux-alpha-a.tar.xz phase4-evidence/soleaux-alpha-b.tar.xz
+
+      - name: Reconstruct and execute the checksummed synchronizer
+        run: |
+          set -euo pipefail
+          cat .ci/sync-phase4-docs.part[0-9][0-9] > .ci/sync-phase4-docs.py.gz.b64
+          echo '07c4a2d02c6850e95c64325a1a277e9d57a6183992b920454d432c6587f59d1b  .ci/sync-phase4-docs.py.gz.b64' | sha256sum -c -
+          base64 -d .ci/sync-phase4-docs.py.gz.b64 > .ci/sync-phase4-docs.py.gz
+          echo '89473f66f430211ba3ce15ccf242333d7317c4e13116d32b0968af8c75b32a0d  .ci/sync-phase4-docs.py.gz' | sha256sum -c -
+          gzip -dc .ci/sync-phase4-docs.py.gz > .ci/sync_phase4_docs.py
+          echo 'f8fc09a2543436adbae28fef74b5a33a6803cb2c27569b77de2ed70d8e7eec8a  .ci/sync_phase4_docs.py' | sha256sum -c -
+          python3 -m py_compile .ci/sync_phase4_docs.py
+          python3 .ci/sync_phase4_docs.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          checker = Path('scripts/check_documentation_consistency.py')
+          text = checker.read_text(encoding='utf-8')
+          text = text.replace(
+              'sha256("contracts/unified-mcp-profile-v2.json")',
+              'sha256("native/contracts/unified-mcp-profile-v2.json")',
+          ).replace(
+              'sha256("contracts/context-packet-v2.schema.json")',
+              'sha256("native/contracts/context-packet-v2.schema.json")',
+          )
+          checker.write_text(text, encoding='utf-8')
+
+          status_path = Path('PROJECT-STATUS.json')
+          status = json.loads(status_path.read_text(encoding='utf-8'))
+          status['lockedContracts']['unifiedMcpProfile']['path'] = (
+              'native/contracts/unified-mcp-profile-v2.json'
+          )
+          status['lockedContracts']['contextPacketV2']['path'] = (
+              'native/contracts/context-packet-v2.schema.json'
+          )
+          status_path.write_text(
+              json.dumps(status, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          rm -f .ci/sync-phase4-docs.part[0-9][0-9] \
+            .ci/sync-phase4-docs.py.gz.b64 \
+            .ci/sync-phase4-docs.py.gz \
+            .ci/sync_phase4_docs.py
+
+      - name: Validate every authority file
+        run: |
+          set -euo pipefail
+          uv sync --locked
+          uv run --locked ruff check --fix scripts/check_documentation_consistency.py
+          uv run --locked ruff format scripts/check_documentation_consistency.py
+          uv run --locked ruff check scripts/check_documentation_consistency.py
+          uv run --locked ruff format --check scripts/check_documentation_consistency.py
+          python3 scripts/check_documentation_consistency.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in Path('.').rglob('*.json'):
+              if any(part in {'.git', '.venv', 'node_modules', 'phase4-evidence'} for part in path.parts):
+                  continue
+              json.loads(path.read_text(encoding='utf-8'))
+          PY
+          git diff --check
+
+      - name: Commit synchronized authority files
+        run: |
+          set -euo pipefail
+          rm -rf phase4-evidence phase4-artifact.zip
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: close Phase 4 and activate Phase 5'
+          git push origin HEAD:${{ github.ref_name }}
