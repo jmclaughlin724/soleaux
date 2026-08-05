@@ -36,7 +36,7 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - name: Apply deterministic vault integration and update lockfile
+      - name: Apply quote-safe deterministic vault integration and update lockfile
         run: |
           set -euo pipefail
           python3 -m py_compile .ci/apply-vault-p4-013.py
