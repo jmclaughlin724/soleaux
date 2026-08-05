@@ -90,6 +90,12 @@ jobs:
               json.dumps(status, indent=2, sort_keys=True) + '\n',
               encoding='utf-8',
           )
+
+          markdown = Path('PROJECT-STATUS.md')
+          cleaned = '\n'.join(
+              line.rstrip() for line in markdown.read_text(encoding='utf-8').splitlines()
+          ) + '\n'
+          markdown.write_text(cleaned, encoding='utf-8')
           PY
           rm -f .ci/sync-phase4-docs.part[0-9][0-9] \
             .ci/sync-phase4-docs.py.gz.b64 \
