@@ -261,7 +261,7 @@ version1_marker = lines(
     "                ON operation_reservations(state, updated_at_unix_ms);",
     "            PRAGMA user_version = 2;",
     "            COMMIT;",
-    "            \"#,","
+        '            "#,',
     "        )?;",
     "    }",
     "    Ok(())",
@@ -275,7 +275,7 @@ text = replace_once(
     ) + preview_schema_sql + lines(
         "            PRAGMA user_version = 3;",
         "            COMMIT;",
-        "            \"#,","
+        '            "#,',
         "        )?;",
         "    }",
         "    if version == 2 {",
@@ -285,7 +285,7 @@ text = replace_once(
     ) + preview_schema_sql + lines(
         "            PRAGMA user_version = 3;",
         "            COMMIT;",
-        "            \"#,","
+        '            "#,',
         "        )?;",
         "    }",
         "    Ok(())",
