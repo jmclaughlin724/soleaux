@@ -7,6 +7,7 @@ members = [
   "daemon/storage",
   "daemon/state",
   "daemon/vault",
+  "daemon/ipc",
   "apps/cli",
 ]
 exclude = [
@@ -19,6 +20,7 @@ default-members = [
   "daemon/storage",
   "daemon/state",
   "daemon/vault",
+  "daemon/ipc",
   "apps/cli",
 ]
 resolver = "2"
