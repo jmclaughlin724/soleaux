@@ -14,7 +14,7 @@ import stat
 import subprocess
 import tarfile
 import tempfile
-from typing import Any
+from typing import Any, cast
 
 VERSION = "0.4.0-dev.5"
 PRODUCT_VERSION = f"Soleaux {VERSION}"
@@ -61,14 +61,20 @@ def cargo_package_key(package: dict[str, Any]) -> str:
 
 
 def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
-    packages = metadata.get("packages")
-    if not isinstance(packages, list):
+    packages_value = metadata.get("packages")
+    if not isinstance(packages_value, list):
         raise SystemExit("cargo metadata omitted packages")
-    id_to_key = {str(package["id"]): cargo_package_key(package) for package in packages}
+    packages = cast(list[dict[str, Any]], packages_value)
+    id_to_key: dict[str, str] = {
+        str(package["id"]): cargo_package_key(package) for package in packages
+    }
     normalized_packages: list[dict[str, Any]] = []
     for package in packages:
-        dependencies = []
-        for dependency in package.get("dependencies", []):
+        dependencies: list[dict[str, Any]] = []
+        dependency_values = cast(
+            list[dict[str, Any]], package.get("dependencies", [])
+        )
+        for dependency in dependency_values:
             dependencies.append(
                 {
                     "name": dependency["name"],
@@ -77,38 +83,56 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
                     "requirement": dependency.get("req"),
                     "kind": dependency.get("kind"),
                     "optional": bool(dependency.get("optional", False)),
-                    "usesDefaultFeatures": bool(dependency.get("uses_default_features", True)),
-                    "features": sorted(dependency.get("features", [])),
+                    "usesDefaultFeatures": bool(
+                        dependency.get("uses_default_features", True)
+                    ),
+                    "features": sorted(
+                        cast(list[str], dependency.get("features", []))
+                    ),
                     "target": dependency.get("target"),
                 }
             )
         dependencies.sort(
             key=lambda item: (
-                item["name"],
-                item["rename"] or "",
-                item["source"] or "",
-                item["kind"] or "",
-                item["target"] or "",
-                item["requirement"] or "",
+                str(item["name"]),
+                str(item["rename"] or ""),
+                str(item["source"] or ""),
+                str(item["kind"] or ""),
+                str(item["target"] or ""),
+                str(item["requirement"] or ""),
             )
         )
-        targets = []
-        for target in package.get("targets", []):
+        targets: list[dict[str, Any]] = []
+        target_values = cast(list[dict[str, Any]], package.get("targets", []))
+        for target in target_values:
             targets.append(
                 {
                     "name": target["name"],
-                    "kind": sorted(target.get("kind", [])),
-                    "crateTypes": sorted(target.get("crate_types", [])),
-                    "requiredFeatures": sorted(target.get("required-features", [])),
+                    "kind": sorted(cast(list[str], target.get("kind", []))),
+                    "crateTypes": sorted(
+                        cast(list[str], target.get("crate_types", []))
+                    ),
+                    "requiredFeatures": sorted(
+                        cast(list[str], target.get("required-features", []))
+                    ),
                     "edition": target.get("edition"),
                     "doctest": bool(target.get("doctest", False)),
                     "test": bool(target.get("test", False)),
                     "doc": bool(target.get("doc", False)),
                 }
             )
-        targets.sort(key=lambda item: (item["name"], item["kind"], item["crateTypes"]))
-        features = {
-            name: sorted(values) for name, values in sorted(package.get("features", {}).items())
+        targets.sort(
+            key=lambda item: (
+                str(item["name"]),
+                tuple(cast(list[str], item["kind"])),
+                tuple(cast(list[str], item["crateTypes"])),
+            )
+        )
+        feature_values = cast(
+            dict[str, list[str]], package.get("features", {})
+        )
+        features: dict[str, list[str]] = {
+            name: sorted(values) for name, values in sorted(feature_values.items())
         }
         normalized_packages.append(
             {
@@ -126,14 +150,27 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
                 "targets": targets,
             }
         )
-    normalized_packages.sort(key=lambda item: item["key"])
+    normalized_packages.sort(key=lambda item: str(item["key"]))
 
-    resolve = metadata.get("resolve") or {}
-    nodes = []
-    for node in resolve.get("nodes", []):
-        dependencies = sorted(id_to_key[str(value)] for value in node.get("dependencies", []))
-        dependency_edges = []
-        for edge in node.get("deps", []):
+    resolve_value = metadata.get("resolve")
+    resolve = (
+        cast(dict[str, Any], resolve_value)
+        if isinstance(resolve_value, dict)
+        else {}
+    )
+    nodes: list[dict[str, Any]] = []
+    node_values = cast(list[dict[str, Any]], resolve.get("nodes", []))
+    for node in node_values:
+        dependencies = sorted(
+            id_to_key[str(value)]
+            for value in cast(list[Any], node.get("dependencies", []))
+        )
+        dependency_edges: list[dict[str, Any]] = []
+        edge_values = cast(list[dict[str, Any]], node.get("deps", []))
+        for edge in edge_values:
+            dep_kind_values = cast(
+                list[dict[str, Any]], edge.get("dep_kinds", [])
+            )
             dependency_edges.append(
                 {
                     "name": edge["name"],
@@ -144,31 +181,38 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
                                 "kind": kind.get("kind"),
                                 "target": kind.get("target"),
                             }
-                            for kind in edge.get("dep_kinds", [])
+                            for kind in dep_kind_values
                         ),
-                        key=lambda item: (item["kind"] or "", item["target"] or ""),
+                        key=lambda item: (
+                            str(item["kind"] or ""),
+                            str(item["target"] or ""),
+                        ),
                     ),
                 }
             )
-        dependency_edges.sort(key=lambda item: (item["name"], item["package"]))
+        dependency_edges.sort(
+            key=lambda item: (str(item["name"]), str(item["package"]))
+        )
         nodes.append(
             {
                 "package": id_to_key[str(node["id"])],
                 "dependencies": dependencies,
                 "dependencyEdges": dependency_edges,
-                "features": sorted(node.get("features", [])),
+                "features": sorted(cast(list[str], node.get("features", []))),
             }
         )
-    nodes.sort(key=lambda item: item["package"])
+    nodes.sort(key=lambda item: str(item["package"]))
     root = resolve.get("root")
+    workspace_members = cast(list[Any], metadata.get("workspace_members", []))
+    workspace_default_members = cast(
+        list[Any], metadata.get("workspace_default_members", [])
+    )
     return {
         "schemaVersion": "soleaux.cargo-sbom/v1",
         "cargoMetadataFormatVersion": metadata.get("version"),
-        "workspaceMembers": sorted(
-            id_to_key[str(value)] for value in metadata.get("workspace_members", [])
-        ),
+        "workspaceMembers": sorted(id_to_key[str(value)] for value in workspace_members),
         "workspaceDefaultMembers": sorted(
-            id_to_key[str(value)] for value in metadata.get("workspace_default_members", [])
+            id_to_key[str(value)] for value in workspace_default_members
         ),
         "resolve": {
             "root": id_to_key.get(str(root)) if root is not None else None,
@@ -266,7 +310,10 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     if not soleaux.is_file() or not soleauxd.is_file():
         raise SystemExit("compiled soleaux and soleauxd binaries are required")
     versions = {"soleaux": run_version(soleaux), "soleauxd": run_version(soleauxd)}
-    cargo_metadata = json.loads(metadata.read_text(encoding="utf-8"))
+    loaded_metadata = cast(object, json.loads(metadata.read_text(encoding="utf-8")))
+    if not isinstance(loaded_metadata, dict):
+        raise SystemExit("cargo metadata root must be an object")
+    cargo_metadata = cast(dict[str, Any], loaded_metadata)
     cargo_sbom = normalized_cargo_sbom(cargo_metadata)
 
     package_name = f"soleaux-{VERSION}-{normalized_platform()}"
@@ -361,6 +408,7 @@ fi
         with tarfile.open(output, mode="w:xz", format=tarfile.PAX_FORMAT, preset=9) as archive:
             add_sorted(archive, root, package_name, epoch)
 
+    manifest_files = cast(list[dict[str, Any]], manifest["files"])
     result = {
         "schemaVersion": "soleaux.unsigned-alpha-package/v1",
         "product": PRODUCT_VERSION,
@@ -369,7 +417,7 @@ fi
         "archive": str(output),
         "archiveBytes": output.stat().st_size,
         "archiveSha256": sha256(output),
-        "fileCount": len(manifest["files"]) + 1,
+        "fileCount": len(manifest_files) + 1,
         "unsigned": True,
         "productionClaimAllowed": PRODUCTION_CLAIM_ALLOWED,
         "publicToolCeiling": PUBLIC_TOOL_CEILING,
