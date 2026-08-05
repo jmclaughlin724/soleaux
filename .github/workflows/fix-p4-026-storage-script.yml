@@ -19,7 +19,7 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - name: Generate valid raw-string terminator literals
+      - name: Normalize raw-string terminator source lines
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -27,15 +27,14 @@ jobs:
 
           path = Path('.ci/apply-p4-026-storage.py')
           source_lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
-          replacement = '        ' + repr('            "#,') + ',\n'
+          replacement = "        '            \"#,',\n"
           replaced = 0
           for index, line in enumerate(source_lines):
-              stripped = line.rstrip('\n')
-              if stripped.startswith('        "') and '#,' in stripped and stripped.endswith('","'):
+              if '#,' in line and line.lstrip().startswith('"'):
                   source_lines[index] = replacement
                   replaced += 1
-          if replaced < 2:
-              raise SystemExit(f'expected at least two malformed raw-string lines, observed {replaced}')
+          if replaced != 3:
+              raise SystemExit(f'expected three raw-string terminator lines, observed {replaced}')
           repaired = ''.join(source_lines)
           compile(repaired, str(path), 'exec')
           path.write_text(repaired, encoding='utf-8')
