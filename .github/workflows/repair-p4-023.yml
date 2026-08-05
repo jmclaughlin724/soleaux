@@ -36,19 +36,41 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - name: Apply compiler-confirmed repair
+      - name: Apply compiler and test confirmed repairs
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('native/daemon/mcp/src/memory.rs')
-          text = path.read_text(encoding='utf-8')
-          old = '    collections::{BTreeMap, BTreeSet},\n'
-          new = '    collections::BTreeSet,\n'
-          if text.count(old) != 1:
+
+          memory = Path('native/daemon/mcp/src/memory.rs')
+          text = memory.read_text(encoding='utf-8')
+          old_import = '    collections::{BTreeMap, BTreeSet},\n'
+          new_import = '    collections::BTreeSet,\n'
+          if text.count(old_import) != 1:
               raise SystemExit('P4-023 import repair target drifted')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          text = text.replace(old_import, new_import, 1)
+          old_home = '        unsafe { std::env::set_var("SOLEAUX_HOME", home.path()) };\n'
+          new_home = '        let _home_guard = crate::test_environment::SoleauxHomeGuard::set(home.path());\n'
+          if text.count(old_home) != 2:
+              raise SystemExit('P4-023 memory environment targets drifted')
+          memory.write_text(text.replace(old_home, new_home), encoding='utf-8')
+
+          gateway = Path('native/daemon/mcp/src/gateway.rs')
+          text = gateway.read_text(encoding='utf-8')
+          old = '        unsafe { env::set_var("SOLEAUX_HOME", &home) };\n'
+          new = '        let _home_guard = crate::test_environment::SoleauxHomeGuard::set(&home);\n'
+          if text.count(old) != 1:
+              raise SystemExit('P4-023 gateway environment target drifted')
+          gateway.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          lib = Path('native/daemon/mcp/src/lib.rs')
+          text = lib.read_text(encoding='utf-8')
+          marker = 'pub const MAX_RESULT_BYTES: usize = 256 * 1024;\n\n'
+          helper = '''pub const MAX_RESULT_BYTES: usize = 256 * 1024;\n\n#[cfg(test)]\npub(crate) mod test_environment {\n    use std::{\n        ffi::OsString,\n        path::Path,\n        sync::{Mutex, MutexGuard},\n    };\n\n    static SOLEAUX_HOME_LOCK: Mutex<()> = Mutex::new(());\n\n    pub struct SoleauxHomeGuard {\n        previous: Option<OsString>,\n        _lock: MutexGuard<'static, ()>,\n    }\n\n    impl SoleauxHomeGuard {\n        pub fn set(path: &Path) -> Self {\n            let lock = SOLEAUX_HOME_LOCK\n                .lock()\n                .unwrap_or_else(|poisoned| poisoned.into_inner());\n            let previous = std::env::var_os("SOLEAUX_HOME");\n            unsafe { std::env::set_var("SOLEAUX_HOME", path) };\n            Self {\n                previous,\n                _lock: lock,\n            }\n        }\n    }\n\n    impl Drop for SoleauxHomeGuard {\n        fn drop(&mut self) {\n            match &self.previous {\n                Some(value) => unsafe { std::env::set_var("SOLEAUX_HOME", value) },\n                None => unsafe { std::env::remove_var("SOLEAUX_HOME") },\n            }\n        }\n    }\n}\n\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('P4-023 shared environment helper target drifted')
+          lib.write_text(text.replace(marker, helper, 1), encoding='utf-8')
           PY
           cargo fmt --manifest-path native/Cargo.toml --all
 
@@ -69,7 +91,9 @@ jobs:
           rm .github/workflows/repair-p4-023.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add native/daemon/mcp/src/memory.rs .github/workflows/repair-p4-023.yml
+          git add native/daemon/mcp/src/lib.rs native/daemon/mcp/src/gateway.rs native/daemon/mcp/src/memory.rs .github/workflows/repair-p4-023.yml
           git diff --cached --check
-          git commit -m 'fix(mcp): satisfy strict continuation lint gate'
+          git commit -m 'fix(mcp): serialize environment-bound continuation tests'
           git push origin HEAD:${{ github.ref_name }}
+
+# Retry marker: serialize the process-global SOLEAUX_HOME tests and restore the prior value.
