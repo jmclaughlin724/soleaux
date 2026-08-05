@@ -929,7 +929,7 @@ async fn list_mcp_events(
             query
                 .backend
                 .as_deref()
-                .map_or(true, |backend| event.backend == backend)
+                .is_none_or(|backend| event.backend == backend)
         })
         .cloned()
         .collect();
