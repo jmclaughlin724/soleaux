@@ -147,7 +147,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     node_values = cast(list[dict[str, Any]], resolve.get("nodes", []))
     for node in node_values:
-        dependencies = sorted(
+        node_dependencies = sorted(
             id_to_key[str(value)] for value in cast(list[Any], node.get("dependencies", []))
         )
         dependency_edges: list[dict[str, Any]] = []
@@ -177,7 +177,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
         nodes.append(
             {
                 "package": id_to_key[str(node["id"])],
-                "dependencies": dependencies,
+                "dependencies": node_dependencies,
                 "dependencyEdges": dependency_edges,
                 "features": sorted(cast(list[str], node.get("features", []))),
             }
