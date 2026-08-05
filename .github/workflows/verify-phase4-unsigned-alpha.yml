@@ -1,0 +1,381 @@
+name: Verify reproducible unsigned Phase 4 alpha
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - native/**
+      - scripts/build_unsigned_alpha.py
+      - .github/workflows/verify-phase4-unsigned-alpha.yml
+      - README.md
+      - LICENSE
+      - UNIFIED-MCP-PROFILE.md
+      - CONTEXT-PACKET-V2.md
+      - contracts/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-phase4-alpha-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+
+      - name: Install native build and package prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler \
+            python3-jsonschema sqlite3 xz-utils
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Verify exact source and locked alpha identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          python3 -m py_compile scripts/build_unsigned_alpha.py
+          grep -F 'VERSION = "0.4.0-dev.5"' scripts/build_unsigned_alpha.py
+          grep -F 'PUBLIC_TOOL_CEILING = 12' scripts/build_unsigned_alpha.py
+          grep -F 'PRODUCTION_CLAIM_ALLOWED = False' scripts/build_unsigned_alpha.py
+          grep -F 'soleaux.cargo-sbom/v1' scripts/build_unsigned_alpha.py
+          grep -F 'add_sorted' scripts/build_unsigned_alpha.py
+          grep -F 'pub const HARD_CEILING: usize = 12;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCTION_CLAIM_ALLOWED: bool = false;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCT_VERSION: &str = "0.4.0-dev.5";' native/daemon/mcp/src/profile.rs
+          grep -F '"daemon/state"' native/Cargo.toml
+          grep -F '"daemon/vault"' native/Cargo.toml
+          grep -F '"daemon/ipc"' native/Cargo.toml
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+
+      - name: Complete native build, tests, smokes, and audit
+        working-directory: native
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-state --all-features --locked | tee ../evidence/state-tests.txt
+          cargo test -p soleaux-vault --all-features --locked | tee ../evidence/vault-tests.txt
+          cargo test -p soleaux-ipc --all-features --locked | tee ../evidence/ipc-tests.txt
+          cargo test --workspace --all-features --locked | tee ../evidence/native-workspace-tests.txt
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --version | tee ../evidence/soleaux-version.txt
+          ./target/release/soleauxd --version | tee ../evidence/soleauxd-version.txt
+          ./target/release/soleaux --help > ../evidence/soleaux-help.txt
+          ./target/release/soleauxd --help > ../evidence/soleauxd-help.txt
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . ../evidence/phase1-mcp-smoke.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . ../evidence/phase2-capability-smoke.json
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings | tee ../evidence/cargo-audit.txt
+
+      - name: Build two path-independent deterministic alpha archives
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          cargo metadata --manifest-path native/Cargo.toml --locked --format-version 1 \
+            > evidence/cargo-metadata-a.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          source = Path('evidence/cargo-metadata-a.json')
+          value = json.loads(source.read_text(encoding='utf-8'))
+          before = os.environ['GITHUB_WORKSPACE']
+
+          def rewrite(item):
+              if isinstance(item, dict):
+                  return {key: rewrite(child) for key, child in item.items()}
+              if isinstance(item, list):
+                  return [rewrite(child) for child in item]
+              if isinstance(item, str):
+                  return item.replace(before, '/different/checkout/soleaux')
+              return item
+
+          Path('evidence/cargo-metadata-b.json').write_text(
+              json.dumps(rewrite(value), sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$SOURCE_COMMIT")"
+          export SOURCE_DATE_EPOCH
+          python3 scripts/build_unsigned_alpha.py \
+            --repository . \
+            --binaries native/target/release \
+            --cargo-metadata evidence/cargo-metadata-a.json \
+            --output evidence/soleaux-alpha-a.tar.xz \
+            --report evidence/alpha-a.json \
+            --source-commit "$SOURCE_COMMIT"
+          python3 scripts/build_unsigned_alpha.py \
+            --repository . \
+            --binaries native/target/release \
+            --cargo-metadata evidence/cargo-metadata-b.json \
+            --output evidence/soleaux-alpha-b.tar.xz \
+            --report evidence/alpha-b.json \
+            --source-commit "$SOURCE_COMMIT"
+          cmp evidence/soleaux-alpha-a.tar.xz evidence/soleaux-alpha-b.tar.xz
+          sha256sum evidence/soleaux-alpha-a.tar.xz evidence/soleaux-alpha-b.tar.xz \
+            | tee evidence/alpha-archive-sha256.txt
+
+      - name: Verify archive inventory, identity, contracts, SBOM, and binaries
+        run: |
+          set -euo pipefail
+          rm -rf evidence/extracted
+          mkdir -p evidence/extracted
+          tar -xJf evidence/soleaux-alpha-a.tar.xz -C evidence/extracted
+          python3 - <<'PY' | tee evidence/alpha-content-verification.json
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          roots = [path for path in Path('evidence/extracted').iterdir() if path.is_dir()]
+          assert len(roots) == 1, roots
+          root = roots[0]
+          identity = json.loads((root / 'BUILD-IDENTITY.json').read_text())
+          manifest = json.loads((root / 'MANIFEST.json').read_text())
+          sbom_text = (root / 'SBOM.cargo.json').read_text()
+          sbom = json.loads(sbom_text)
+          assert identity['sourceCommit'] == os.environ['SOURCE_COMMIT']
+          assert identity['version'] == '0.4.0-dev.5'
+          assert identity['unsigned'] is True
+          assert identity['productionClaimAllowed'] is False
+          assert identity['publicToolCeiling'] == 12
+          assert manifest['sourceCommit'] == os.environ['SOURCE_COMMIT']
+          assert manifest['unsigned'] is True
+          assert manifest['productionClaimAllowed'] is False
+          assert manifest['publicToolCeiling'] == 12
+          assert sbom['schemaVersion'] == 'soleaux.cargo-sbom/v1'
+          assert os.environ['GITHUB_WORKSPACE'] not in sbom_text
+          assert '/different/checkout/soleaux' not in sbom_text
+          for item in manifest['files']:
+              path = root / item['path']
+              assert path.is_file(), item
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assert digest == item['sha256'], (item['path'], digest, item['sha256'])
+              mode = oct(path.stat().st_mode & 0o777)
+              assert mode == item['mode'], (item['path'], mode, item['mode'])
+          expected = {
+              'bin/soleaux',
+              'bin/soleauxd',
+              'install.sh',
+              'uninstall.sh',
+              'INSTALL.md',
+              'SBOM.cargo.json',
+              'BUILD-IDENTITY.json',
+              'share/native/Cargo.lock',
+              'share/native/contracts/unified-mcp-profile-v2.json',
+              'share/native/contracts/context-packet-v2.schema.json',
+          }
+          present = {item['path'] for item in manifest['files']}
+          assert expected <= present, sorted(expected - present)
+          print(json.dumps({
+              'schemaVersion':'soleaux.unsigned-alpha-content-verification/v1',
+              'sourceCommit':identity['sourceCommit'],
+              'manifestFiles':len(manifest['files']),
+              'sbomPackages':len(sbom['packages']),
+              'pathIndependentSbom':True,
+              'productionClaimAllowed':False,
+              'publicToolCeiling':12,
+              'status':'pass',
+          }, indent=2, sort_keys=True))
+          PY
+          PACKAGE_ROOT="$(find evidence/extracted -mindepth 1 -maxdepth 1 -type d)"
+          "$PACKAGE_ROOT/bin/soleaux" --version
+          "$PACKAGE_ROOT/bin/soleauxd" --version
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  '"$PACKAGE_ROOT"'/share/native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  '"$PACKAGE_ROOT"'/share/native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+
+      - name: Execute extracted install, daemon restart, backup, restore, repair, and uninstall smoke
+        run: |
+          set -euo pipefail
+          PACKAGE_ROOT="$(find evidence/extracted -mindepth 1 -maxdepth 1 -type d)"
+          ROOT="$RUNNER_TEMP/soleaux-alpha-operational-smoke"
+          HOME_DIR="$ROOT/home"
+          STATE_HOME="$ROOT/state"
+          RUNTIME="$ROOT/runtime"
+          CONFIG="$ROOT/config"
+          BIN="$ROOT/bin"
+          LOGS="$GITHUB_WORKSPACE/evidence/alpha-operations"
+          rm -rf "$ROOT" "$LOGS"
+          mkdir -p "$HOME_DIR" "$STATE_HOME" "$RUNTIME" "$CONFIG" "$BIN" "$LOGS"
+          export HOME="$HOME_DIR"
+          export XDG_CONFIG_HOME="$CONFIG"
+          export XDG_RUNTIME_DIR="$RUNTIME"
+          export SOLEAUX_HOME="$STATE_HOME"
+          export SOLEAUX_RUNTIME_DIR="$RUNTIME/soleaux"
+          export SOLEAUX_INSTALL_BIN="$BIN"
+          ENDPOINT="$SOLEAUX_RUNTIME_DIR/soleaux.sock"
+          STATE_DB="$SOLEAUX_HOME/state/canonical.sqlite3"
+
+          "$PACKAGE_ROOT/install.sh" | tee "$LOGS/install.json"
+          test -x "$BIN/soleaux"
+          test -x "$BIN/soleauxd"
+          test -f "$CONFIG/systemd/user/soleaux.service"
+
+          launch_daemon() {
+            "$BIN/soleauxd" ipc --endpoint "$ENDPOINT" --state-db "$STATE_DB" \
+              >>"$LOGS/daemon.stdout" 2>>"$LOGS/daemon.stderr" &
+            DAEMON_PID=$!
+            export DAEMON_PID
+            python3 - <<'PY'
+          import os
+          import pathlib
+          import time
+
+          endpoint = pathlib.Path(os.environ['SOLEAUX_RUNTIME_DIR']) / 'soleaux.sock'
+          for _ in range(500):
+              if endpoint.exists():
+                  break
+              time.sleep(0.01)
+          else:
+              raise SystemExit('packaged daemon endpoint did not appear')
+          PY
+          }
+
+          launch_daemon
+          trap 'kill "$DAEMON_PID" 2>/dev/null || true' EXIT
+          "$BIN/soleaux" service status | tee "$LOGS/service-status-before.json"
+          "$BIN/soleaux" doctor | tee "$LOGS/doctor.json"
+          "$BIN/soleaux" backup "$LOGS/canonical.backup.sqlite3" | tee "$LOGS/backup.json"
+          "$BIN/soleaux" export "$LOGS/canonical.export.json" | tee "$LOGS/export.json"
+          "$BIN/soleaux" repair | tee "$LOGS/repair.json"
+          "$BIN/soleaux" service stop | tee "$LOGS/service-stop-first.json"
+          wait "$DAEMON_PID"
+          trap - EXIT
+          test ! -e "$ENDPOINT"
+
+          launch_daemon
+          trap 'kill "$DAEMON_PID" 2>/dev/null || true' EXIT
+          "$BIN/soleaux" service status | tee "$LOGS/service-status-after-restart.json"
+          "$BIN/soleaux" service stop | tee "$LOGS/service-stop-second.json"
+          wait "$DAEMON_PID"
+          trap - EXIT
+          test ! -e "$ENDPOINT"
+
+          "$BIN/soleaux" restore "$LOGS/canonical.backup.sqlite3" | tee "$LOGS/restore.json"
+          "$PACKAGE_ROOT/uninstall.sh" | tee "$LOGS/uninstall.json"
+          test ! -e "$CONFIG/systemd/user/soleaux.service"
+          test ! -e "$BIN/soleaux"
+          test ! -e "$BIN/soleauxd"
+          test -d "$SOLEAUX_HOME"
+
+          python3 - <<'PY' | tee "$LOGS/summary.json"
+          import json
+          from pathlib import Path
+
+          root = Path('evidence/alpha-operations')
+          before = json.loads((root / 'service-status-before.json').read_text())
+          after = json.loads((root / 'service-status-after-restart.json').read_text())
+          repair = json.loads((root / 'repair.json').read_text())
+          uninstall = json.loads((root / 'uninstall.json').read_text())
+          assert before['running'] is True
+          assert after['running'] is True
+          assert repair['integrity'] == 'ok'
+          assert repair['foreignKeyViolations'] == 0
+          assert repair['auditChainValid'] is True
+          assert uninstall['preservedState'] is True
+          assert uninstall['removedManifest'] is True
+          assert uninstall['removedCli'] is True
+          assert uninstall['removedDaemon'] is True
+          print(json.dumps({
+              'schemaVersion':'soleaux.phase4-alpha-operations/v1',
+              'installedFromExtractedArchive':True,
+              'daemonRestarted':True,
+              'backupPassed':True,
+              'restorePassed':True,
+              'repairPassed':True,
+              'uninstallPassed':True,
+              'statePreserved':True,
+              'productionClaimAllowed':False,
+              'status':'pass',
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Validate repository documentation
+        run: python3 scripts/check_documentation_consistency.py
+
+      - name: Write exact Phase 4 receipt and checksummed evidence
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$SOURCE_COMMIT" > evidence/SOURCE_COMMIT
+          printf '%s\n' "$GITHUB_RUN_ID" > evidence/WORKFLOW_RUN_ID
+          sha256sum native/contracts/unified-mcp-profile-v2.json > evidence/PROFILE-CONTRACT-SHA256.txt
+          sha256sum native/contracts/context-packet-v2.schema.json > evidence/CONTEXT-CONTRACT-SHA256.txt
+          git archive --format=tar "$SOURCE_COMMIT" | xz -T0 -9 > evidence/soleaux-phase4-source.tar.xz
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          package = json.loads(Path('evidence/alpha-a.json').read_text())
+          operations = json.loads(Path('evidence/alpha-operations/summary.json').read_text())
+          receipt = {
+              'schemaVersion':'soleaux.phase4-closure-receipt/v1',
+              'phase':4,
+              'sourceCommit':os.environ['SOURCE_COMMIT'],
+              'workflowRunId':int(os.environ['GITHUB_RUN_ID']),
+              'conclusion':'success',
+              'version':'0.4.0-dev.5',
+              'productionClaimAllowed':False,
+              'publicToolCeiling':12,
+              'unsignedAlpha':True,
+              'reproducibleArchive':True,
+              'archiveSha256':package['archiveSha256'],
+              'operationalSmoke':operations,
+              'closedTasks':[
+                  'P4-001','P4-002','P4-003','P4-004','P4-005','P4-007','P4-008',
+                  'P4-009','P4-010','P4-011','P4-012','P4-013','P4-014','P4-015',
+                  'P4-016','P4-017','P4-018','P4-019','P4-020','P4-021','P4-022',
+                  'P4-023','P4-024','P4-025','P4-026',
+              ],
+              'lockedContracts':{
+                  'unifiedMcpProfileSha256':'89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc',
+                  'contextPacketV2Sha256':'3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f',
+              },
+          }
+          Path('evidence/PHASE4-ALPHA-CLOSURE-RECEIPT.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          (
+            cd evidence
+            find . -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-phase4-alpha-${{ env.SOURCE_COMMIT }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
