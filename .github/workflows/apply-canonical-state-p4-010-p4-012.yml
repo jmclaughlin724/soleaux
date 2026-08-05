@@ -36,7 +36,7 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - name: Apply deterministic source repairs and update lockfile
+      - name: Apply corrected deterministic source repairs and update lockfile
         run: |
           set -euo pipefail
           python3 -m py_compile .ci/apply-canonical-state-repairs.py
