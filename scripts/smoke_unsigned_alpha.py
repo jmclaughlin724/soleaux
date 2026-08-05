@@ -37,9 +37,8 @@ def run_json(
     write(logs / f"{name}.stdout", result.stdout)
     write(logs / f"{name}.stderr", result.stderr)
     if result.returncode != 0:
-        raise RuntimeError(
-            f"{name} failed with {result.returncode}: {result.stderr.strip() or result.stdout.strip()}"
-        )
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"{name} failed with {result.returncode}: {detail}")
     try:
         value = json.loads(result.stdout)
     except json.JSONDecodeError as error:
@@ -101,10 +100,12 @@ def stop_daemon(
     )
     try:
         code = process.wait(timeout=20)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as error:
         process.kill()
         code = process.wait(timeout=10)
-        raise RuntimeError(f"daemon did not stop after graceful IPC shutdown; killed with {code}")
+        raise RuntimeError(
+            f"daemon did not stop after graceful IPC shutdown; killed with {code}"
+        ) from error
     if code != 0:
         raise RuntimeError(f"daemon exited with {code} after stop")
     if endpoint.exists():

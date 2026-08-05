@@ -108,8 +108,7 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
             )
         targets.sort(key=lambda item: (item["name"], item["kind"], item["crateTypes"]))
         features = {
-            name: sorted(values)
-            for name, values in sorted(package.get("features", {}).items())
+            name: sorted(values) for name, values in sorted(package.get("features", {}).items())
         }
         normalized_packages.append(
             {
@@ -165,7 +164,9 @@ def normalized_cargo_sbom(metadata: dict[str, Any]) -> dict[str, Any]:
     return {
         "schemaVersion": "soleaux.cargo-sbom/v1",
         "cargoMetadataFormatVersion": metadata.get("version"),
-        "workspaceMembers": sorted(id_to_key[str(value)] for value in metadata.get("workspace_members", [])),
+        "workspaceMembers": sorted(
+            id_to_key[str(value)] for value in metadata.get("workspace_members", [])
+        ),
         "workspaceDefaultMembers": sorted(
             id_to_key[str(value)] for value in metadata.get("workspace_default_members", [])
         ),
@@ -213,9 +214,13 @@ def tar_filter(epoch: int):
         member.gname = "root"
         member.mtime = epoch
         member.pax_headers = {}
-        if member.isdir():
-            member.mode = 0o755
-        elif member.name.endswith(("/bin/soleaux", "/bin/soleauxd", "/install.sh", "/uninstall.sh")):
+        executable_suffixes = (
+            "/bin/soleaux",
+            "/bin/soleauxd",
+            "/install.sh",
+            "/uninstall.sh",
+        )
+        if member.isdir() or member.name.endswith(executable_suffixes):
             member.mode = 0o755
         else:
             member.mode = 0o644
@@ -224,9 +229,18 @@ def tar_filter(epoch: int):
     return normalize
 
 
-def add_sorted(archive: tarfile.TarFile, root: pathlib.Path, package_name: str, epoch: int) -> None:
+def add_sorted(
+    archive: tarfile.TarFile,
+    root: pathlib.Path,
+    package_name: str,
+    epoch: int,
+) -> None:
     archive.add(root, arcname=package_name, recursive=False, filter=tar_filter(epoch))
-    for path in sorted(root.rglob("*"), key=lambda candidate: candidate.relative_to(root).as_posix()):
+    paths = sorted(
+        root.rglob("*"),
+        key=lambda candidate: candidate.relative_to(root).as_posix(),
+    )
+    for path in paths:
         archive.add(
             path,
             arcname=f"{package_name}/{path.relative_to(root).as_posix()}",
@@ -242,7 +256,10 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     metadata = args.cargo_metadata.resolve()
     epoch = int(args.source_date_epoch)
     source_commit = args.source_commit.strip()
-    if len(source_commit) != 40 or any(character not in "0123456789abcdef" for character in source_commit):
+    invalid_commit = len(source_commit) != 40 or any(
+        character not in "0123456789abcdef" for character in source_commit
+    )
+    if invalid_commit:
         raise SystemExit("source commit must be a full lowercase Git SHA-1")
     soleaux = binaries / ("soleaux.exe" if os.name == "nt" else "soleaux")
     soleauxd = binaries / ("soleauxd.exe" if os.name == "nt" else "soleauxd")
@@ -278,11 +295,17 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
 
 This archive is unsigned and is not a production release. `productionClaimAllowed` remains false.
 
-Run `./install.sh` to copy `soleaux` and `soleauxd` into `${{SOLEAUX_INSTALL_BIN:-$HOME/.local/bin}}` and write a per-user service manifest. The installer does not mutate Claude, Codex, OpenCode, Cursor, or other vendor-native stores.
+Run `./install.sh` to copy `soleaux` and `soleauxd` into
+`${{SOLEAUX_INSTALL_BIN:-$HOME/.local/bin}}` and write a per-user service manifest.
+The installer does not mutate Claude, Codex, OpenCode, Cursor, or other
+vendor-native stores.
 
-Run `soleaux service start` after reviewing the generated per-user service manifest. Use `soleaux doctor`, `soleaux service status`, `soleaux backup`, `soleaux export`, and `soleaux repair` for operational checks.
+Run `soleaux service start` after reviewing the generated per-user service
+manifest. Use `soleaux doctor`, `soleaux service status`, `soleaux backup`,
+`soleaux export`, and `soleaux repair` for operational checks.
 
-Run `./uninstall.sh` to call `soleaux uninstall --preserve-state true`. State removal requires an explicit separate decision.
+Run `./uninstall.sh` to call `soleaux uninstall`. State removal requires an
+explicit separate decision.
 """,
         )
         write_text(
