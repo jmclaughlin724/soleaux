@@ -13,13 +13,16 @@ soleaux serve .
 | Field | Value |
 |---|---|
 | Version | `0.4.0-dev.5` |
-| Native phases | Phase 0, Phase 1, and Phase 2 closed |
-| Current gate | Phase 3 — live same-model / same-task product proof |
+| Closed native phases | Phase 0, Phase 1, and Phase 2 |
+| Current implementation phase | Phase 4 — reproducible unsigned alpha closure |
+| Deferred claims gate | Phase 3 — live same-model / same-task product proof |
 | Public MCP | Exactly 12 canonical slots |
 | Production claim | **Not allowed** |
 | Signed distribution | Not yet available |
 
-Soleaux is a development product. Native compilation, the unified catalog, Context Packet V2, gateway/catalog/provisioning/governance capability smokes, and exact 12-tool enforcement are proven. The live model comparison that validates equal-or-better task correctness with lower context waste has not yet been run.
+Soleaux remains a development product. The native MCP foundation, unified catalog, Context Packet V2, correctness wave, canonical state, recovery, encrypted artifact vault, operational CLI, per-user service, and typed local IPC are implemented and exact-gated. The current release branch is proving a reproducible unsigned alpha through clean-home install, daemon restart, doctor, backup, export, repair, restore, and uninstall smokes. That gate must finish successfully before Phase 4 is closed.
+
+The deferred live model comparison still gates quantified efficacy claims. It does not authorize a production claim, and `productionClaimAllowed` remains false.
 
 See [PROJECT-STATUS.md](PROJECT-STATUS.md) for the authoritative current state.
 
@@ -40,6 +43,9 @@ Soleaux provides:
 - One catalog for skills, agents, rules, ownership, tables, and namespaced MCP backends.
 - Hash-bound preview/edit safety.
 - CLI-mediated gateway credentials outside the worktree.
+- Canonical local state, recovery, backup, repair, and audit-chain validation.
+- Encrypted content-addressed artifacts with workspace-separated key material.
+- A per-user daemon, typed local IPC, and concurrent local-client support.
 
 Soleaux does **not** replace Claude Code, Codex, OpenCode, Cursor, or the IDE. It provides shared intelligence to them.
 
@@ -103,6 +109,9 @@ soleaux / soleauxd (Rust + Tokio)
 ├── Oxc + Tree-sitter + pg_query + shell intelligence
 ├── native LSP broker with an 800 ms soft deadline
 ├── SQLite WAL structural index
+├── canonical state, migrations, replay, backup, restore, and repair
+├── encrypted content-addressed artifact vault and capability policy
+├── typed peer-checked local IPC and per-user service lifecycle
 ├── Context Packet V2 compiler
 ├── hash-bound preview → edit pipeline
 ├── namespaced MCP gateway
@@ -110,7 +119,7 @@ soleaux / soleauxd (Rust + Tokio)
 └── adopt / attach / doctor / catalog / mcp CLI workflows
 ```
 
-Python remains permitted for fixtures and conformance scripts only; clients do not choose between Python and Rust product modes.
+Python remains permitted for fixtures, conformance, packaging, and release-verification scripts only; clients do not choose between Python and Rust product modes.
 
 ## Documentation
 
@@ -133,11 +142,11 @@ The current program is intentionally fail-closed:
 - No contract-digest drift without reviewed contract changes.
 - No successful context packet with silent truncation or false complete coverage.
 - No non-native parser/LSP fallback on a selected production path.
-- No production claim before the live Phase 3 experiment and later release gates.
-- No merge to `main`, signed release, or store publication implied by the current status.
+- No production claim before the deferred Phase 3 proof and later release gates.
+- No signed-release, store-publication, or general-availability claim from an unsigned alpha.
 
 See [CONTRIBUTING guidance in AGENTS.md](AGENTS.md) for the required validation and documentation update process.
 
 ## License
 
-The project is licensed under the MIT License. Distribution and final licensing metadata for the unified native product must still be reconfirmed during the canonical-source and release phases before external publication.
+The project is licensed under the MIT License. Release packaging retains the repository license and generates a deterministic Cargo dependency inventory, but signed distribution and external publication remain separate reviewed gates.
