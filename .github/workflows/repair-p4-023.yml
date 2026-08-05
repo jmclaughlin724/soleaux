@@ -1,0 +1,75 @@
+name: Repair and validate P4-023 native source
+
+on:
+  push:
+    branches:
+      - fix/truthful-continuations-p4-023-0.4.0-dev.5
+    paths:
+      - .github/workflows/repair-p4-023.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-p4-023-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply compiler-confirmed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('native/daemon/mcp/src/memory.rs')
+          text = path.read_text(encoding='utf-8')
+          old = '    collections::{BTreeMap, BTreeSet},\n'
+          new = '    collections::BTreeSet,\n'
+          if text.count(old) != 1:
+              raise SystemExit('P4-023 import repair target drifted')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          cargo fmt --manifest-path native/Cargo.toml --all
+
+      - name: Validate complete materialized implementation
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-mcp --all-features --locked
+
+      - name: Commit normal validated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-p4-023.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add native/daemon/mcp/src/memory.rs .github/workflows/repair-p4-023.yml
+          git diff --cached --check
+          git commit -m 'fix(mcp): satisfy strict continuation lint gate'
+          git push origin HEAD:${{ github.ref_name }}
