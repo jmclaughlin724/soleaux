@@ -114,7 +114,13 @@ jobs:
                   self.stdout = self.process.stdout
                   self.next_id = 1
 
-              def call(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+              def call(
+                  self,
+                  method: str,
+                  params: dict[str, Any] | None = None,
+                  *,
+                  expect_error: bool = False,
+              ) -> dict[str, Any]:
                   request_id = self.next_id
                   self.next_id += 1
                   request: dict[str, Any] = {
@@ -133,7 +139,11 @@ jobs:
                   response = json.loads(line)
                   assert response.get('id') == request_id, response
                   if 'error' in response:
+                      if expect_error:
+                          return response['error']
                       raise AssertionError(response)
+                  if expect_error:
+                      raise AssertionError(f'expected JSON-RPC error, received success: {response}')
                   return response['result']
 
               def tool(self, name: str, arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -197,9 +207,16 @@ jobs:
               assert invalid['data']['errors']
               assert invalid['trust'] == 'verified_validation_result'
 
-              missing, missing_error = mcp.tool('parse_and_validate_postgres_sql', {})
-              assert missing_error
-              assert missing['status'] == 'error'
+              missing_error = mcp.call(
+                  'tools/call',
+                  {
+                      'name': 'parse_and_validate_postgres_sql',
+                      'arguments': {},
+                  },
+                  expect_error=True,
+              )
+              assert missing_error['code'] == -32602
+              assert missing_error['message'] == 'invalid arguments for parse_and_validate_postgres_sql'
               mcp.close()
 
               result = {
@@ -217,7 +234,11 @@ jobs:
                       'errorCount': len(invalid['data']['errors']),
                       'trust': invalid['trust'],
                   },
-                  'missingInputIsToolError': bool(missing_error),
+                  'missingInputError': {
+                      'code': missing_error['code'],
+                      'message': missing_error['message'],
+                  },
+                  'missingInputIsToolError': True,
                   'productionClaimAllowed': False,
                   'status': 'pass',
               }
