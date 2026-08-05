@@ -108,6 +108,7 @@ pub struct PostgresAnalysis {
     pub fingerprint: String,
     pub relations: Vec<String>,
     pub statement_count: usize,
+    pub errors: Vec<String>,
     pub engine: String,
     pub engine_version: String,
 }
@@ -541,7 +542,21 @@ impl IncrementalTree {
 }
 
 pub fn analyze_postgres_sql(source: &str) -> Result<PostgresAnalysis> {
-    let parsed = pg_query::parse(source).context("PostgreSQL parser rejected the statement")?;
+    let parsed = match pg_query::parse(source) {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            return Ok(PostgresAnalysis {
+                valid: false,
+                normalized: String::new(),
+                fingerprint: String::new(),
+                relations: Vec::new(),
+                statement_count: 0,
+                errors: vec![error.to_string()],
+                engine: "pg_query/libpg_query".into(),
+                engine_version: PG_QUERY_ENGINE_VERSION.into(),
+            });
+        }
+    };
     let normalized = pg_query::normalize(source).context("normalizing PostgreSQL SQL")?;
     let fingerprint = pg_query::fingerprint(source)
         .context("fingerprinting PostgreSQL SQL")?
@@ -555,6 +570,7 @@ pub fn analyze_postgres_sql(source: &str) -> Result<PostgresAnalysis> {
         fingerprint,
         relations,
         statement_count: parsed.protobuf.stmts.len(),
+        errors: Vec::new(),
         engine: "pg_query/libpg_query".into(),
         engine_version: PG_QUERY_ENGINE_VERSION.into(),
     })
@@ -673,6 +689,18 @@ mod tests {
         assert!(result.valid);
         assert!(result.relations.iter().any(|name| name.contains("users")));
         assert!(!result.fingerprint.is_empty());
+        assert!(result.errors.is_empty());
+    }
+
+    #[test]
+    fn postgres_analysis_returns_invalid_sql_as_typed_data() {
+        let result = analyze_postgres_sql("select from where").unwrap();
+        assert!(!result.valid);
+        assert!(result.normalized.is_empty());
+        assert!(result.fingerprint.is_empty());
+        assert!(result.relations.is_empty());
+        assert_eq!(result.statement_count, 0);
+        assert!(!result.errors.is_empty());
     }
 
     #[test]
