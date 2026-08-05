@@ -328,20 +328,56 @@ impl Store {
     }
 
     pub fn files(&self, workspace_id: Uuid, limit: usize) -> Result<Vec<IndexedFileRecord>> {
+        self.files_page(workspace_id, limit, 0)
+    }
+
+    pub fn files_page(
+        &self,
+        workspace_id: Uuid,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<IndexedFileRecord>> {
         let connection = self.reader()?;
         let mut statement = connection.prepare(
             "SELECT workspace_id, path, content_hash, language, byte_length, engine, engine_version, indexed_at_unix_ms
-             FROM indexed_files WHERE workspace_id = ?1 ORDER BY path LIMIT ?2",
+             FROM indexed_files WHERE workspace_id = ?1 ORDER BY path LIMIT ?2 OFFSET ?3",
         )?;
         let rows = statement.query_map(
             params![
                 workspace_id.to_string(),
-                i64::try_from(limit).unwrap_or(i64::MAX)
+                i64::try_from(limit).unwrap_or(i64::MAX),
+                i64::try_from(offset).unwrap_or(i64::MAX),
             ],
             file_from_row,
         )?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .context("listing indexed files")
+    }
+
+    pub fn workspace_snapshot_id(&self, workspace_id: Uuid) -> Result<String> {
+        let connection = self.reader()?;
+        let mut statement = connection.prepare(
+            "SELECT path, content_hash, engine, engine_version
+             FROM indexed_files WHERE workspace_id = ?1 ORDER BY path",
+        )?;
+        let rows = statement.query_map([workspace_id.to_string()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })?;
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(workspace_id.as_bytes());
+        for row in rows {
+            let (path, content_hash, engine, engine_version) = row?;
+            for value in [&path, &content_hash, &engine, &engine_version] {
+                hasher.update(&(value.len() as u64).to_le_bytes());
+                hasher.update(value.as_bytes());
+            }
+        }
+        Ok(hasher.finalize().to_hex().to_string())
     }
 
     pub fn languages(&self, workspace_id: Uuid) -> Result<Vec<String>> {
@@ -380,6 +416,16 @@ impl Store {
         query: &str,
         limit: usize,
     ) -> Result<Vec<SymbolHit>> {
+        self.search_symbols_page(workspace_id, query, limit, 0)
+    }
+
+    pub fn search_symbols_page(
+        &self,
+        workspace_id: Uuid,
+        query: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<SymbolHit>> {
         let trimmed = query.trim();
         if trimmed.is_empty() {
             return Ok(Vec::new());
@@ -395,13 +441,14 @@ impl Store {
              FROM symbols_fts
              JOIN symbols s ON s.rowid = symbols_fts.rowid
              WHERE symbols_fts MATCH ?1 AND s.workspace_id = ?2
-             ORDER BY rank LIMIT ?3",
+             ORDER BY rank, s.path, s.start_byte, s.name LIMIT ?3 OFFSET ?4",
         )?;
         let rows = statement.query_map(
             params![
                 expression,
                 workspace_id.to_string(),
-                i64::try_from(limit).unwrap_or(i64::MAX)
+                i64::try_from(limit).unwrap_or(i64::MAX),
+                i64::try_from(offset).unwrap_or(i64::MAX),
             ],
             |row| {
                 let workspace: String = row.get(0)?;
