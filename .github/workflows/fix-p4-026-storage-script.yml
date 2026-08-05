@@ -19,21 +19,26 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - name: Repair malformed raw-string terminators
+      - name: Generate valid raw-string terminator literals
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
           path = Path('.ci/apply-p4-026-storage.py')
-          text = path.read_text(encoding='utf-8')
-          bad = '        "            \\"#,","'
-          good = '        "            \\"#,",'
-          count = text.count(bad)
-          if count != 2:
-              raise SystemExit(f'expected two malformed raw-string lines, observed {count}')
-          path.write_text(text.replace(bad, good), encoding='utf-8')
-          compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+          source_lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
+          replacement = '        ' + repr('            "#,') + ',\n'
+          replaced = 0
+          for index, line in enumerate(source_lines):
+              stripped = line.rstrip('\n')
+              if stripped.startswith('        "') and '#,' in stripped and stripped.endswith('","'):
+                  source_lines[index] = replacement
+                  replaced += 1
+          if replaced < 2:
+              raise SystemExit(f'expected at least two malformed raw-string lines, observed {replaced}')
+          repaired = ''.join(source_lines)
+          compile(repaired, str(path), 'exec')
+          path.write_text(repaired, encoding='utf-8')
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
