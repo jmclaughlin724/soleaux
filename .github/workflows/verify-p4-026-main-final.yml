@@ -205,7 +205,8 @@ jobs:
 
               replayed, replay_error = mcp.tool('edit', arguments)
               assert not replay_error
-              assert replayed == applied
+              assert replayed['status'] == 'ok'
+              assert replayed['data'] == receipt
               assert source.read_text(encoding='utf-8') == 'export const value = 2;\n'
               mcp.close()
 
@@ -217,7 +218,7 @@ jobs:
                   'bindingHash': receipt['preview_binding_hash'],
                   'claimId': receipt['claim_id'],
                   'consumptionSchema': receipt['schema_version'],
-                  'exactReplay': replayed == applied,
+                  'exactReplay': replayed['data'] == receipt,
                   'singleFinalSource': source.read_text(encoding='utf-8'),
                   'productionClaimAllowed': False,
                   'status': 'pass',
