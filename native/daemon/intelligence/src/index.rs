@@ -585,11 +585,29 @@ impl RepositoryIndex {
     }
 
     pub fn files(&self, limit: usize) -> Result<Vec<IndexedFileRecord>> {
-        self.store.files(self.workspace_id, limit)
+        self.files_page(limit, 0)
+    }
+
+    pub fn files_page(&self, limit: usize, offset: usize) -> Result<Vec<IndexedFileRecord>> {
+        self.store.files_page(self.workspace_id, limit, offset)
     }
 
     pub fn search_symbols(&self, query: &str, limit: usize) -> Result<Vec<SymbolHit>> {
-        self.store.search_symbols(self.workspace_id, query, limit)
+        self.search_symbols_page(query, limit, 0)
+    }
+
+    pub fn search_symbols_page(
+        &self,
+        query: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<SymbolHit>> {
+        self.store
+            .search_symbols_page(self.workspace_id, query, limit, offset)
+    }
+
+    pub fn snapshot_id(&self) -> Result<String> {
+        self.store.workspace_snapshot_id(self.workspace_id)
     }
 
     pub fn languages(&self) -> Result<Vec<String>> {

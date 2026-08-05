@@ -601,7 +601,7 @@ enabled = true
     fn credentials_are_outside_the_workspace() {
         let directory = tempdir().expect("tempdir");
         let home = directory.path().join("home");
-        unsafe { env::set_var("SOLEAUX_HOME", &home) };
+        let _home_guard = crate::test_environment::SoleauxHomeGuard::set(&home);
         let path = store_credential("team.docs", "opaque-token").expect("store");
         assert!(path.starts_with(&home));
         assert!(!path.to_string_lossy().contains("workspace"));

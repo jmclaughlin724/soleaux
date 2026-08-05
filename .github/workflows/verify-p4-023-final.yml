@@ -1,0 +1,199 @@
+name: Verify P4-023 exact normal source
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - native/**
+      - .github/workflows/verify-p4-023-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-p4-023-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    env:
+      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema xz-utils
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Verify exact source, hygiene, locked identity, and continuation owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test ! -e .ci/apply-p4-023-macos.py
+          test ! -e .github/workflows/repair-p4-023-macos.yml
+          test ! -e .github/workflows/repair-p4-023-macos-v2.yml
+          test ! -e .github/workflows/repair-p4-023-macos-v3.yml
+          grep -F 'const CURSOR_PREFIX: &str = "sxc1";' native/daemon/mcp/src/cursor.rs
+          grep -F 'continuation cursor does not match the current request' native/daemon/mcp/src/cursor.rs
+          grep -F 'continuation cursor snapshot is stale' native/daemon/mcp/src/cursor.rs
+          grep -F 'memory_content_truncated' native/daemon/mcp/src/memory.rs
+          grep -F 'memory_scope_not_attached' native/daemon/mcp/src/memory.rs
+          grep -F 'coverage_complete' native/daemon/mcp/src/lib.rs
+          grep -F 'pub const HARD_CEILING: usize = 12;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCTION_CLAIM_ALLOWED: bool = false;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCT_VERSION: &str = "0.4.0-dev.5";' native/daemon/mcp/src/profile.rs
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+
+      - name: Complete native continuation, compatibility, and release gate
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-mcp --all-features --locked cursor::tests | tee ../evidence/cursor-tests.txt
+          cargo test -p soleaux-mcp --all-features --locked memory::tests | tee ../evidence/memory-tests.txt
+          cargo test -p soleaux-mcp --all-features --locked continuation | tee ../evidence/continuation-tests.txt
+          cargo test --workspace --all-features --locked | tee ../evidence/native-workspace-tests.txt
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --help > ../evidence/soleaux-help.txt
+          ./target/release/soleaux --version | tee ../evidence/soleaux-version.txt
+          ./target/release/soleauxd --help > ../evidence/soleauxd-help.txt
+          ./target/release/soleauxd --version | tee ../evidence/soleauxd-version.txt
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . ../evidence/phase1-mcp-smoke.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . ../evidence/phase2-capability-smoke.json
+          cp target/release/soleaux ../evidence/soleaux
+          cp target/release/soleauxd ../evidence/soleauxd
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings | tee ../evidence/cargo-audit.txt
+
+      - name: Run deterministic continuation smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee evidence/p4-023-continuation-smoke.json
+          import json
+          from pathlib import Path
+
+          cursor = Path('native/daemon/mcp/src/cursor.rs').read_text(encoding='utf-8')
+          memory = Path('native/daemon/mcp/src/memory.rs').read_text(encoding='utf-8')
+          server = Path('native/daemon/mcp/src/lib.rs').read_text(encoding='utf-8')
+          storage = Path('native/daemon/storage/src/lib.rs').read_text(encoding='utf-8')
+          checks = {
+              'opaqueCursorPrefix': 'const CURSOR_PREFIX: &str = "sxc1";' in cursor,
+              'requestBinding': 'continuation cursor does not match the current request' in cursor,
+              'snapshotBinding': 'continuation cursor snapshot is stale' in cursor,
+              'typedMemoryGap': 'memory_content_truncated' in memory,
+              'missingScopeGap': 'memory_scope_not_attached' in memory,
+              'truthfulCoverage': 'coverage_complete' in server,
+              'storageSnapshot': 'snapshot_id' in storage,
+          }
+          result = {
+              'schemaVersion': 'soleaux.p4-023-smoke/v1',
+              'sourceCommit': __import__('os').environ['SOURCE_COMMIT'],
+              'checks': checks,
+              'status': 'pass' if all(checks.values()) else 'fail',
+          }
+          print(json.dumps(result, indent=2, sort_keys=True))
+          if result['status'] != 'pass':
+              raise SystemExit(1)
+          PY
+
+      - name: Validate repository documentation
+        run: python3 scripts/check_documentation_consistency.py
+
+      - name: Write exact-head receipt and evidence inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          printf '%s\n' "$SOURCE_COMMIT" > evidence/SOURCE_COMMIT
+          printf '%s\n' "$GITHUB_RUN_ID" > evidence/WORKFLOW_RUN_ID
+          sha256sum native/contracts/unified-mcp-profile-v2.json > evidence/PROFILE-CONTRACT-SHA256.txt
+          sha256sum native/contracts/context-packet-v2.schema.json > evidence/CONTEXT-CONTRACT-SHA256.txt
+          git archive --format=tar "$SOURCE_COMMIT" | xz -T0 -9 > evidence/soleaux-p4-023-source.tar.xz
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = {
+              'schemaVersion': 'soleaux.phase4-task-receipt/v1',
+              'task': 'P4-023',
+              'sourceCommit': os.environ['SOURCE_COMMIT'],
+              'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
+              'conclusion': 'success',
+              'version': '0.4.0-dev.5',
+              'productionClaimAllowed': False,
+              'publicToolCeiling': 12,
+              'lockedContracts': {
+                  'unifiedMcpProfileSha256': '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc',
+                  'contextPacketV2Sha256': '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f',
+              },
+              'gates': [
+                  'opaque-checksummed-cursors',
+                  'tool-request-workspace-snapshot-binding',
+                  'stale-cursor-rejection',
+                  'deterministic-disjoint-pages',
+                  'typed-coverage-gaps',
+                  'truthful-truncation',
+                  'memory-scope-and-content-gaps',
+                  'stale-structural-evidence-omission',
+                  'cross-platform-canonical-memory-roots',
+                  'watcher-backed-mutation-convergence',
+                  'fmt',
+                  'check',
+                  'clippy',
+                  'test',
+                  'release-build',
+                  'canonical-mcp-smoke',
+                  'substitution-smoke',
+                  'context-v2-smoke',
+                  'cargo-audit',
+                  'documentation',
+              ],
+          }
+          Path('evidence/P4-023-NATIVE-GATE-RECEIPT.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          (
+            cd evidence
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-p4-023-${{ env.SOURCE_COMMIT }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30

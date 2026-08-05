@@ -5,6 +5,7 @@
 //! skills, agents, rules, and control-plane operations remain behind registry,
 //! gateway, resources, or CLI surfaces and never inflate `tools/list`.
 
+mod cursor;
 pub mod editor;
 pub mod envelope;
 pub mod gateway;
@@ -17,6 +18,7 @@ mod schema;
 pub mod semantic;
 
 use anyhow::{Context, Result, bail};
+use cursor::{ContinuationState, decode_cursor, encode_cursor, request_fingerprint};
 use editor::{EditorService, StoredPreview};
 use envelope::{
     EvidenceRange, SuccessMetadata, ToolEnvelopeV2, ToolError, coverage, evidence, gap, provenance,
@@ -59,13 +61,77 @@ pub const PUBLIC_ROOT_TOOL_COUNT: usize = profile::HARD_CEILING;
 pub const PUBLIC_ROOT_TOOL_MAX: usize = profile::HARD_CEILING;
 pub const MAX_RESULT_BYTES: usize = 256 * 1024;
 
+#[cfg(test)]
+pub(crate) mod test_environment {
+    use std::{
+        ffi::OsString,
+        path::Path,
+        sync::{Mutex, MutexGuard},
+    };
+
+    static SOLEAUX_HOME_LOCK: Mutex<()> = Mutex::new(());
+
+    pub struct SoleauxHomeGuard {
+        previous: Option<OsString>,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl SoleauxHomeGuard {
+        pub fn set(path: &Path) -> Self {
+            let lock = SOLEAUX_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let previous = std::env::var_os("SOLEAUX_HOME");
+            unsafe { std::env::set_var("SOLEAUX_HOME", path) };
+            Self {
+                previous,
+                _lock: lock,
+            }
+        }
+    }
+
+    impl Drop for SoleauxHomeGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => unsafe { std::env::set_var("SOLEAUX_HOME", value) },
+                None => unsafe { std::env::remove_var("SOLEAUX_HOME") },
+            }
+        }
+    }
+}
+
 pub const OPTIONAL_POSTGRES: &str = "parse_and_validate_postgres_sql";
 pub const OPTIONAL_TURBOREPO: &str = "turborepo.packages";
 pub const OPTIONAL_NEXTJS: &str = "next.get_routes";
 
-type SearchMatchesResult = (Vec<Value>, Vec<String>, Vec<Value>, bool);
-type SymbolsDataResult = (Value, Vec<Value>, bool, Vec<Value>, Vec<String>, bool);
+const SEARCH_PAGE_SIZE: usize = 128;
+const SEARCH_SCAN_BUDGET: usize = 10_000;
+const MAX_COVERAGE_GAPS: usize = 64;
+
 type ResolvedResourceResult = (String, Option<String>, Option<String>, Option<String>);
+
+#[derive(Debug)]
+struct SearchPage {
+    matches: Vec<Value>,
+    observed_paths: Vec<String>,
+    gaps: Vec<Value>,
+    complete: bool,
+    truncated: bool,
+    next_cursor: Option<String>,
+    snapshot_id: String,
+}
+
+#[derive(Debug)]
+struct SymbolsPage {
+    data: Value,
+    evidence: Vec<Value>,
+    complete: bool,
+    gaps: Vec<Value>,
+    observed_paths: Vec<String>,
+    truncated: bool,
+    next_cursor: Option<String>,
+    snapshot_id: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -198,10 +264,19 @@ impl PublicMcpServer {
     async fn refresh_repository_read_state(&self) -> Result<IndexReport> {
         let _guard = self.repository_read_refresh.lock().await;
         let report = self.index.refresh_incremental().await?;
-        *self
+        let mut last_report = self
             .last_index_report
             .write()
-            .expect("index report lock poisoned") = Some(report.clone());
+            .expect("index report lock poisoned");
+        let no_op = report.scanned_files == 0
+            && report.indexed_files == 0
+            && report.skipped_files == 0
+            && report.removed_files == 0
+            && report.parse_errors == 0
+            && !report.cancelled;
+        if !no_op || last_report.is_none() {
+            *last_report = Some(report.clone());
+        }
         Ok(report)
     }
 
@@ -410,33 +485,46 @@ impl PublicMcpServer {
             .get("semantic_mode")
             .and_then(Value::as_str)
             .unwrap_or("best_available");
-        let (matches, observed_paths, mut gaps, truncated) =
-            self.search_matches(query, &paths, &kinds, limit)?;
-        if semantic_mode == "semantic_required" && self.lsp_probes.read().await.is_empty() {
-            gaps.push(gap(
-                "semantic_provider_unavailable",
-                "semantic_required was requested but no native LSP completed its capability probe.",
-                "error",
-                true,
-                Some("repository.semantic"),
-                None,
-            ));
+        let cursor = arguments.get("cursor").and_then(Value::as_str);
+        let mut page = self.search_matches(query, &paths, &kinds, semantic_mode, limit, cursor)?;
+        let semantic_available = !self.lsp_probes.read().await.is_empty();
+        if semantic_mode != "syntax_only" && !semantic_available {
+            push_coverage_gap(
+                &mut page.gaps,
+                gap(
+                    "semantic_provider_unavailable",
+                    if semantic_mode == "semantic_required" {
+                        "semantic_required was requested but no native LSP completed its capability probe."
+                    } else {
+                        "No native LSP completed its capability probe; results contain structural and bounded textual coverage only."
+                    },
+                    if semantic_mode == "semantic_required" {
+                        "error"
+                    } else {
+                        "warning"
+                    },
+                    true,
+                    Some("repository.semantic"),
+                    None,
+                ),
+            );
         }
-        let complete = gaps.is_empty() && !truncated;
+        page.complete = page.gaps.is_empty() && !page.truncated;
         let data = json!({
             "query": query,
-            "matches": matches,
-            "coverage_complete": complete,
-            "gaps": gaps,
+            "matches": page.matches,
+            "coverage_complete": page.complete,
+            "gaps": page.gaps,
         });
         let mut metadata =
             SuccessMetadata::repository("code.search", "soleaux-native-hybrid-search");
         metadata.trust = "verified_code_structure".to_string();
         metadata.cache_status = "read".to_string();
+        metadata.snapshot_id = Some(page.snapshot_id);
         metadata.coverage = Some(coverage(
-            complete,
+            page.complete,
             paths,
-            observed_paths,
+            page.observed_paths,
             Vec::new(),
             vec!["sqlite-fts5".to_string(), "bounded-text-scan".to_string()],
             data.get("gaps")
@@ -451,8 +539,9 @@ impl PublicMcpServer {
                 .and_then(Value::as_array)
                 .unwrap_or(&empty_matches),
         );
-        metadata.truncated = truncated;
-        metadata.continuation_cursor = truncated.then(|| format!("search:{}", limit));
+        metadata.truncated = page.truncated;
+        metadata.next_cursor = page.next_cursor.clone();
+        metadata.continuation_cursor = page.next_cursor;
         Ok(ToolEnvelopeV2::success(
             self.workspace_id(),
             &self.root.to_string_lossy(),
@@ -471,41 +560,44 @@ impl PublicMcpServer {
             .and_then(Value::as_u64)
             .unwrap_or(20)
             .clamp(1, 200) as usize;
-        let data = search_memory(self.root(), self.workspace_id(), query, &scopes, limit)?;
-        let attached = data
-            .get("attached")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let complete = data
-            .get("coverage_complete")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let gaps = data
-            .get("gaps")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
+        let page = search_memory(
+            self.root(),
+            self.workspace_id(),
+            query,
+            &scopes,
+            limit,
+            arguments.get("cursor").and_then(Value::as_str),
+        )?;
         let mut metadata = SuccessMetadata::repository("memory.search", "soleaux-native-memory");
-        metadata.trust = if attached {
+        metadata.trust = if page.attached {
             "retrieved_code_data"
         } else {
             "unavailable"
         }
         .to_string();
-        metadata.cache_status = if attached { "read" } else { "not_attached" }.to_string();
+        metadata.cache_status = if page.attached {
+            "read"
+        } else {
+            "not_attached"
+        }
+        .to_string();
+        metadata.snapshot_id = Some(page.snapshot_id);
         metadata.coverage = Some(coverage(
-            complete,
+            page.complete,
             Vec::new(),
             Vec::new(),
             Vec::new(),
             vec!["soleaux-native-memory".to_string()],
-            gaps,
+            page.gaps,
             None,
         ));
+        metadata.truncated = page.truncated;
+        metadata.next_cursor = page.next_cursor.clone();
+        metadata.continuation_cursor = page.next_cursor;
         Ok(ToolEnvelopeV2::success(
             self.workspace_id(),
             &self.root.to_string_lossy(),
-            data,
+            page.data,
             None,
             elapsed_us(started),
             metadata,
@@ -513,28 +605,29 @@ impl PublicMcpServer {
     }
 
     fn call_symbols(&self, arguments: &Value, started: Instant) -> Result<ToolEnvelopeV2> {
-        let (data, evidence_values, complete, gaps, observed_paths, truncated) =
-            self.symbols_data(arguments)?;
+        let page = self.symbols_data(arguments)?;
         let mut metadata =
             SuccessMetadata::repository("get_symbols", "soleaux-native-structural-index");
         metadata.trust = "verified_code_structure".to_string();
         metadata.cache_status = "read".to_string();
-        metadata.evidence = evidence_values;
+        metadata.snapshot_id = Some(page.snapshot_id);
+        metadata.evidence = page.evidence;
         metadata.coverage = Some(coverage(
-            complete,
+            page.complete,
             requested_symbol_paths(arguments)?,
-            observed_paths,
+            page.observed_paths,
             Vec::new(),
             vec!["oxc".to_string(), "tree-sitter".to_string()],
-            gaps,
+            page.gaps,
             None,
         ));
-        metadata.truncated = truncated;
-        metadata.continuation_cursor = truncated.then(|| "symbols:next".to_string());
+        metadata.truncated = page.truncated;
+        metadata.next_cursor = page.next_cursor.clone();
+        metadata.continuation_cursor = page.next_cursor;
         Ok(ToolEnvelopeV2::success(
             self.workspace_id(),
             &self.root.to_string_lossy(),
-            data,
+            page.data,
             None,
             elapsed_us(started),
             metadata,
@@ -1149,122 +1242,401 @@ impl PublicMcpServer {
         query: &str,
         paths: &[String],
         kinds: &[String],
+        semantic_mode: &str,
         limit: usize,
-    ) -> Result<SearchMatchesResult> {
+        cursor: Option<&str>,
+    ) -> Result<SearchPage> {
+        let snapshot_id = self.index.snapshot_id()?;
+        let mut canonical_paths = paths.to_vec();
+        canonical_paths.sort();
+        let mut canonical_kinds = kinds.to_vec();
+        canonical_kinds.sort();
+        let fingerprint = request_fingerprint(
+            "code-search",
+            self.workspace_id(),
+            &json!({
+                "query": query,
+                "paths": canonical_paths,
+                "kinds": canonical_kinds,
+                "semantic_mode": semantic_mode,
+            }),
+        )?;
+        let mut state = decode_cursor(
+            cursor,
+            "code-search",
+            &fingerprint,
+            &snapshot_id,
+            "structural",
+        )?;
+        if !matches!(state.phase.as_str(), "structural" | "text") {
+            bail!("code.search continuation cursor has an unknown phase");
+        }
+
         let mut matches = Vec::new();
         let mut observed = BTreeSet::new();
         let mut stale_paths = BTreeSet::new();
-        let mut gaps = Vec::new();
-        let structural_limit = limit.saturating_mul(4).clamp(1, 800);
-        for hit in self.index.search_symbols(query, structural_limit)? {
-            if !path_allowed(&hit.path, paths) || !kind_allowed(&hit.kind, kinds) {
-                continue;
-            }
-            if !self.index.validate_indexed_file(&hit.path)? {
-                if stale_paths.insert(hit.path.clone()) {
-                    gaps.push(gap(
-                        "stale_structural_index",
-                        "The indexed file changed during structural lookup; stale evidence was omitted and the next refresh will reindex it.",
-                        "warning",
+        let mut gaps = self.index_refresh_gaps("repository.search");
+        let mut remaining_budget = SEARCH_SCAN_BUDGET;
+        let mut next_state = None;
+        let mut exhausted = false;
+        let text_allowed = kind_allowed("text", kinds);
+
+        'scan: loop {
+            if remaining_budget == 0 {
+                next_state = Some(state.clone());
+                push_coverage_gap(
+                    &mut gaps,
+                    gap(
+                        "search_scan_budget_reached",
+                        "The bounded search reached its per-request candidate budget; continue with the returned cursor.",
+                        "info",
                         true,
                         Some("repository.search"),
-                        Some(&hit.path),
-                    ));
-                }
-                continue;
-            }
-            observed.insert(hit.path.clone());
-            matches.push(symbol_match(self.workspace_id(), &hit));
-            if matches.len() >= limit {
+                        None,
+                    ),
+                );
                 break;
             }
-        }
-        if matches.len() < limit {
-            let needle = query.to_ascii_lowercase();
-            for file in self.index.files(10_000)? {
-                if matches.len() >= limit {
-                    break;
+            match state.phase.as_str() {
+                "structural" => {
+                    let batch_limit = SEARCH_PAGE_SIZE.min(remaining_budget);
+                    let hits = self
+                        .index
+                        .search_symbols_page(query, batch_limit, state.offset)?;
+                    if hits.is_empty() {
+                        if text_allowed {
+                            state = ContinuationState {
+                                phase: "text".to_string(),
+                                offset: 0,
+                            };
+                            continue;
+                        }
+                        exhausted = true;
+                        break;
+                    }
+                    let batch_len = hits.len();
+                    for hit in hits {
+                        if remaining_budget == 0 {
+                            next_state = Some(state.clone());
+                            break 'scan;
+                        }
+                        let candidate_state = state.clone();
+                        state.offset = state.offset.saturating_add(1);
+                        remaining_budget = remaining_budget.saturating_sub(1);
+                        if !path_allowed(&hit.path, paths) || !kind_allowed(&hit.kind, kinds) {
+                            continue;
+                        }
+                        if !self.index.validate_indexed_file(&hit.path)? {
+                            if stale_paths.insert(hit.path.clone()) {
+                                push_coverage_gap(
+                                    &mut gaps,
+                                    gap(
+                                        "stale_structural_index",
+                                        "The indexed file changed during structural lookup; stale evidence was omitted.",
+                                        "warning",
+                                        true,
+                                        Some("repository.search"),
+                                        Some(&hit.path),
+                                    ),
+                                );
+                            }
+                            continue;
+                        }
+                        if matches.len() >= limit {
+                            next_state = Some(candidate_state);
+                            break 'scan;
+                        }
+                        observed.insert(hit.path.clone());
+                        matches.push(symbol_match(self.workspace_id(), &hit, &snapshot_id));
+                    }
+                    if batch_len < batch_limit {
+                        if text_allowed {
+                            state = ContinuationState {
+                                phase: "text".to_string(),
+                                offset: 0,
+                            };
+                        } else {
+                            exhausted = true;
+                            break;
+                        }
+                    }
                 }
-                if !path_allowed(&file.path, paths) || !kind_allowed("text", kinds) {
-                    continue;
+                "text" => {
+                    if !text_allowed {
+                        exhausted = true;
+                        break;
+                    }
+                    let batch_limit = SEARCH_PAGE_SIZE.min(remaining_budget);
+                    let files = self.index.files_page(batch_limit, state.offset)?;
+                    if files.is_empty() {
+                        exhausted = true;
+                        break;
+                    }
+                    let batch_len = files.len();
+                    let needle = query.to_ascii_lowercase();
+                    for file in files {
+                        if remaining_budget == 0 {
+                            next_state = Some(state.clone());
+                            break 'scan;
+                        }
+                        let candidate_state = state.clone();
+                        state.offset = state.offset.saturating_add(1);
+                        remaining_budget = remaining_budget.saturating_sub(1);
+                        if !path_allowed(&file.path, paths) {
+                            continue;
+                        }
+                        let absolute = match self.index.resolve_existing_path(&file.path) {
+                            Ok(value) => value,
+                            Err(_) => {
+                                push_coverage_gap(
+                                    &mut gaps,
+                                    gap(
+                                        "text_search_path_unavailable",
+                                        "An indexed text-search path could not be resolved and was omitted.",
+                                        "warning",
+                                        true,
+                                        Some("repository.search"),
+                                        Some(&file.path),
+                                    ),
+                                );
+                                continue;
+                            }
+                        };
+                        match fs::metadata(&absolute) {
+                            Ok(value) if value.len() <= 2 * 1024 * 1024 => {}
+                            Ok(_) => {
+                                push_coverage_gap(
+                                    &mut gaps,
+                                    gap(
+                                        "text_search_file_too_large",
+                                        "A file exceeded the bounded text-search read limit and was omitted.",
+                                        "warning",
+                                        false,
+                                        Some("repository.search"),
+                                        Some(&file.path),
+                                    ),
+                                );
+                                continue;
+                            }
+                            Err(_) => {
+                                push_coverage_gap(
+                                    &mut gaps,
+                                    gap(
+                                        "text_search_metadata_unavailable",
+                                        "A file's metadata could not be read during bounded text search.",
+                                        "warning",
+                                        true,
+                                        Some("repository.search"),
+                                        Some(&file.path),
+                                    ),
+                                );
+                                continue;
+                            }
+                        }
+                        let source = match fs::read_to_string(&absolute) {
+                            Ok(value) => value,
+                            Err(_) => {
+                                push_coverage_gap(
+                                    &mut gaps,
+                                    gap(
+                                        "text_search_file_unreadable",
+                                        "A file could not be decoded as UTF-8 text and was omitted.",
+                                        "warning",
+                                        true,
+                                        Some("repository.search"),
+                                        Some(&file.path),
+                                    ),
+                                );
+                                continue;
+                            }
+                        };
+                        let current_hash = blake3::hash(source.as_bytes()).to_hex().to_string();
+                        if current_hash != file.content_hash {
+                            push_coverage_gap(
+                                &mut gaps,
+                                gap(
+                                    "stale_text_index",
+                                    "A file changed after the index snapshot; text evidence was omitted and the cursor must be restarted after refresh.",
+                                    "warning",
+                                    true,
+                                    Some("repository.search"),
+                                    Some(&file.path),
+                                ),
+                            );
+                            continue;
+                        }
+                        let lowercase = source.to_ascii_lowercase();
+                        let Some(start) = lowercase.find(&needle) else {
+                            continue;
+                        };
+                        if matches.len() >= limit {
+                            next_state = Some(candidate_state);
+                            break 'scan;
+                        }
+                        let end = start.saturating_add(query.len()).min(source.len());
+                        let start_line = source[..start]
+                            .bytes()
+                            .filter(|byte| *byte == b'\n')
+                            .count() as u64
+                            + 1;
+                        let end_line = start_line
+                            + source[start..end]
+                                .bytes()
+                                .filter(|byte| *byte == b'\n')
+                                .count() as u64;
+                        let line = source
+                            .lines()
+                            .nth(start_line.saturating_sub(1) as usize)
+                            .unwrap_or_default();
+                        let summary = utf8_prefix(line.trim(), 2048);
+                        let evidence_id = format!("text:{}:{start}", file.path);
+                        observed.insert(file.path.clone());
+                        matches.push(json!({
+                            "kind":"text",
+                            "table":"source.context",
+                            "identity":format!("{}:{}",file.path,start_line),
+                            "summary":if summary.is_empty(){format!("Text match in {}",file.path)}else{summary},
+                            "path":file.path,
+                            "start_line":start_line,
+                            "end_line":end_line.max(start_line),
+                            "start_byte":start,
+                            "end_byte":end,
+                            "symbol":Value::Null,
+                            "score":0.25,
+                            "evidence_id":evidence_id,
+                            "relation_distance":0,
+                            "trust":"retrieved_code_data",
+                            "provenance":provenance(
+                                "soleaux-native-bounded-text-search",
+                                &file.engine,
+                                Some(self.workspace_id()),
+                                Some(&snapshot_id),
+                                Some(&file.path),
+                                Some(&current_hash),
+                                "utf8-bytes-zero-based",
+                            ),
+                        }));
+                    }
+                    if batch_len < batch_limit {
+                        exhausted = true;
+                        break;
+                    }
                 }
-                let absolute = match self.index.resolve_existing_path(&file.path) {
-                    Ok(value) => value,
-                    Err(_) => continue,
-                };
-                match fs::metadata(&absolute) {
-                    Ok(value) if value.len() <= 2 * 1024 * 1024 => {}
-                    _ => continue,
-                }
-                let source = match fs::read_to_string(&absolute) {
-                    Ok(value) => value,
-                    Err(_) => continue,
-                };
-                let current_hash = blake3::hash(source.as_bytes()).to_hex().to_string();
-                let lowercase = source.to_ascii_lowercase();
-                let Some(start) = lowercase.find(&needle) else {
-                    continue;
-                };
-                let end = start.saturating_add(query.len()).min(source.len());
-                let start_line = source[..start]
-                    .bytes()
-                    .filter(|byte| *byte == b'\n')
-                    .count() as u64
-                    + 1;
-                let end_line = start_line
-                    + source[start..end]
-                        .bytes()
-                        .filter(|byte| *byte == b'\n')
-                        .count() as u64;
-                let line = source
-                    .lines()
-                    .nth(start_line.saturating_sub(1) as usize)
-                    .unwrap_or_default();
-                let summary = utf8_prefix(line.trim(), 2048);
-                let evidence_id = format!("text:{}:{start}", file.path);
-                observed.insert(file.path.clone());
-                matches.push(json!({
-                    "kind":"text",
-                    "table":"source.context",
-                    "identity":format!("{}:{}",file.path,start_line),
-                    "summary":if summary.is_empty(){format!("Text match in {}",file.path)}else{summary},
-                    "path":file.path,
-                    "start_line":start_line,
-                    "end_line":end_line.max(start_line),
-                    "start_byte":start,
-                    "end_byte":end,
-                    "symbol":Value::Null,
-                    "score":0.25,
-                    "evidence_id":evidence_id,
-                    "relation_distance":0,
-                    "trust":"retrieved_code_data",
-                    "provenance":provenance(
-                        "soleaux-native-bounded-text-search",
-                        &file.engine,
-                        Some(self.workspace_id()),
-                        None,
-                        Some(&file.path),
-                        Some(&current_hash),
-                        "utf8-bytes-zero-based",
-                    ),
-                }));
+                _ => unreachable!(),
             }
         }
-        if matches.is_empty() {
-            gaps.push(gap(
-                "no_search_matches",
-                "No indexed structural or bounded textual match satisfied the query and filters.",
-                "info",
-                true,
-                Some("repository.search"),
-                None,
-            ));
+
+        if next_state.is_none() && !exhausted && remaining_budget == 0 {
+            next_state = Some(state);
+            push_coverage_gap(
+                &mut gaps,
+                gap(
+                    "search_scan_budget_reached",
+                    "The bounded search reached its per-request candidate budget; continue with the returned cursor.",
+                    "info",
+                    true,
+                    Some("repository.search"),
+                    None,
+                ),
+            );
         }
-        let truncated = matches.len() >= limit;
-        Ok((matches, observed.into_iter().collect(), gaps, truncated))
+        if next_state.is_some()
+            && !gaps.iter().any(|value| {
+                value.get("code").and_then(Value::as_str) == Some("search_scan_budget_reached")
+            })
+        {
+            push_coverage_gap(
+                &mut gaps,
+                gap(
+                    "search_limit_reached",
+                    "Additional matching search results remain; continue with the returned cursor.",
+                    "info",
+                    true,
+                    Some("repository.search"),
+                    None,
+                ),
+            );
+        }
+        let next_cursor = next_state.map(|value| {
+            encode_cursor(
+                "code-search",
+                &fingerprint,
+                &snapshot_id,
+                &value.phase,
+                value.offset,
+            )
+        });
+        let truncated = next_cursor.is_some();
+        let complete = gaps.is_empty() && !truncated;
+        Ok(SearchPage {
+            matches,
+            observed_paths: observed.into_iter().collect(),
+            gaps,
+            complete,
+            truncated,
+            next_cursor,
+            snapshot_id,
+        })
     }
 
-    fn symbols_data(&self, arguments: &Value) -> Result<SymbolsDataResult> {
+    fn index_refresh_gaps(&self, table: &str) -> Vec<Value> {
+        let report = self
+            .last_index_report
+            .read()
+            .expect("index report lock poisoned")
+            .clone();
+        let mut gaps = Vec::new();
+        if let Some(report) = report {
+            if report.skipped_files > 0 {
+                push_coverage_gap(
+                    &mut gaps,
+                    gap(
+                        "index_files_skipped",
+                        &format!(
+                            "The latest native index refresh omitted {} file(s) because of path, size, language, encoding, binary, or minification limits.",
+                            report.skipped_files
+                        ),
+                        "warning",
+                        false,
+                        Some(table),
+                        None,
+                    ),
+                );
+            }
+            if report.parse_errors > 0 {
+                push_coverage_gap(
+                    &mut gaps,
+                    gap(
+                        "index_parse_errors",
+                        &format!(
+                            "The latest native index refresh encountered {} parser error(s).",
+                            report.parse_errors
+                        ),
+                        "warning",
+                        true,
+                        Some(table),
+                        None,
+                    ),
+                );
+            }
+            if report.cancelled {
+                push_coverage_gap(
+                    &mut gaps,
+                    gap(
+                        "index_refresh_cancelled",
+                        "The latest native index refresh was cancelled before full coverage was established.",
+                        "warning",
+                        true,
+                        Some(table),
+                        None,
+                    ),
+                );
+            }
+        }
+        gaps
+    }
+
+    fn symbols_data(&self, arguments: &Value) -> Result<SymbolsPage> {
         let limit = arguments
             .get("limit")
             .and_then(Value::as_u64)
@@ -1280,34 +1652,72 @@ impl PublicMcpServer {
             .unwrap_or(0)
             .clamp(0, 65_536) as usize;
         let kinds = string_array(arguments, "kinds", 64)?;
-        let requested = requested_symbol_paths(arguments)?;
-        let files = if requested.is_empty() {
-            self.index.files(256)?
-        } else {
-            requested
-                .iter()
-                .filter_map(|path| self.index.indexed_file(path).ok().flatten())
-                .collect::<Vec<_>>()
-        };
+        let mut requested = requested_symbol_paths(arguments)?;
+        requested.sort();
+        let semantic_mode = arguments
+            .get("semantic_mode")
+            .and_then(Value::as_str)
+            .unwrap_or("best_available");
+        let snapshot_id = self.index.snapshot_id()?;
+        let mut canonical_kinds = kinds.clone();
+        canonical_kinds.sort();
+        let fingerprint = request_fingerprint(
+            "get-symbols",
+            self.workspace_id(),
+            &json!({
+                "paths": requested,
+                "kinds": canonical_kinds,
+                "include_source": include_source,
+                "max_source_bytes_per_symbol": max_source,
+                "semantic_mode": semantic_mode,
+            }),
+        )?;
+        let state = decode_cursor(
+            arguments.get("cursor").and_then(Value::as_str),
+            "get-symbols",
+            &fingerprint,
+            &snapshot_id,
+            "symbols",
+        )?;
+        if state.phase != "symbols" {
+            bail!("get_symbols continuation cursor has an unknown phase");
+        }
+
         let mut file_rows = Vec::new();
-        let mut symbols = Vec::new();
-        let mut evidence_values = Vec::new();
-        let mut gaps = Vec::new();
+        let mut indexed_files = Vec::new();
+        let mut gaps = self.index_refresh_gaps("repository.symbols");
         let mut observed = Vec::new();
-        for file in &files {
+        for path in &requested {
+            let Some(file) = self.index.indexed_file(path)? else {
+                push_coverage_gap(
+                    &mut gaps,
+                    gap(
+                        "symbol_path_unavailable",
+                        "Requested path is not present in the native structural index.",
+                        "warning",
+                        true,
+                        Some("repository.symbols"),
+                        Some(path),
+                    ),
+                );
+                continue;
+            };
             if !self.index.validate_indexed_file(&file.path)? {
-                gaps.push(gap(
-                    "stale_structural_index",
-                    "The indexed file changed during symbol lookup; stale symbols were omitted and the next refresh will reindex it.",
-                    "warning",
-                    true,
-                    Some("repository.symbols"),
-                    Some(&file.path),
-                ));
+                push_coverage_gap(
+                    &mut gaps,
+                    gap(
+                        "stale_structural_index",
+                        "The indexed file changed during symbol lookup; stale symbols were omitted.",
+                        "warning",
+                        true,
+                        Some("repository.symbols"),
+                        Some(&file.path),
+                    ),
+                );
                 continue;
             }
-            observed.push(file.path.clone());
             let file_symbols = self.index.symbols_for_file(&file.path)?;
+            observed.push(file.path.clone());
             file_rows.push(json!({
                 "path":file.path,
                 "content_hash":file.content_hash,
@@ -1315,19 +1725,77 @@ impl PublicMcpServer {
                 "engine":file.engine,
                 "symbol_count":file_symbols.len(),
             }));
+            indexed_files.push((file, file_symbols));
+        }
+        if semantic_mode != "syntax_only"
+            && self
+                .lsp_probes
+                .try_read()
+                .map_or(true, |probes| probes.is_empty())
+        {
+            push_coverage_gap(
+                &mut gaps,
+                gap(
+                    "semantic_provider_unavailable",
+                    if semantic_mode == "semantic_required" {
+                        "semantic_required was requested but no native LSP completed its capability probe."
+                    } else {
+                        "No native LSP completed its capability probe; symbols contain structural coverage only."
+                    },
+                    if semantic_mode == "semantic_required" {
+                        "error"
+                    } else {
+                        "warning"
+                    },
+                    true,
+                    Some("repository.semantic"),
+                    None,
+                ),
+            );
+        }
+
+        let mut symbols = Vec::new();
+        let mut evidence_values = Vec::new();
+        let mut eligible_offset = 0usize;
+        let mut next_offset = None;
+        'files: for (file, file_symbols) in &indexed_files {
             for symbol in file_symbols {
-                if symbols.len() >= limit {
-                    break;
-                }
                 if !kind_allowed(&symbol.kind, &kinds) {
                     continue;
+                }
+                if eligible_offset < state.offset {
+                    eligible_offset = eligible_offset.saturating_add(1);
+                    continue;
+                }
+                if symbols.len() >= limit {
+                    next_offset = Some(eligible_offset);
+                    break 'files;
                 }
                 let source = if include_source && max_source > 0 {
                     let start = usize::try_from(symbol.start_byte).unwrap_or(usize::MAX);
                     let end = usize::try_from(symbol.end_byte).unwrap_or(usize::MAX);
-                    self.index
+                    match self
+                        .index
                         .read_source_range(&file.path, start, end, max_source)
-                        .ok()
+                    {
+                        Ok(value) => Some(value),
+                        Err(error) => {
+                            push_coverage_gap(
+                                &mut gaps,
+                                gap(
+                                    "symbol_source_unavailable",
+                                    &format!(
+                                        "A requested symbol source range could not be hydrated: {error}"
+                                    ),
+                                    "warning",
+                                    true,
+                                    Some("repository.symbols"),
+                                    Some(&file.path),
+                                ),
+                            );
+                            None
+                        }
+                    }
                 } else {
                     None
                 };
@@ -1343,7 +1811,14 @@ impl PublicMcpServer {
                             .as_bytes(),
                         )
                     });
-                let item = symbol_value(self.workspace_id(), file, &symbol, source, &range_hash);
+                let item = symbol_value(
+                    self.workspace_id(),
+                    file,
+                    symbol,
+                    source,
+                    &range_hash,
+                    &snapshot_id,
+                );
                 evidence_values.push(evidence(
                     format!("symbol:{}:{}", file.path, symbol.start_byte),
                     "symbol",
@@ -1359,32 +1834,30 @@ impl PublicMcpServer {
                     },
                 ));
                 symbols.push(item);
+                eligible_offset = eligible_offset.saturating_add(1);
             }
         }
-        for path in &requested {
-            if !observed.contains(path) {
-                gaps.push(gap(
-                    "symbol_path_unavailable",
-                    "Requested path is not present in the native structural index.",
-                    "warning",
+        if state.offset > eligible_offset && next_offset.is_none() {
+            bail!("get_symbols continuation cursor offset is outside the current snapshot");
+        }
+        if next_offset.is_some() {
+            push_coverage_gap(
+                &mut gaps,
+                gap(
+                    "symbol_limit_reached",
+                    "Additional matching symbols remain; continue with the returned cursor.",
+                    "info",
                     true,
                     Some("repository.symbols"),
-                    Some(path),
-                ));
-            }
+                    None,
+                ),
+            );
         }
-        let truncated = symbols.len() >= limit;
-        if truncated {
-            gaps.push(gap(
-                "symbol_limit_reached",
-                "Additional symbols were omitted by the requested limit.",
-                "info",
-                true,
-                Some("repository.symbols"),
-                None,
-            ));
-        }
-        let complete = gaps.is_empty();
+        let next_cursor = next_offset.map(|offset| {
+            encode_cursor("get-symbols", &fingerprint, &snapshot_id, "symbols", offset)
+        });
+        let truncated = next_cursor.is_some();
+        let complete = gaps.is_empty() && !truncated;
         let gap_values = gaps.clone();
         let data = json!({
             "scope":{"path":arguments.get("path").cloned().unwrap_or(Value::Null),"paths":requested},
@@ -1393,14 +1866,16 @@ impl PublicMcpServer {
             "coverage_complete":complete,
             "gaps":gaps,
         });
-        Ok((
+        Ok(SymbolsPage {
             data,
-            evidence_values,
+            evidence: evidence_values,
             complete,
-            gap_values,
-            observed,
+            gaps: gap_values,
+            observed_paths: observed,
             truncated,
-        ))
+            next_cursor,
+            snapshot_id,
+        })
     }
 }
 
@@ -1561,10 +2036,13 @@ fn path_allowed(path: &str, scopes: &[String]) -> bool {
 }
 
 fn kind_allowed(kind: &str, kinds: &[String]) -> bool {
-    kinds.is_empty() || kinds.iter().any(|selected| selected == kind)
+    kinds.is_empty()
+        || kinds
+            .iter()
+            .any(|selected| selected == kind || (selected == "symbol" && kind != "text"))
 }
 
-fn symbol_match(workspace_id: Uuid, hit: &SymbolHit) -> Value {
+fn symbol_match(workspace_id: Uuid, hit: &SymbolHit, snapshot_id: &str) -> Value {
     json!({
         "kind":hit.kind,
         "table":"repository.symbols",
@@ -1584,7 +2062,7 @@ fn symbol_match(workspace_id: Uuid, hit: &SymbolHit) -> Value {
             "soleaux-native-structural-index",
             "sqlite-fts5+native-parser",
             Some(workspace_id),
-            None,
+            Some(snapshot_id),
             Some(&hit.path),
             None,
             "utf8-bytes-zero-based",
@@ -1598,12 +2076,13 @@ fn symbol_value(
     symbol: &SymbolRecord,
     source: Option<String>,
     range_hash: &str,
+    snapshot_id: &str,
 ) -> Value {
     let mut provenance_value = provenance(
         "soleaux-native-structural-index",
         &file.engine,
         Some(workspace_id),
-        None,
+        Some(snapshot_id),
         Some(&file.path),
         Some(&file.content_hash),
         "utf8-bytes-zero-based",
@@ -1710,6 +2189,21 @@ fn search_evidence(matches: &[Value]) -> Vec<Value> {
             ))
         })
         .collect()
+}
+
+fn push_coverage_gap(gaps: &mut Vec<Value>, value: Value) {
+    if gaps.len() >= MAX_COVERAGE_GAPS {
+        return;
+    }
+    let code = value.get("code").and_then(Value::as_str);
+    let path = value.get("path").and_then(Value::as_str);
+    if gaps.iter().any(|existing| {
+        existing.get("code").and_then(Value::as_str) == code
+            && existing.get("path").and_then(Value::as_str) == path
+    }) {
+        return;
+    }
+    gaps.push(value);
 }
 
 fn cursor_offset(cursor: Option<&str>) -> Result<usize> {
@@ -1868,16 +2362,26 @@ mod tests {
 
         fs::write(&source_path, "export function newState() { return 'new'; }")
             .expect("external mutation");
-        let new_after = server
-            .call_async("code.search", &json!({"query": "newState"}))
-            .await
-            .expect("new search");
-        assert!(
-            new_after
+        let mut new_state_observed = false;
+        for _ in 0..100 {
+            let candidate = server
+                .call_async("code.search", &json!({"query": "newState"}))
+                .await
+                .expect("new search");
+            if candidate
                 .data
                 .get("matches")
                 .and_then(Value::as_array)
                 .is_some_and(|matches| !matches.is_empty())
+            {
+                new_state_observed = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            new_state_observed,
+            "watcher-backed refresh did not observe the external mutation"
         );
         let old_after = server
             .call_async("code.search", &json!({"query": "oldState"}))
@@ -1954,20 +2458,183 @@ mod tests {
         fs::write(&source_path, "export function newState() { return 'new'; }")
             .expect("external mutation");
 
-        let (old_matches, _, old_gaps, _) = server
-            .search_matches("oldState", &[], &[], 20)
+        let old_page = server
+            .search_matches("oldState", &[], &[], "syntax_only", 20, None)
             .expect("old search");
-        assert!(old_matches.is_empty());
-        assert!(old_gaps.iter().any(|value| {
+        assert!(old_page.matches.is_empty());
+        assert!(old_page.gaps.iter().any(|value| {
             value.get("code").and_then(Value::as_str) == Some("stale_structural_index")
         }));
 
-        let (new_matches, _, _, _) = server
-            .search_matches("newState", &[], &[], 20)
+        let new_page = server
+            .search_matches("newState", &[], &[], "syntax_only", 20, None)
             .expect("new text fallback");
-        assert!(new_matches.iter().any(|value| {
-            value.get("trust").and_then(Value::as_str) == Some("retrieved_code_data")
+        assert!(new_page.matches.is_empty());
+        assert!(new_page.gaps.iter().any(|value| {
+            value.get("code").and_then(Value::as_str) == Some("stale_text_index")
         }));
+    }
+
+    #[tokio::test]
+    async fn search_continuation_is_real_disjoint_and_request_bound() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("src");
+        for index in 0..3 {
+            fs::write(
+                temp.path().join(format!("src/page-{index}.ts")),
+                format!("export function sharedNeedle{index}() {{ return {index}; }}"),
+            )
+            .expect("fixture");
+        }
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        server.prepare().await.expect("prepare");
+        let first = server
+            .call_async(
+                "code.search",
+                &json!({
+                    "query":"sharedNeedle",
+                    "kinds":["symbol"],
+                    "semantic_mode":"syntax_only",
+                    "limit":2,
+                }),
+            )
+            .await
+            .expect("first page");
+        assert!(first.truncated);
+        let cursor = first.next_cursor.clone().expect("continuation");
+        assert_eq!(first.continuation_cursor.as_deref(), Some(cursor.as_str()));
+        let first_ids = first.data["matches"]
+            .as_array()
+            .expect("matches")
+            .iter()
+            .filter_map(|value| value.get("identity").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(first_ids.len(), 2);
+
+        let second = server
+            .call_async(
+                "code.search",
+                &json!({
+                    "query":"sharedNeedle",
+                    "kinds":["symbol"],
+                    "semantic_mode":"syntax_only",
+                    "limit":2,
+                    "cursor":cursor,
+                }),
+            )
+            .await
+            .expect("second page");
+        assert!(!second.truncated);
+        let second_ids = second.data["matches"]
+            .as_array()
+            .expect("matches")
+            .iter()
+            .filter_map(|value| value.get("identity").and_then(Value::as_str))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(second_ids.len(), 1);
+        assert!(
+            second_ids
+                .iter()
+                .all(|identity| !first_ids.contains(*identity))
+        );
+
+        let mismatch = server
+            .call_async(
+                "code.search",
+                &json!({
+                    "query":"different",
+                    "kinds":["symbol"],
+                    "semantic_mode":"syntax_only",
+                    "limit":2,
+                    "cursor":first.next_cursor,
+                }),
+            )
+            .await;
+        assert!(mismatch.is_err());
+    }
+
+    #[tokio::test]
+    async fn search_exact_limit_without_more_is_not_truncated() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("src");
+        fs::write(
+            temp.path().join("src/only.ts"),
+            "export function exactlyOneNeedle() { return true; }",
+        )
+        .expect("fixture");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        server.prepare().await.expect("prepare");
+        let page = server
+            .call_async(
+                "code.search",
+                &json!({
+                    "query":"exactlyOneNeedle",
+                    "kinds":["symbol"],
+                    "semantic_mode":"syntax_only",
+                    "limit":1,
+                }),
+            )
+            .await
+            .expect("page");
+        assert_eq!(page.data["matches"].as_array().expect("matches").len(), 1);
+        assert!(!page.truncated);
+        assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn symbols_continuation_pages_without_replaying_items() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("src");
+        fs::write(
+            temp.path().join("src/symbols.ts"),
+            "export function alpha() {}\nexport function beta() {}\nexport function gamma() {}\n",
+        )
+        .expect("fixture");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        server.prepare().await.expect("prepare");
+        let first = server
+            .call_async(
+                "get_symbols",
+                &json!({
+                    "path":"src/symbols.ts",
+                    "semantic_mode":"syntax_only",
+                    "limit":2,
+                }),
+            )
+            .await
+            .expect("first page");
+        assert!(first.truncated);
+        let cursor = first.next_cursor.clone().expect("continuation");
+        let first_names = first.data["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .filter_map(|value| value.get("name").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>();
+        let second = server
+            .call_async(
+                "get_symbols",
+                &json!({
+                    "path":"src/symbols.ts",
+                    "semantic_mode":"syntax_only",
+                    "limit":2,
+                    "cursor":cursor,
+                }),
+            )
+            .await
+            .expect("second page");
+        let second_names = second.data["symbols"]
+            .as_array()
+            .expect("symbols")
+            .iter()
+            .filter_map(|value| value.get("name").and_then(Value::as_str))
+            .collect::<BTreeSet<_>>();
+        assert!(second_names.iter().all(|name| !first_names.contains(*name)));
     }
 
     #[test]
