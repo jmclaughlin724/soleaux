@@ -58,17 +58,14 @@ jobs:
           text = service.read_text(encoding='utf-8')
           text = text.replace(
               'fn platform_start(paths: &SoleauxPaths) -> Result<()> {',
-              'fn platform_start(_paths: &SoleauxPaths) -> Result<()> {',
+              'fn platform_start(paths: &SoleauxPaths) -> Result<()> {\n    let _ = paths;',
               1,
           )
-          text = text.replace('&paths.service_manifest', '&_paths.service_manifest', 2)
-          text = text.replace('        let _ = paths;\n        bail!("Soleaux service start', '        let _ = _paths;\n        bail!("Soleaux service start', 1)
           text = text.replace(
               'fn platform_stop(paths: &SoleauxPaths) -> Result<()> {',
-              'fn platform_stop(_paths: &SoleauxPaths) -> Result<()> {',
+              'fn platform_stop(paths: &SoleauxPaths) -> Result<()> {\n    let _ = paths;',
               1,
           )
-          text = text.replace('        let _ = paths;\n        bail!("Soleaux service stop', '        let _ = _paths;\n        bail!("Soleaux service stop', 1)
           text = text.replace(
               'fn xml_escape(value: &str) -> String {',
               '#[cfg(any(target_os = "macos", target_os = "windows"))]\nfn xml_escape(value: &str) -> String {',
