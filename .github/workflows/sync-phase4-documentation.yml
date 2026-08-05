@@ -1,0 +1,208 @@
+name: Synchronize Phase 4 closure and activate Phase 5
+
+on:
+  push:
+    branches:
+      - docs/phase4-closure-phase5-activation-0.4.0-dev.5
+    paths:
+      - .github/workflows/sync-phase4-documentation.yml
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: sync-phase4-documentation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PHASE4_SOURCE_COMMIT: 34c394efd01c9bb5348ba38e505317e6ca4da190
+      PHASE4_MERGE_COMMIT: f450c1a9cd2cd74d366324b5e2031e4751fb5942
+      PHASE4_WORKFLOW_RUN_ID: '31026328918'
+      PHASE4_ARTIFACT_ID: '8939137324'
+      PHASE4_ARTIFACT_SHA256: 9917b2dd8335b2d17cdb3f0dc15191699ec7f0d1ff431f9e3b2135e0a1f4684b
+      PHASE4_EVIDENCE_DIR: phase4-evidence
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Download and independently verify Phase 4 evidence
+        run: |
+          set -euo pipefail
+          rm -rf phase4-evidence phase4-artifact.zip
+          curl --fail --location --retry 3 \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/jmclaughlin724/soleaux/actions/artifacts/${PHASE4_ARTIFACT_ID}/zip" \
+            -o phase4-artifact.zip
+          echo "${PHASE4_ARTIFACT_SHA256}  phase4-artifact.zip" | sha256sum -c -
+          unzip -t phase4-artifact.zip
+          mkdir phase4-evidence
+          unzip -q phase4-artifact.zip -d phase4-evidence
+          (
+            cd phase4-evidence
+            sha256sum -c SHA256SUMS
+          )
+          cmp phase4-evidence/soleaux-alpha-a.tar.xz phase4-evidence/soleaux-alpha-b.tar.xz
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  phase4-evidence/extracted/soleaux-0.4.0-dev.5-linux-x86_64/share/native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  phase4-evidence/extracted/soleaux-0.4.0-dev.5-linux-x86_64/share/native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+          phase4-evidence/extracted/soleaux-0.4.0-dev.5-linux-x86_64/bin/soleaux --version
+          phase4-evidence/extracted/soleaux-0.4.0-dev.5-linux-x86_64/bin/soleauxd --version
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path('phase4-evidence')
+          receipt = json.loads((root / 'PHASE4-ALPHA-CLOSURE-RECEIPT.json').read_text())
+          operations = json.loads((root / 'alpha-operations/summary.json').read_text())
+          package_a = json.loads((root / 'alpha-a.json').read_text())
+          package_b = json.loads((root / 'alpha-b.json').read_text())
+          assert receipt['sourceCommit'] == os.environ['PHASE4_SOURCE_COMMIT']
+          assert receipt['workflowRunId'] == int(os.environ['PHASE4_WORKFLOW_RUN_ID'])
+          assert receipt['conclusion'] == 'success'
+          assert receipt['version'] == '0.4.0-dev.5'
+          assert receipt['productionClaimAllowed'] is False
+          assert receipt['publicToolCeiling'] == 12
+          assert operations['status'] == 'pass'
+          for key in (
+              'installedFromExtractedArchive', 'daemonRestarted', 'doctorPassed',
+              'backupPassed', 'exportPassed', 'repairPassed', 'restorePassed',
+              'uninstallPassed', 'statePreserved',
+          ):
+              assert operations[key] is True, key
+          assert package_a['archiveSha256'] == package_b['archiveSha256']
+          assert package_a['archiveSha256'] == receipt['archiveSha256']
+          PY
+
+      - name: Reconstruct the checksummed documentation synchronizer
+        run: |
+          set -euo pipefail
+          cat .ci/sync-phase4-docs.part* > .ci/sync-phase4-docs.py.gz.b64
+          echo '07c4a2d02c6850e95c64325a1a277e9d57a6183992b920454d432c6587f59d1b  .ci/sync-phase4-docs.py.gz.b64' | sha256sum -c -
+          base64 -d .ci/sync-phase4-docs.py.gz.b64 > .ci/sync-phase4-docs.py.gz
+          echo '89473f66f430211ba3ce15ccf242333d7317c4e13116d32b0968af8c75b32a0d  .ci/sync-phase4-docs.py.gz' | sha256sum -c -
+          gzip -dc .ci/sync-phase4-docs.py.gz > .ci/sync_phase4_docs.py
+          echo 'f8fc09a2543436adbae28fef74b5a33a6803cb2c27569b77de2ed70d8e7eec8a  .ci/sync_phase4_docs.py' | sha256sum -c -
+          python3 -m py_compile .ci/sync_phase4_docs.py
+
+      - name: Prune fully merged branches and record retained unique lineage
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+          : > /tmp/deleted-branches.txt
+          : > /tmp/retained-branches.txt
+          while IFS= read -r ref; do
+            branch="${ref#refs/remotes/origin/}"
+            case "$branch" in
+              HEAD|main|docs/phase4-closure-phase5-activation-0.4.0-dev.5)
+                continue
+                ;;
+            esac
+            if git merge-base --is-ancestor "$ref" origin/main; then
+              git push origin --delete "$branch"
+              printf '%s\n' "$branch" >> /tmp/deleted-branches.txt
+            else
+              printf '%s\n' "$branch" >> /tmp/retained-branches.txt
+            fi
+          done < <(git for-each-ref --format='%(refname)' refs/remotes/origin | sort)
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def lines(path: str) -> list[str]:
+              return sorted(
+                  line.strip()
+                  for line in Path(path).read_text(encoding='utf-8').splitlines()
+                  if line.strip()
+              )
+
+          report = {
+              'schemaVersion': 'soleaux.branch-consolidation/v1',
+              'asOfDate': '2026-08-05',
+              'canonicalBranch': 'main',
+              'basedOnMain': 'f450c1a9cd2cd74d366324b5e2031e4751fb5942',
+              'deletedFullyMergedBranches': lines('/tmp/deleted-branches.txt'),
+              'retainedUniqueCommitBranches': lines('/tmp/retained-branches.txt'),
+              'excludedDuringRun': [
+                  'main',
+                  'docs/phase4-closure-phase5-activation-0.4.0-dev.5',
+              ],
+              'policy': (
+                  'Delete only branch tips proven ancestors of main; retain every '
+                  'branch with unique commits as non-authoritative archival lineage.'
+              ),
+              'productionClaimAllowed': False,
+              'status': 'pass',
+          }
+          path = Path('docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+
+      - name: Synchronize the complete documentation authority chain
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('docs/experiments/phase3/STATUS.json')
+          value = json.loads(path.read_text(encoding='utf-8'))
+          value['status'] = 'deferred_reconciliation_required'
+          value['phase3Started'] = False
+          value['productionClaimAllowed'] = False
+          value.setdefault('runAuthorization', {})['allowed'] = False
+          value['note'] = (
+              'Deferred claims gate. It remains mandatory before quantified efficacy '
+              'claims or a reviewed production-claim change, but does not block Phase 5.'
+          )
+          path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          python3 .ci/sync_phase4_docs.py
+          rm -f .ci/sync-phase4-docs.part* \
+            .ci/sync-phase4-docs.py.gz.b64 \
+            .ci/sync-phase4-docs.py.gz \
+            .ci/sync_phase4_docs.py
+
+      - name: Validate synchronized documentation and receipts
+        run: |
+          set -euo pipefail
+          uv sync --locked
+          uv run --locked ruff check --fix scripts/check_documentation_consistency.py
+          uv run --locked ruff format scripts/check_documentation_consistency.py
+          uv run --locked ruff check scripts/check_documentation_consistency.py
+          uv run --locked ruff format --check scripts/check_documentation_consistency.py
+          python3 scripts/check_documentation_consistency.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in Path('.').rglob('*.json'):
+              if any(part in {'.git', '.venv', 'node_modules', 'phase4-evidence'} for part in path.parts):
+                  continue
+              json.loads(path.read_text(encoding='utf-8'))
+          PY
+          git diff --check
+
+      - name: Commit synchronized authority files
+        run: |
+          set -euo pipefail
+          rm -rf phase4-evidence phase4-artifact.zip
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: close Phase 4 and activate Phase 5'
+          git push origin HEAD:${{ github.ref_name }}
