@@ -1,0 +1,10 @@
+[package]
+name = "soleaux-redaction"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Shared fail-closed secret redaction for Soleaux public, telemetry, context, handoff, memory, and artifact boundaries."
+
+[dependencies]
+serde_json.workspace = true
