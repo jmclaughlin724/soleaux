@@ -78,13 +78,24 @@ replace_once(
 ''',
     "idempotent update routing",
 )
-text = database.read_text(encoding="utf-8")
-old = '.as_ref()\n            .map(Uuid::as_bytes)\n            .unwrap_or(&[]),'
-new = '.as_ref()\n            .map(|value| value.as_bytes().as_slice())\n            .unwrap_or(&[]),'
-count = text.count(old)
-if count != 2:
-    raise SystemExit(f"audit UUID byte conversion drifted: expected 2, observed {count}")
-database.write_text(text.replace(old, new), encoding="utf-8")
+replace_once(
+    database,
+    '''workspace_id
+            .as_ref()
+            .map(Uuid::as_bytes)
+            .unwrap_or(&[]),''',
+    '''workspace_id
+            .as_ref()
+            .map(|value| value.as_bytes().as_slice())
+            .unwrap_or(&[]),''',
+    "workspace UUID audit bytes",
+)
+replace_once(
+    database,
+    'entity_id.as_ref().map(Uuid::as_bytes).unwrap_or(&[]),',
+    'entity_id\n            .as_ref()\n            .map(|value| value.as_bytes().as_slice())\n            .unwrap_or(&[]),',
+    "entity UUID audit bytes",
+)
 
 workspace = Path("native/Cargo.toml")
 replace_once(
