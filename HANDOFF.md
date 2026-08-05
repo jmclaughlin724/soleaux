@@ -7,9 +7,9 @@ Read in this order:
 3. [`AGENTS.md`](AGENTS.md)
 4. [`ROADMAP.md`](ROADMAP.md)
 5. [`TASKS.md`](TASKS.md)
-6. [`docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md`](docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md)
-7. [`docs/audits/TRANSCRIPT-GAP-REGISTRY.json`](docs/audits/TRANSCRIPT-GAP-REGISTRY.json)
-8. [`docs/architecture/CAPABILITY-ABSORPTION-MAP.md`](docs/architecture/CAPABILITY-ABSORPTION-MAP.md)
+6. [`PHASE4-CLOSURE-RECEIPT.json`](PHASE4-CLOSURE-RECEIPT.json)
+7. [`PHASE4-INDEPENDENT-VERIFICATION.json`](PHASE4-INDEPENDENT-VERIFICATION.json)
+8. [`docs/audits/TRANSCRIPT-GAP-REGISTRY.json`](docs/audits/TRANSCRIPT-GAP-REGISTRY.json)
 9. the locked MCP and Context Packet contracts.
 
 ## Current state
@@ -19,32 +19,29 @@ Version:                     0.4.0-dev.5
 Phase 0:                     CLOSED
 Phase 1:                     CLOSED
 Phase 2:                     CLOSED
-Phase 3:                     DEFERRED — reconciliation required before use
-Phase 4:                     IN PROGRESS
+Phase 3:                     DEFERRED — CLAIMS GATE
+Phase 4:                     CLOSED
+Phase 5:                     IN PROGRESS
 Canonical branch:            main
-Native source:               normal files under native/
 productionClaimAllowed:      false
 Public tool ceiling:         12
+Unsigned alpha:              reproducible and independently verified
 ```
 
-## Completed since the former handoff
+## Do not repeat
 
-- PR #5 made `main` canonical and preserved receipt ancestry.
-- PR #6 checked the verified Rust source into `native/`, retired carriers and established direct native CI.
-- PR #7 fixed truthful LSP capability advertisement and inspection/navigation degradation.
-- PR #8 added the telemetry daemon bearer/CORS/redaction baseline.
-- PR #10 added the daemon-served same-origin dashboard export; PR #9 was closed as unsafe/superseded.
-
-Do not repeat those tasks.
+Phase 4 is complete. Do not reimplement P4-001 through P4-026. The merged native source already includes correctness, canonical state, durability/recovery, encrypted artifacts/policy, stable CLI, per-user service, typed IPC, deterministic alpha packaging, and complete extracted-package operational smoke.
 
 ## Exact next work
 
-1. merge the transcript audit and expanded task registry after green CI;
-2. execute `P4-017` first: validate the selected tool's locked input schema before dispatch and add negative-schema regressions;
-3. continue in order through `P4-018`–`P4-024` and `P4-026`; `P4-025` is already closed by PR #7;
-4. implement `P4-010`–`P4-015` for canonical state, durability/recovery, idempotency/leases, artifact/policy, exact CLI, per-user service and typed IPC;
-5. produce the unsigned alpha, operational smoke, Phase 4 exact receipt and independent artifact verification;
-6. proceed through the expanded Phase 5–8 registry.
+1. **P5-001** — converge the installed service and workspace registry across concurrent CLI, desktop, editor, and adapter clients.
+2. **P5-002 through P5-006** — execute live capability and version matrices for Claude Code, Claude Desktop, Codex, OpenCode, Cursor, and generic MCP hosts.
+3. **P5-007 through P5-020** — complete sessions/history, materializers, memory lifecycle, signed handoffs, and durable runs/subagents.
+4. **P5-021 through P5-029** — complete intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.
+5. Validate `anilize` and two additional approved design partners.
+6. Close Phase 5 only with an exact beta receipt and independent verification.
+
+Phase 3 remains deferred. Reactivate it only when an efficacy claim is requested, and freeze all three arms before the first live call.
 
 ## Hard constraints
 
@@ -52,8 +49,9 @@ Do not repeat those tasks.
 - keep `0.4.0-dev.5` and `productionClaimAllowed=false` unless explicitly reviewed;
 - no force-push or squash of receipt-bearing ancestry;
 - no direct writes to vendor internal databases;
-- no root-tool inflation to absorb broader capabilities;
-- no production claim from merge state, test count or transcript claims;
-- no reactivation of Phase 3 without freezing the three-arm design.
+- no root-tool inflation;
+- no production claim from an unsigned alpha, merge state, or test count;
+- unknown client/provider/LSP versions enter safe or read-only mode;
+- preserve exact evidence and branch-consolidation reports.
 
-Use the stop format in `AGENTS.md` only when a hard contract or evidence condition is actually violated. Otherwise implement the next task and retain exact validation evidence.
+Use the stop format in `AGENTS.md` only when a hard contract or evidence condition is actually violated. Otherwise implement P5-001 and continue top-down.

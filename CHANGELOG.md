@@ -4,67 +4,26 @@ All notable changes to the unified native Soleaux product are recorded here. Exa
 
 ## [Unreleased] — `0.4.0-dev.5`
 
-### Transcript-to-repository reconciliation — 2026-08-04
+### Phase 4 — correct, durable unsigned alpha closed — 2026-08-05
 
-- Reviewed both complete design transcripts against current `main`, Phase 0–2 receipts, the independently verified Phase 2 artifact, and merged PRs through #10.
-- Added a binding human audit, machine-readable gap registry, and capability absorption map.
-- Expanded the executable finish line for canonical sessions/history/memory/handoffs/runs/subagents/approvals/artifacts/policy, live adapters, intelligence depth, materializers, provider/SDK/editor/automation surfaces, desktop/mobile/remote operations, assurance and release.
-- Converted Phase 3's future proof requirement to a deferred three-arm design: no-Soleaux control, historical Python baseline and native treatment.
-- Added explicit Phase 4 correctness tasks for request-schema validation, index freshness, edit rollback, idempotency reservation, comprehensive redaction, transactional provisioning, truthful coverage, typed SQL errors, LSP capability truthfulness and preview concurrency.
-- Recorded `P4-025` closed by PR #7 and made `P4-017` the next implementation task.
-- Kept version `0.4.0-dev.5`, public ceiling twelve and `productionClaimAllowed=false`.
+- Closed P4-001 through P4-026 and synchronized all authoritative default-branch documentation.
+- Merged strict MCP request-schema validation, watcher-backed freshness, transactional edit rollback, atomic idempotency, comprehensive redaction, transactional provisioning, truthful gaps/continuations, typed PostgreSQL validation, truthful LSP capability advertisement, and atomic preview claims.
+- Added canonical accounts, mappings, sessions, turns, messages, content, memory claims, rules, skills, agents, handoffs, runs, subagents, approvals, conflicts, materializations, artifacts, cursors, audit, tombstones, and retention.
+- Added serialized persistence, migrations, operation leases, replay, crash recovery, backup, restore, integrity repair, and schema-downgrade refusal.
+- Added encrypted content-addressed artifacts, workspace-separated keys, rotation, redaction, and deny-by-default capability policy.
+- Added the stable operations CLI, per-user daemon, typed local IPC, same-user peer checks, concurrent clients, and hardened service manifests.
+- Fixed quoted TOML gateway backend-key decoding for the repository's `openai-docs` configuration.
+- Produced two byte-identical unsigned development-alpha archives with normalized metadata and a path-independent Cargo SBOM.
+- Passed clean install, daemon launch/restart, doctor, backup, export, repair, offline restore, and state-preserving uninstall from the extracted archive.
+- Persisted `PHASE4-ALPHA-CLOSURE-RECEIPT.json`, `PHASE4-INDEPENDENT-VERIFICATION.json`, and `PHASE4-CLOSURE-RECEIPT.json`.
+- Pruned fully merged short-lived branches and retained unique-commit branches only as documented non-authoritative archival lineage.
+- Kept the exact twelve-tool surface, locked contract digests, version `0.4.0-dev.5`, and `productionClaimAllowed=false`.
 
-### Native source and correctness
+### Phase 5 — activated
 
-- PR #6 materialized the independently verified Rust workspace as normal source under `native/`, restored direct-checkout CI and retired source carriers.
-- PR #7 made LSP capability advertisement truthful for `inspect` and `navigate`, added real capability combinations to regression tests and kept semantic-required behavior fail-closed.
+- Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.
+- Phase 3 remains deferred as the required three-arm efficacy-claims gate.
 
-### Telemetry and dashboard foundation
+### Prior history
 
-- PR #8 added bearer authentication, restricted Origin/CORS handling, secure token-file behavior and process-argument redaction to the telemetry daemon API.
-- PR #10 added a Next static dashboard export served same-origin by the daemon and preserved the authenticated API listener. PR #9 was closed as an unsafe worktree-gitlink version of the change.
-- Consumer token propagation and full product integration remain open; these foundations do not imply completion of the desktop/mobile product.
-
-### Consolidation — 2026-08-03
-
-- PR #5 consolidated every receipt-bearing lineage into `main` through a merge commit.
-- PR #4 established one documentation and claims authority system.
-- PR #3 was closed as superseded.
-- Receipt/archive tags were created before historical branches were removed.
-- Phase 3 was deferred by owner direction as an efficacy-claims gate rather than an implementation blocker.
-
-### Phase 2 — closed
-
-- Added native namespaced MCP gateway registration and CLI-mediated credentials.
-- Added native skills, agents, rules, ownership, tables and backend registry domains.
-- Added native adopt/attach planning, application, backup, reversal and registration.
-- Added governance ownership, constraints and validation-route materialization.
-- Preserved exact twelve-tool canonical and optional-substitution profiles.
-- Passed exact native gate and independent artifact verification on `6768d9de2aa8a61ba90356409033c0d69b2d5afc`.
-
-### Phase 1 — closed
-
-- Unified the public catalog at exactly twelve ordered tools.
-- Implemented `soleaux.context/v2`.
-- Added native search, memory, symbols, registry, repo identity, LSP navigation/inspection, hash-bound preview/edit and LSP restart.
-- Passed exact native compilation, lint, test, build, audit, MCP and schema gates on `d3eecd45867e82d5777e57753c581483971214dd`.
-
-### Phase 0 — closed
-
-- Locked the unified MCP profile and Context Packet V2.
-- Locked version `0.4.0-dev.5`, hard ceiling twelve and `productionClaimAllowed=false`.
-- Established native Rust compilation and exact receipt evidence on `a31820d26f46d258175b52fe30fdbecf7b650265`.
-
-### Pending
-
-- Remaining Phase 4 correctness and durable-core work.
-- Unsigned alpha package, operational smoke, exact receipt and independent verification.
-- Live adapters, canonical lifecycle, intelligence and materializer depth.
-- Tauri desktop, Expo mobile, remote control and installers.
-- External assurance, signed distribution and staged release.
-
-## Historical Python lineage — `0.1.0` unreleased
-
-The Python/FastMCP lineage supplied typed context, LSP behavior, governance, gateway/OAuth semantics, skills, adopt, editor safety, framework discovery and PostgreSQL analysis. Its history remains in Git and [`docs/history/PYTHON-LINEAGE.md`](docs/history/PYTHON-LINEAGE.md); it is not the current product/version authority.
-
-The project is licensed under MIT.
+See Git history and phase receipts for Phase 0–3 and earlier Phase 4 execution details.

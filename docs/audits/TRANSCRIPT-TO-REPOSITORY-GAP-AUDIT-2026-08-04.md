@@ -205,3 +205,48 @@ Immediate sequence after this audit merges:
 6. complete Phase 7 assurance and Phase 8 signed staged release.
 
 This audit does not claim missing capabilities are implemented. It makes every retained requirement explicit, owned, testable, and release-blocking.
+
+
+## 2026-08-05 Phase 4 closure reconciliation
+
+The August 4 gap snapshot remains useful as historical evidence, but its
+Phase 4 implementation statuses are superseded by exact source and artifact evidence.
+
+### Closed since the original audit
+
+- P4-017 through P4-026 native correctness.
+- P4-010 through P4-012 canonical state, migrations, leases, recovery, backup,
+  restore, and repair.
+- P4-013 encrypted artifact vault and capability policy.
+- P4-014 and P4-015 stable CLI, per-user service, and typed local IPC.
+- P4-007 and P4-009 reproducible unsigned alpha, exact receipt, and independent verification.
+- P4-006 coordinated status, roadmap, task, handoff, changelog, audit, release,
+  and public-claim synchronization.
+- Safe pruning of every fully merged short-lived branch, with unique-commit
+  lineage retained and classified as non-authoritative.
+
+### Exact evidence
+
+```text
+Implementation source:      34c394efd01c9bb5348ba38e505317e6ca4da190
+Phase 4 merge:              f450c1a9cd2cd74d366324b5e2031e4751fb5942
+Exact workflow:             31026328918
+Artifact:                   8939137324
+Artifact SHA-256:           9917b2dd8335b2d17cdb3f0dc15191699ec7f0d1ff431f9e3b2135e0a1f4684b
+productionClaimAllowed:     false
+Public MCP ceiling:         12
+```
+
+Evidence owners:
+
+- `PHASE4-ALPHA-CLOSURE-RECEIPT.json`
+- `PHASE4-INDEPENDENT-VERIFICATION.json`
+- `PHASE4-CLOSURE-RECEIPT.json`
+- `docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json`
+
+### Remaining finish line
+
+The remaining transcript-derived requirements are owned by Phase 5–8 and the
+deferred Phase 3 claims proof. Phase 5 is current. Desktop/mobile/remote
+operations remain Phase 6; assurance remains Phase 7; signed staged release
+and GA remain Phase 8. No production claim is authorized.

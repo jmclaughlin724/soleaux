@@ -1,4 +1,18 @@
 {
+  "arms": [
+    {
+      "id": "control_no_soleaux",
+      "record": "control"
+    },
+    {
+      "id": "historical_python",
+      "record": "historicalBaseline"
+    },
+    {
+      "id": "native_treatment",
+      "record": "treatment"
+    }
+  ],
   "control": {
     "implementation": "Selected client ordinary repository access without any Soleaux MCP or precompiled Soleaux packet",
     "status": "must_be_frozen_before_first_run"
@@ -27,6 +41,7 @@
     "temperature": null,
     "topP": null
   },
+  "note": "Deferred claims gate. It remains mandatory before quantified efficacy claims or a reviewed production-claim change, but does not block Phase 5.",
   "phase": 3,
   "phase2Closed": true,
   "phase3Started": false,

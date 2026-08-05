@@ -13,16 +13,23 @@ soleaux serve .
 | Field | Value |
 |---|---|
 | Version | `0.4.0-dev.5` |
-| Closed native phases | Phase 0, Phase 1, and Phase 2 |
-| Current implementation phase | Phase 4 — reproducible unsigned alpha closure |
-| Deferred claims gate | Phase 3 — live same-model / same-task product proof |
+| Closed implementation phases | Phase 0, Phase 1, Phase 2, and Phase 4 |
+| Current implementation phase | Phase 5 — adapters, lifecycle, intelligence depth, and extensibility |
+| Deferred claims gate | Phase 3 — three-arm live product proof |
 | Public MCP | Exactly 12 canonical slots |
+| Unsigned alpha | Reproducible and independently verified |
 | Production claim | **Not allowed** |
 | Signed distribution | Not yet available |
 
-Soleaux remains a development product. The native MCP foundation, unified catalog, Context Packet V2, correctness wave, canonical state, recovery, encrypted artifact vault, operational CLI, per-user service, and typed local IPC are implemented and exact-gated. The current release branch is proving a reproducible unsigned alpha through clean-home install, daemon restart, doctor, backup, export, repair, restore, and uninstall smokes. That gate must finish successfully before Phase 4 is closed.
+Phase 4 is closed. The default branch now contains the native correctness wave, canonical state and recovery, encrypted artifact vault and policy, stable operations CLI, per-user daemon and typed local IPC, and a reproducible unsigned development-alpha package. The alpha was tested through clean installation, daemon launch and restart, doctor, backup, export, repair, offline restore, and state-preserving uninstall.
 
-The deferred live model comparison still gates quantified efficacy claims. It does not authorize a production claim, and `productionClaimAllowed` remains false.
+Evidence:
+
+- [`PHASE4-CLOSURE-RECEIPT.json`](PHASE4-CLOSURE-RECEIPT.json)
+- [`PHASE4-ALPHA-CLOSURE-RECEIPT.json`](PHASE4-ALPHA-CLOSURE-RECEIPT.json)
+- [`PHASE4-INDEPENDENT-VERIFICATION.json`](PHASE4-INDEPENDENT-VERIFICATION.json)
+
+Soleaux remains a development product. Phase 5–8 product work and the deferred Phase 3 efficacy proof are still open, and `productionClaimAllowed` remains false.
 
 See [PROJECT-STATUS.md](PROJECT-STATUS.md) for the authoritative current state.
 
@@ -42,12 +49,12 @@ Soleaux provides:
 - A bounded `soleaux.context/v2` packet with provenance, trust, coverage, gaps, and redaction.
 - One catalog for skills, agents, rules, ownership, tables, and namespaced MCP backends.
 - Hash-bound preview/edit safety.
-- CLI-mediated gateway credentials outside the worktree.
-- Canonical local state, recovery, backup, repair, and audit-chain validation.
-- Encrypted content-addressed artifacts with workspace-separated key material.
-- A per-user daemon, typed local IPC, and concurrent local-client support.
+- Canonical local state, operation leases, recovery, backup, restore, repair, and audit.
+- Encrypted content-addressed artifacts and deny-by-default capability policy.
+- A per-user daemon, typed local IPC, and a stable operations CLI.
+- Reproducible unsigned development-alpha packaging.
 
-Soleaux does **not** replace Claude Code, Codex, OpenCode, Cursor, or the IDE. It provides shared intelligence to them.
+Soleaux does **not** replace Claude Code, Claude Desktop, Codex, OpenCode, Cursor, or the IDE. It provides shared intelligence and governed lifecycle services to them.
 
 ## Canonical public tool surface
 
@@ -82,21 +89,7 @@ The binding contract is [UNIFIED-MCP-PROFILE.md](UNIFIED-MCP-PROFILE.md).
 
 ## Context compilation
 
-`context.compile` is the sole public context compiler. It returns a bounded `soleaux.context/v2` packet containing:
-
-- sources;
-- canonical owners;
-- consumers;
-- constraints;
-- conflicts;
-- validation routes;
-- supporting facts;
-- requested resources;
-- explicit coverage gaps;
-- native engine and provider identity;
-- trust and provenance;
-- token/byte accounting;
-- secret-redaction counts.
+`context.compile` is the sole public context compiler. It returns a bounded `soleaux.context/v2` packet containing sources, owners, consumers, constraints, conflicts, validation routes, supporting facts, requested resources, explicit coverage gaps, native engine identity, trust, provenance, token and byte accounting, and redaction counts.
 
 The binding contract is [CONTEXT-PACKET-V2.md](CONTEXT-PACKET-V2.md).
 
@@ -108,45 +101,40 @@ soleaux / soleauxd (Rust + Tokio)
 ├── authenticated loopback Streamable HTTP
 ├── Oxc + Tree-sitter + pg_query + shell intelligence
 ├── native LSP broker with an 800 ms soft deadline
-├── SQLite WAL structural index
-├── canonical state, migrations, replay, backup, restore, and repair
-├── encrypted content-addressed artifact vault and capability policy
+├── SQLite WAL structural and canonical state
+├── migrations, leases, replay, backup, restore, and repair
+├── encrypted artifact vault and capability policy
 ├── typed peer-checked local IPC and per-user service lifecycle
 ├── Context Packet V2 compiler
-├── hash-bound preview → edit pipeline
+├── transactional preview → edit pipeline
 ├── namespaced MCP gateway
-├── skills / agents / rules / governance registry
-└── adopt / attach / doctor / catalog / mcp CLI workflows
+└── skills / agents / rules / governance registry
 ```
 
-Python remains permitted for fixtures, conformance, packaging, and release-verification scripts only; clients do not choose between Python and Rust product modes.
+Python remains permitted for fixtures, conformance, packaging, and release verification only; clients do not choose between Python and Rust product modes.
 
 ## Documentation
 
 Start here:
 
-1. [PROJECT-STATUS.md](PROJECT-STATUS.md) — current phase and evidence.
-2. [ROADMAP.md](ROADMAP.md) — completed and remaining phases.
-3. [TASKS.md](TASKS.md) — executable work items.
-4. [HANDOFF.md](HANDOFF.md) — compact cold-start instructions for another agent.
-5. [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) — release and claims gates.
-6. [docs/README.md](docs/README.md) — full documentation map.
-
-Public positioning and claim constraints live under [docs/marketing](docs/marketing/MESSAGING.md). Historical Python-lineage material is indexed under [docs/history](docs/history/README.md) and remains available through Git history.
+1. [PROJECT-STATUS.md](PROJECT-STATUS.md)
+2. [ROADMAP.md](ROADMAP.md)
+3. [TASKS.md](TASKS.md)
+4. [HANDOFF.md](HANDOFF.md)
+5. [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md)
+6. [docs/README.md](docs/README.md)
 
 ## Development and release posture
 
-The current program is intentionally fail-closed:
+The program remains fail-closed:
 
 - No public profile above 12 tools.
 - No contract-digest drift without reviewed contract changes.
 - No successful context packet with silent truncation or false complete coverage.
 - No non-native parser/LSP fallback on a selected production path.
-- No production claim before the deferred Phase 3 proof and later release gates.
+- No quantified efficacy claim before the deferred Phase 3 proof.
 - No signed-release, store-publication, or general-availability claim from an unsigned alpha.
-
-See [CONTRIBUTING guidance in AGENTS.md](AGENTS.md) for the required validation and documentation update process.
 
 ## License
 
-The project is licensed under the MIT License. Release packaging retains the repository license and generates a deterministic Cargo dependency inventory, but signed distribution and external publication remain separate reviewed gates.
+MIT.

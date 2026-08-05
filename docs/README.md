@@ -5,21 +5,26 @@
 1. Normative contracts.
 2. Exact phase receipts and independent verification.
 3. `PROJECT-STATUS.json`.
-4. Current status, roadmap, tasks and transcript gap registry.
-5. Current phase execution documents.
+4. Current status, roadmap, tasks, and transcript gap registry.
+5. Current phase implementation documents.
 6. Public documentation.
 7. Historical material.
 
 See [`governance/DOCUMENTATION-SYSTEM.md`](governance/DOCUMENTATION-SYSTEM.md).
 
-## Current program and audit
+## Current program
 
 - [`../PROJECT-STATUS.md`](../PROJECT-STATUS.md)
 - [`../ROADMAP.md`](../ROADMAP.md)
 - [`../TASKS.md`](../TASKS.md)
 - [`../HANDOFF.md`](../HANDOFF.md)
+- [`../PHASE4-CLOSURE-RECEIPT.json`](../PHASE4-CLOSURE-RECEIPT.json)
+- [`../PHASE4-ALPHA-CLOSURE-RECEIPT.json`](../PHASE4-ALPHA-CLOSURE-RECEIPT.json)
+- [`../PHASE4-INDEPENDENT-VERIFICATION.json`](../PHASE4-INDEPENDENT-VERIFICATION.json)
 - [`audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md`](audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md)
 - [`audits/TRANSCRIPT-GAP-REGISTRY.json`](audits/TRANSCRIPT-GAP-REGISTRY.json)
+
+Phase 4 is closed. Phase 5 is the active implementation phase. Phase 3 remains deferred as a claims gate.
 
 ## Product and architecture
 
@@ -34,6 +39,7 @@ See [`governance/DOCUMENTATION-SYSTEM.md`](governance/DOCUMENTATION-SYSTEM.md).
 - [`testing/TEST-STRATEGY.md`](testing/TEST-STRATEGY.md)
 - [`testing/TEST-MATRIX.md`](testing/TEST-MATRIX.md)
 - [`operations/EVIDENCE-AND-RECEIPTS.md`](operations/EVIDENCE-AND-RECEIPTS.md)
+- [`operations/BRANCH-CONSOLIDATION-2026-08-05.json`](operations/BRANCH-CONSOLIDATION-2026-08-05.json)
 
 ## Deferred product-proof experiment
 
@@ -43,8 +49,6 @@ See [`governance/DOCUMENTATION-SYSTEM.md`](governance/DOCUMENTATION-SYSTEM.md).
 - [`experiments/phase3/RUNBOOK.md`](experiments/phase3/RUNBOOK.md)
 - [`experiments/phase3/SCORING-RUBRIC.md`](experiments/phase3/SCORING-RUBRIC.md)
 - [`experiments/phase3/RESULTS.md`](experiments/phase3/RESULTS.md)
-
-Phase 3 is deferred and requires three-arm reconciliation before use.
 
 ## Release and rollout
 

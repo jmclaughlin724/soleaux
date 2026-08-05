@@ -23,34 +23,28 @@ Short form:
 3. Ask for task context through `context.compile`.
 4. Receive bounded structural and semantic evidence with provenance and gaps.
 5. Use one registry for skills, agents, rules, ownership, and backends.
+6. Use the local service for canonical state, recovery, artifacts, and operations.
 
 ## Current evidence-approved messages
 
 - Native Rust development build.
 - Exactly 12 public tool slots.
-- Context Packet V2 with trust, provenance, redaction, and coverage.
-- Native gateway/catalog/adopt/attach/governance capabilities.
+- Context Packet V2 with trust, provenance, redaction, coverage, and continuations.
+- Native gateway, catalog, provisioning, governance, editing, state, recovery, artifact, policy, CLI, service, and IPC foundations.
+- Reproducible unsigned development alpha.
+- Clean install, daemon restart, doctor, backup, export, repair, offline restore, and state-preserving uninstall have exact evidence.
 - Designed to reduce sprawl.
-- Live product-proof comparison pending.
+- Live product-proof comparison, client matrices, desktop/mobile distribution, signing, and release assurance remain pending.
 
 ## Do not lead with
 
 - mobile remote control;
 - agent orchestration;
 - “agent OS”;
-- operation counts;
-- universal memory/session claims.
-
-These may become supporting product capabilities, not the wedge.
+- universal memory/session claims;
+- production, RC, store, or GA claims;
+- quantified context or success improvements before Phase 3.
 
 ## Proof points after Phase 3
 
-Only insert measured values from `docs/experiments/phase3/RESULTS.md`, including:
-
-- model/client;
-- repositories/tasks;
-- correctness;
-- schema/context reduction;
-- limitations.
-
-Never generalize beyond the measured scope.
+Only insert measured values from `docs/experiments/phase3/RESULTS.md`, including model/client, repositories/tasks, correctness, schema/context reduction, and limitations. Never generalize beyond measured scope.
