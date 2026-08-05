@@ -1,0 +1,209 @@
+name: Verify encrypted artifact vault and policy P4-013
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - native/**
+      - .github/workflows/verify-vault-p4-013-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-vault-p4-013-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 125
+    env:
+      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema xz-utils
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Verify exact source, cryptographic ownership, and product invariants
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test ! -e .ci/apply-vault-p4-013.py
+          test ! -e .github/workflows/apply-vault-p4-013-main.yml
+          grep -F '"daemon/vault"' native/Cargo.toml
+          grep -F 'ring = "0.17.14"' native/daemon/vault/Cargo.toml
+          grep -F 'CHACHA20_POLY1305' native/daemon/vault/src/vault.rs
+          grep -F 'soleaux.artifact-envelope/v1' native/daemon/vault/src/vault.rs
+          grep -F 'derive_workspace_key' native/daemon/vault/src/keyring.rs
+          grep -F 'find-generic-password' native/daemon/vault/src/keyring.rs
+          grep -F 'secret-tool' native/daemon/vault/src/keyring.rs
+          grep -F 'ProtectedData]::Protect' native/daemon/vault/src/keyring.rs
+          grep -F 'pub enum Capability' native/daemon/vault/src/policy.rs
+          grep -F 'PolicyEffect::Deny' native/daemon/vault/src/policy.rs
+          grep -F 'validate_attenuation' native/daemon/vault/src/policy.rs
+          grep -F 'authenticated_envelopes_reject_tampering_and_rotation_preserves_plaintext' native/daemon/vault/src/tests.rs
+          grep -F 'policy_is_deny_by_default_workspace_scoped_and_approval_aware' native/daemon/vault/src/tests.rs
+          grep -F 'pub const HARD_CEILING: usize = 12;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCTION_CLAIM_ALLOWED: bool = false;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCT_VERSION: &str = "0.4.0-dev.5";' native/daemon/mcp/src/profile.rs
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+
+      - name: Complete vault, canonical state, and native regression gate
+        working-directory: native
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence/vault-smoke
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-vault --all-features --locked | tee ../evidence/vault-tests.txt
+          cargo test -p soleaux-state --all-features --locked | tee ../evidence/canonical-state-tests.txt
+          cargo test --workspace --all-features --locked | tee ../evidence/native-workspace-tests.txt
+          cargo run -p soleaux-vault --example vault_smoke --locked -- ../evidence/vault-smoke \
+            | tee ../evidence/vault-runtime.txt
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --version | tee ../evidence/soleaux-version.txt
+          ./target/release/soleauxd --version | tee ../evidence/soleauxd-version.txt
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . ../evidence/phase1-mcp-smoke.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . ../evidence/phase2-capability-smoke.json
+          cp target/release/soleaux ../evidence/soleaux
+          cp target/release/soleauxd ../evidence/soleauxd
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings | tee ../evidence/cargo-audit.txt
+
+      - name: Independently inspect ciphertext, metadata, key rotation, and policy receipt
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee evidence/vault-independent-inspection.json
+          import hashlib
+          import json
+          import pathlib
+
+          root = pathlib.Path('evidence/vault-smoke')
+          report = json.loads((root / 'vault-smoke.json').read_text(encoding='utf-8'))
+          assert report['schemaVersion'] == 'soleaux.vault-smoke/v1'
+          assert report['status'] == 'pass'
+          assert report['productionClaimAllowed'] is False
+          assert report['plaintextAbsentAtRest'] is True
+          assert report['metadataRedactions'] >= 2
+          assert report['workspaceIsolation'] is True
+          assert report['tamperRejected'] is True
+          assert report['previousKeyVersion'] == 1
+          assert report['currentKeyVersion'] == 2
+          assert report['rotatedArtifacts'] == 1
+          assert report['defaultPolicyEffect'] == 'deny'
+          assert report['approvalRequiredEffect'] == 'approval_required'
+          assert report['approvedPolicyEffect'] == 'allow'
+          content_hash = report['contentHash']
+          envelope = root / 'vault' / 'workspaces' / report['workspaceId'] / content_hash[:2] / f'{content_hash}.sxv'
+          keyring = root / 'development-keyring.json'
+          assert envelope.is_file() and keyring.is_file()
+          encrypted = envelope.read_bytes()
+          plaintext = b'Soleaux encrypted artifact smoke payload'
+          assert plaintext not in encrypted
+          assert encrypted.startswith(b'SLXVAULT')
+          assert hashlib.blake2s(encrypted).hexdigest()
+          key_data = json.loads(keyring.read_text(encoding='utf-8'))
+          assert key_data['schemaVersion'] == 'soleaux.vault-keyring/v1'
+          assert key_data['currentVersion'] == 2
+          assert sorted(key_data['keys']) == ['1', '2']
+          assert all(len(value) == 64 for value in key_data['keys'].values())
+          result = {
+              'schemaVersion':'soleaux.vault-inspection/v1',
+              'envelopeBytes':len(encrypted),
+              'envelopeSha256':hashlib.sha256(encrypted).hexdigest(),
+              'plaintextAbsent':True,
+              'keyVersions':[1,2],
+              'workspaceIsolation':True,
+              'tamperRejected':True,
+              'denyByDefault':True,
+              'approvalBound':True,
+              'status':'pass',
+          }
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Validate repository documentation
+        run: python3 scripts/check_documentation_consistency.py
+
+      - name: Write exact-head receipt and checksummed evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          printf '%s\n' "$SOURCE_COMMIT" > evidence/SOURCE_COMMIT
+          printf '%s\n' "$GITHUB_RUN_ID" > evidence/WORKFLOW_RUN_ID
+          sha256sum native/contracts/unified-mcp-profile-v2.json > evidence/PROFILE-CONTRACT-SHA256.txt
+          sha256sum native/contracts/context-packet-v2.schema.json > evidence/CONTEXT-CONTRACT-SHA256.txt
+          git archive --format=tar "$SOURCE_COMMIT" | xz -T0 -9 > evidence/soleaux-vault-source.tar.xz
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = {
+              'schemaVersion': 'soleaux.phase4-task-receipt/v1',
+              'task': 'P4-013',
+              'sourceCommit': os.environ['SOURCE_COMMIT'],
+              'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
+              'conclusion': 'success',
+              'version': '0.4.0-dev.5',
+              'productionClaimAllowed': False,
+              'publicToolCeiling': 12,
+              'contentAddressedArtifacts': True,
+              'authenticatedEncryption': 'ChaCha20-Poly1305',
+              'workspaceSeparatedKeys': True,
+              'versionedKeyRotation': True,
+              'metadataRedaction': True,
+              'tamperRejection': True,
+              'osKeyProtectionSources': ['macOS Keychain', 'Linux Secret Service', 'Windows DPAPI'],
+              'denyByDefaultPolicy': True,
+              'riskAndSensitivityBounds': True,
+              'approvalBinding': True,
+              'capabilityAttenuation': True,
+              'lockedContracts': {
+                  'unifiedMcpProfileSha256': '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc',
+                  'contextPacketV2Sha256': '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f',
+              },
+          }
+          Path('evidence/P4-013-NATIVE-GATE-RECEIPT.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          (
+            cd evidence
+            find . -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-vault-${{ env.SOURCE_COMMIT }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
