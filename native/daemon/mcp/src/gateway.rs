@@ -100,13 +100,14 @@ fn parse_backends(content: &str, config_path: &str) -> Result<Vec<GatewayBackend
         if line.is_empty() {
             continue;
         }
-        if let Some(name) = line
+        if let Some(raw_name) = line
             .strip_prefix("[mcp.")
             .and_then(|value| value.strip_suffix(']'))
         {
-            validate_identifier(name, "backend")?;
-            current = Some(name.to_string());
-            sections.entry(name.to_string()).or_default();
+            let name = parse_table_key(raw_name)?;
+            validate_identifier(&name, "backend")?;
+            current = Some(name.clone());
+            sections.entry(name).or_default();
             continue;
         }
         let Some(section) = current.as_ref() else {
@@ -452,6 +453,14 @@ fn executable_available(program: &str) -> bool {
     })
 }
 
+fn parse_table_key(value: &str) -> Result<String> {
+    let value = value.trim();
+    if value.starts_with('"') || value.ends_with('"') {
+        return parse_string(value);
+    }
+    Ok(value.to_string())
+}
+
 fn parse_string(value: &str) -> Result<String> {
     let value = value.trim();
     if value.len() < 2 || !value.starts_with('"') || !value.ends_with('"') {
@@ -595,6 +604,39 @@ enabled = true
         assert_eq!(parsed[0].namespace, "team.docs");
         assert_eq!(parsed[0].auth, "oauth");
         assert_eq!(parsed[1].transport, GatewayTransport::StreamableHttp);
+    }
+
+    #[test]
+    fn quoted_backend_table_keys_are_decoded_before_validation() {
+        let parsed = parse_backends(
+            r#"
+[mcp."openai-docs"]
+url = "https://developers.openai.com/mcp"
+"#,
+            "soleaux.toml",
+        )
+        .expect("quoted keys");
+        assert_eq!(
+            parsed
+                .iter()
+                .map(|backend| backend.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["openai-docs"]
+        );
+    }
+
+    #[test]
+    fn repository_gateway_configuration_with_quoted_key_is_discoverable() {
+        let directory = tempdir().expect("tempdir");
+        fs::write(
+            directory.path().join("soleaux.toml"),
+            "[mcp.\"openai-docs\"]\nurl = \"https://developers.openai.com/mcp\"\n",
+        )
+        .expect("configuration");
+        let backends = discover_backends(directory.path()).expect("discover");
+        assert_eq!(backends.len(), 1);
+        assert_eq!(backends[0].name, "openai-docs");
+        assert_eq!(backends[0].namespace, "openai-docs");
     }
 
     #[test]
