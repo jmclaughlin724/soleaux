@@ -39,6 +39,7 @@ jobs:
       - name: Apply the compiler-proven P4-024 Rust delta
         run: |
           set -euo pipefail
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           git diff 41ef2288a1bf84f35f7542bb7e7ca1df051d60e7 af5eac128dae01003075d35273d444a3fad82fb9 -- \
             native/daemon/intelligence/src/lib.rs \
             native/daemon/mcp/src/lib.rs \
