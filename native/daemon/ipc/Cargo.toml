@@ -7,11 +7,13 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-libc = "0.2.189"
+blake3.workspace = true
+rustix = { version = "1.1.4", features = ["process"] }
 serde.workspace = true
 serde_json.workspace = true
 soleaux-state = { path = "../state" }
 tokio.workspace = true
+tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
