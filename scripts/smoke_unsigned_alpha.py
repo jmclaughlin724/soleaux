@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Exercise the extracted unsigned alpha through its complete operational lifecycle."""
+
 from __future__ import annotations
 
 import argparse
