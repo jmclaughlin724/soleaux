@@ -10,18 +10,20 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
 
 
 keyring = Path("native/daemon/vault/src/keyring.rs")
-replace_once(
-    keyring,
-    '''fn powershell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\\\\'', "''"))
-}
-''',
-    '''fn powershell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
-}
-''',
-    "PowerShell single-quote escaping",
+source_lines = keyring.read_text(encoding="utf-8").splitlines()
+targets = [
+    index
+    for index, line in enumerate(source_lines)
+    if 'format!("\'{}\'", value.replace(' in line
+]
+if len(targets) != 1:
+    raise SystemExit(
+        f"PowerShell single-quote escaping drifted: expected 1 target, observed {len(targets)}"
+    )
+source_lines[targets[0]] = (
+    "    format!(\"'{}'\", value.replace('" + chr(92) + "'', \"''\"))"
 )
+keyring.write_text("\n".join(source_lines) + "\n", encoding="utf-8")
 
 vault = Path("native/daemon/vault/src/vault.rs")
 replace_once(
