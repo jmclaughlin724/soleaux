@@ -1,0 +1,29 @@
+name: Reconcile P4-024 with current main
+
+on:
+  push:
+    branches:
+      - fix/typed-postgres-validation-p4-024-clean-0.4.0-dev.5
+    paths:
+      - .github/workflows/reconcile-p4-024-main.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Merge current main without rewriting history
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge --no-edit origin/main
+          git push origin HEAD:${{ github.ref_name }}
