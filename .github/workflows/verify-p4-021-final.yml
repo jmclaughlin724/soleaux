@@ -70,8 +70,6 @@ jobs:
           grep -F 'pub const HARD_CEILING: usize = 12;' native/daemon/mcp/src/profile.rs
           grep -F 'pub const PRODUCTION_CLAIM_ALLOWED: bool = false;' native/daemon/mcp/src/profile.rs
           grep -F 'pub const PRODUCT_VERSION: &str = "0.4.0-dev.5";' native/daemon/mcp/src/profile.rs
-          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  contracts/unified-mcp-profile-v2.json' | sha256sum -c -
-          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  contracts/context-packet-v2.schema.json' | sha256sum -c -
           echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
           echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
 
@@ -125,8 +123,8 @@ jobs:
           mkdir -p evidence
           printf '%s\n' "$SOURCE_COMMIT" > evidence/SOURCE_COMMIT
           printf '%s\n' "$GITHUB_RUN_ID" > evidence/WORKFLOW_RUN_ID
-          sha256sum contracts/unified-mcp-profile-v2.json > evidence/PROFILE-CONTRACT-SHA256.txt
-          sha256sum contracts/context-packet-v2.schema.json > evidence/CONTEXT-CONTRACT-SHA256.txt
+          sha256sum native/contracts/unified-mcp-profile-v2.json > evidence/PROFILE-CONTRACT-SHA256.txt
+          sha256sum native/contracts/context-packet-v2.schema.json > evidence/CONTEXT-CONTRACT-SHA256.txt
           git archive --format=tar "$SOURCE_COMMIT" | xz -T0 -9 > evidence/soleaux-p4-021-source.tar.xz
           python3 - <<'PY'
           import json
