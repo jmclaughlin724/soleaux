@@ -1,4 +1,4 @@
-name: Repair P4-026 storage applicator syntax
+name: Repair P4-026 storage applicator targets
 
 on:
   push:
@@ -19,23 +19,29 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - name: Normalize raw-string terminator source lines
+      - name: Bind the version-zero replacement to the first matching migration
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
           path = Path('.ci/apply-p4-026-storage.py')
-          source_lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
-          replacement = "        '            \"#,',\n"
-          replaced = 0
-          for index, line in enumerate(source_lines):
-              if '#,' in line and line.lstrip().startswith('"'):
-                  source_lines[index] = replacement
-                  replaced += 1
-          if replaced != 3:
-              raise SystemExit(f'expected three raw-string terminator lines, observed {replaced}')
-          repaired = ''.join(source_lines)
+          text = path.read_text(encoding='utf-8')
+          old = '''def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if text.count(old) != 1:
+                  raise SystemExit(f"P4-026 storage target drifted: {label} ({text.count(old)})")
+              return text.replace(old, new, 1)
+          '''
+          new = '''def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              expected = 2 if label == "version zero migration" else 1
+              if count != expected:
+                  raise SystemExit(f"P4-026 storage target drifted: {label} ({count})")
+              return text.replace(old, new, 1)
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('replace_once helper drifted')
+          repaired = text.replace(old, new, 1)
           compile(repaired, str(path), 'exec')
           path.write_text(repaired, encoding='utf-8')
           PY
@@ -43,5 +49,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .ci/apply-p4-026-storage.py
           git diff --cached --check
-          git commit -m 'ci: repair P4-026 storage applicator syntax'
+          git commit -m 'ci: bind P4-026 migration replacements deterministically'
           git push origin HEAD:${{ github.ref_name }}
