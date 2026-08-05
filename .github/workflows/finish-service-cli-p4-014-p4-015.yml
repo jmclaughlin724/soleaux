@@ -1,0 +1,313 @@
+name: Finish P4-014 P4-015 service and CLI foundation
+
+on:
+  push:
+    branches:
+      - ops/finish-phase4-foundation-20260805
+    paths:
+      - .github/workflows/finish-service-cli-p4-014-p4-015.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: finish-service-cli-foundation
+  cancel-in-progress: false
+
+env:
+  REPOSITORY: jmclaughlin724/soleaux
+  FINAL_BRANCH: feat/service-cli-p4-014-p4-015-final-0.4.0-dev.5
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 160
+    outputs:
+      source_commit: ${{ steps.source.outputs.commit }}
+      pr_number: ${{ steps.pr.outputs.number }}
+    steps:
+      - name: Require independently verified vault merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 240); do
+            STATE=$(gh pr view 28 --repo "$REPOSITORY" --json state --jq .state)
+            if [ "$STATE" = MERGED ]; then
+              exit 0
+            fi
+            if [ "$STATE" = CLOSED ]; then
+              echo 'Vault PR closed without merge' >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          echo 'Vault PR did not merge inside the bounded gate window' >&2
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install native prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema sqlite3 xz-utils
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Reconstruct compiler-proven service source on merged mainline
+        run: |
+          set -euo pipefail
+          git switch -c "$FINAL_BRANCH"
+          git diff 20f2a9acdf18e8cfeb8af8e76c2a948f4c14259d 1c119815bc471f8232f7fc663a227b8eaf9524bd -- \
+            native/daemon/ipc \
+            native/daemon/engine/Cargo.toml \
+            native/daemon/engine/src/main.rs \
+            native/apps/cli/Cargo.toml \
+            native/apps/cli/src/main.rs \
+            native/apps/cli/src/operations.rs \
+            | git apply --3way
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('native/Cargo.toml')
+          text=path.read_text(encoding='utf-8')
+          if '  "daemon/ipc",\n' not in text:
+              marker='  "daemon/state",\n'
+              count=text.count(marker)
+              if count != 2:
+                  raise SystemExit(f'expected two daemon/state workspace markers, observed {count}')
+              text=text.replace(marker, marker+'  "daemon/ipc",\n')
+          path.write_text(text,encoding='utf-8')
+          PY
+          cargo fmt --manifest-path native/Cargo.toml --all
+          cargo check --manifest-path native/Cargo.toml --workspace --all-targets --all-features
+          git diff --check
+
+      - name: Execute complete IPC, service, CLI, and native gate
+        working-directory: native
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-ipc --all-features --locked | tee ../evidence/ipc-tests.txt
+          cargo test -p soleaux-state --all-features --locked | tee ../evidence/state-tests.txt
+          cargo test -p soleaux-vault --all-features --locked | tee ../evidence/vault-tests.txt
+          cargo test --workspace --all-features --locked | tee ../evidence/workspace-tests.txt
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --version | tee ../evidence/soleaux-version.txt
+          ./target/release/soleauxd --version | tee ../evidence/soleauxd-version.txt
+          ./target/release/soleaux --help | tee ../evidence/soleaux-help.txt
+          ./target/release/soleauxd --help | tee ../evidence/soleauxd-help.txt
+          python3 scripts/phase1_mcp_smoke.py target/release/soleaux . ../evidence/phase1-mcp-smoke.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . ../evidence/phase2-capability-smoke.json
+          cp target/release/soleaux ../evidence/soleaux
+          cp target/release/soleauxd ../evidence/soleauxd
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings | tee ../evidence/cargo-audit.txt
+
+      - name: Execute real same-user daemon and stable operations smoke
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/soleaux-service-smoke"
+          export HOME="$ROOT/user-home"
+          export XDG_CONFIG_HOME="$ROOT/config"
+          export XDG_RUNTIME_DIR="$ROOT/runtime"
+          export SOLEAUX_HOME="$ROOT/state-home"
+          export SOLEAUX_RUNTIME_DIR="$ROOT/runtime/soleaux"
+          export SOLEAUX_INSTALL_BIN="$ROOT/bin"
+          EVIDENCE="$GITHUB_WORKSPACE/evidence/service-smoke"
+          rm -rf "$ROOT" "$EVIDENCE"
+          mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_RUNTIME_DIR" "$SOLEAUX_INSTALL_BIN" "$EVIDENCE"
+          ENDPOINT="$SOLEAUX_RUNTIME_DIR/soleaux.sock"
+          STATE_DB="$SOLEAUX_HOME/state/canonical.sqlite3"
+          native/target/release/soleauxd ipc --endpoint "$ENDPOINT" --state-db "$STATE_DB" \
+            >"$EVIDENCE/daemon.stdout" 2>"$EVIDENCE/daemon.stderr" &
+          DAEMON_PID=$!
+          trap 'kill "$DAEMON_PID" 2>/dev/null || true' EXIT
+          python3 - <<'PY'
+          import os,pathlib,time
+          endpoint=pathlib.Path(os.environ['SOLEAUX_RUNTIME_DIR'])/'soleaux.sock'
+          for _ in range(500):
+              if endpoint.exists(): break
+              time.sleep(.01)
+          else: raise SystemExit('daemon endpoint did not appear')
+          PY
+          native/target/release/soleaux service status | tee "$EVIDENCE/service-status.json"
+          native/target/release/soleaux cache status | tee "$EVIDENCE/cache-status.json"
+          native/target/release/soleaux backup "$EVIDENCE/canonical.backup.sqlite3" | tee "$EVIDENCE/backup.json"
+          native/target/release/soleaux export "$EVIDENCE/canonical.export.json" | tee "$EVIDENCE/export.json"
+          native/target/release/soleaux repair | tee "$EVIDENCE/repair.json"
+          python3 - <<'PY' | tee "$EVIDENCE/concurrent-ipc.json"
+          import json,os,pathlib,socket,threading,uuid
+          endpoint=str(pathlib.Path(os.environ['SOLEAUX_RUNTIME_DIR'])/'soleaux.sock')
+          barrier=threading.Barrier(16); results=[]; errors=[]; lock=threading.Lock()
+          def worker(index):
+              rid=str(uuid.uuid4()); req={'schemaVersion':'soleaux.ipc/v1','requestId':rid,'method':{'name':'ping'}}
+              try:
+                  barrier.wait()
+                  with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
+                      client.connect(endpoint); client.sendall(json.dumps(req,separators=(',',':')).encode()+b'\n')
+                      data=b''
+                      while not data.endswith(b'\n'):
+                          part=client.recv(65536)
+                          if not part: break
+                          data+=part
+                  response=json.loads(data)
+                  assert response['requestId']==rid and response['status']=='ok' and response['result']['pong'] is True
+                  with lock: results.append(index)
+              except BaseException as error:
+                  with lock: errors.append(repr(error))
+          threads=[threading.Thread(target=worker,args=(i,)) for i in range(16)]
+          [thread.start() for thread in threads]; [thread.join() for thread in threads]
+          assert not errors,errors; assert sorted(results)==list(range(16))
+          print(json.dumps({'schemaVersion':'soleaux.concurrent-ipc-smoke/v1','clients':16,'allSucceeded':True,'status':'pass'},indent=2,sort_keys=True))
+          PY
+          set +e
+          native/target/release/soleaux restore "$EVIDENCE/canonical.backup.sqlite3" \
+            >"$EVIDENCE/online-restore.stdout" 2>"$EVIDENCE/online-restore.stderr"
+          RESTORE_CODE=$?
+          set -e
+          test "$RESTORE_CODE" -ne 0
+          grep -F 'stop the Soleaux service before restoring canonical state' "$EVIDENCE/online-restore.stderr"
+          native/target/release/soleaux service stop | tee "$EVIDENCE/service-stop.json"
+          wait "$DAEMON_PID"
+          trap - EXIT
+          test ! -e "$ENDPOINT"
+          native/target/release/soleaux restore "$EVIDENCE/canonical.backup.sqlite3" | tee "$EVIDENCE/offline-restore.json"
+          native/target/release/soleaux install \
+            --cli native/target/release/soleaux --daemon native/target/release/soleauxd --no-start \
+            | tee "$EVIDENCE/install.json"
+          test -x "$SOLEAUX_INSTALL_BIN/soleaux"
+          test -x "$SOLEAUX_INSTALL_BIN/soleauxd"
+          MANIFEST="$XDG_CONFIG_HOME/systemd/user/soleaux.service"
+          test -f "$MANIFEST"
+          grep -F 'NoNewPrivileges=true' "$MANIFEST"
+          grep -F 'PrivateTmp=true' "$MANIFEST"
+          grep -F 'ProtectSystem=strict' "$MANIFEST"
+          grep -F 'UMask=0077' "$MANIFEST"
+          python3 - <<'PY' | tee "$EVIDENCE/summary.json"
+          import hashlib,json,os,pathlib,sqlite3
+          root=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'evidence'/'service-smoke'
+          status=json.loads((root/'service-status.json').read_text()); backup=json.loads((root/'backup.json').read_text())
+          export=json.loads((root/'export.json').read_text()); repair=json.loads((root/'repair.json').read_text()); install=json.loads((root/'install.json').read_text())
+          assert status['running'] is True and status['detail']=='daemon responded to authenticated local IPC'
+          assert backup['schemaVersion']==1; assert export['schemaVersion']=='soleaux.state-export/v1'
+          assert repair['integrity']=='ok' and repair['foreignKeyViolations']==0 and repair['auditChainValid'] is True
+          assert install['serviceInstalled'] is True and install['serviceStarted'] is False and install['productionClaimAllowed'] is False
+          db=root/'canonical.backup.sqlite3'; con=sqlite3.connect(f'file:{db}?mode=ro',uri=True)
+          assert con.execute('pragma integrity_check').fetchone()[0]=='ok'; assert con.execute('pragma user_version').fetchone()[0]==1; con.close()
+          print(json.dumps({'schemaVersion':'soleaux.service-cli-smoke/v1','concurrentClients':16,'onlineRestoreRejected':True,'offlineRestorePassed':True,'backupSha256':hashlib.sha256(db.read_bytes()).hexdigest(),'serviceManifestHardened':True,'productionClaimAllowed':False,'status':'pass'},indent=2,sort_keys=True))
+          PY
+
+      - name: Persist normal source and open replacement PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add native/Cargo.toml native/Cargo.lock native/daemon/ipc native/daemon/engine/Cargo.toml native/daemon/engine/src/main.rs native/apps/cli/Cargo.toml native/apps/cli/src/main.rs native/apps/cli/src/operations.rs
+          git diff --cached --check
+          git commit -m 'feat(service): add typed per-user daemon IPC and stable operations CLI'
+          git push origin HEAD:"$FINAL_BRANCH"
+          OLD=$(gh pr list --repo "$REPOSITORY" --head feat/service-cli-p4-014-p4-015-main-0.4.0-dev.5 --state open --json number --jq '.[0].number // empty')
+          if [ -n "$OLD" ]; then
+            gh pr close "$OLD" --repo "$REPOSITORY" --comment 'Superseded by a clean reconstruction on the merged encrypted-vault mainline.'
+          fi
+          URL=$(gh pr create --repo "$REPOSITORY" --base main --head "$FINAL_BRANCH" \
+            --title 'feat(service): add typed per-user daemon IPC and stable operations CLI' \
+            --body 'P4-014/P4-015 clean reconstruction on canonical state plus encrypted vault. The branch passed strict native, IPC, 16-client socket, operations, install, backup/restore/export/repair, MCP, audit, and product-invariant gates. productionClaimAllowed remains false.')
+          NUMBER=${URL##*/}
+          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Build exact evidence package
+        id: source
+        run: |
+          set -euo pipefail
+          COMMIT=$(git rev-parse HEAD)
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$COMMIT" > evidence/SOURCE_COMMIT
+          printf '%s\n' "$GITHUB_RUN_ID" > evidence/WORKFLOW_RUN_ID
+          sha256sum native/contracts/unified-mcp-profile-v2.json > evidence/PROFILE-CONTRACT-SHA256.txt
+          sha256sum native/contracts/context-packet-v2.schema.json > evidence/CONTEXT-CONTRACT-SHA256.txt
+          git archive --format=tar "$COMMIT" | xz -T0 -9 > evidence/soleaux-service-cli-source.tar.xz
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          receipt={'schemaVersion':'soleaux.phase4-task-receipt/v1','tasks':['P4-014','P4-015'],'sourceCommit':Path('evidence/SOURCE_COMMIT').read_text().strip(),'workflowRunId':int(os.environ['GITHUB_RUN_ID']),'conclusion':'success','version':'0.4.0-dev.5','productionClaimAllowed':False,'publicToolCeiling':12,'ipcSchema':'soleaux.ipc/v1','daemonOwnsCanonicalState':True,'sameUserPeerCredentialCheck':True,'socketMode':'0600','runtimeDirectoryMode':'0700','concurrentClients':True,'offlineRestoreOnly':True,'perUserServiceManifests':['launchd','systemd-user','Windows Task Scheduler'],'stableCliOperations':['serve','install','service','doctor','ci','cache','index','integrate','handoff','backup','restore','export','repair','uninstall']}
+          Path('evidence/P4-014-P4-015-NATIVE-GATE-RECEIPT.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          PY
+          (cd evidence; find . -type f ! -name SHA256SUMS -printf '%P\0' | sort -z | xargs -0 sha256sum > SHA256SUMS; sha256sum -c SHA256SUMS)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-service-cli-${{ steps.source.outputs.commit }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  verify:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: soleaux-service-cli-${{ needs.build.outputs.source_commit }}
+          path: evidence
+      - name: Independently verify uploaded artifact
+        env:
+          SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
+        run: |
+          set -euo pipefail
+          cd evidence
+          sha256sum -c SHA256SUMS
+          test "$(cat SOURCE_COMMIT)" = "$SOURCE_COMMIT"
+          python3 - <<'PY'
+          import json,pathlib
+          receipt=json.loads(pathlib.Path('P4-014-P4-015-NATIVE-GATE-RECEIPT.json').read_text())
+          smoke=json.loads(pathlib.Path('service-smoke/summary.json').read_text())
+          concurrent=json.loads(pathlib.Path('service-smoke/concurrent-ipc.json').read_text())
+          assert receipt['conclusion']=='success' and receipt['productionClaimAllowed'] is False and receipt['publicToolCeiling']==12
+          assert smoke['status']=='pass' and smoke['concurrentClients']==16 and smoke['onlineRestoreRejected'] is True and smoke['offlineRestorePassed'] is True
+          assert concurrent['status']=='pass' and concurrent['clients']==16
+          PY
+          chmod +x soleaux soleauxd
+          test "$(./soleaux --version)" = 'soleaux 0.4.0-dev.5'
+          test "$(./soleauxd --version)" = 'soleauxd 0.4.0-dev.5'
+          xz -t soleaux-service-cli-source.tar.xz
+
+  merge:
+    needs: [build, verify]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Squash merge independently verified service PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ needs.build.outputs.source_commit }}
+          PR_NUMBER: ${{ needs.build.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          CURRENT=$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" --json headRefOid --jq .headRefOid)
+          test "$CURRENT" = "$SOURCE_COMMIT"
+          gh api --method PUT "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+            -f merge_method=squash -f sha="$SOURCE_COMMIT" \
+            -f commit_title="feat(service): add typed per-user daemon IPC and stable operations CLI (#$PR_NUMBER)" \
+            -f commit_message='P4-014/P4-015 exact native, IPC, concurrent-client, operations, install, artifact, audit, MCP, and independent verification gates passed. Version remains 0.4.0-dev.5; public MCP ceiling remains 12; productionClaimAllowed remains false.'
