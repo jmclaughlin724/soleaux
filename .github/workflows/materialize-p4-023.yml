@@ -41,6 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test -f native/daemon/mcp/src/cursor.rs
           test "$(wc -c < .ci/p4-023.patch.xz.b64)" = 17052
           echo '58d7d4659322f0696a17b25720da76ccded970ef01b08c5ee69d8c9269e7e0c1  .ci/p4-023.patch.xz.b64' | sha256sum -c -
           base64 --decode .ci/p4-023.patch.xz.b64 > /tmp/p4-023.patch.xz
@@ -77,4 +78,6 @@ jobs:
           cargo fmt --all --check
           cargo check --workspace --all-targets --all-features --locked
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-          cargo test -p soleaux-mcp --all-features --locked cursor::tests memory::tests tests::search_continuation tests::search_exact_limit tests::symbols_continuation
+          cargo test -p soleaux-mcp --all-features --locked
+
+# Retry marker: include the new cursor module and use a valid focused Cargo invocation.
