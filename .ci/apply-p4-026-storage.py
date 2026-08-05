@@ -6,8 +6,10 @@ def lines(*values: str) -> str:
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
-    if text.count(old) != 1:
-        raise SystemExit(f"P4-026 storage target drifted: {label} ({text.count(old)})")
+    count = text.count(old)
+    expected = 2 if label == "version zero migration" else 1
+    if count != expected:
+        raise SystemExit(f"P4-026 storage target drifted: {label} ({count})")
     return text.replace(old, new, 1)
 
 
