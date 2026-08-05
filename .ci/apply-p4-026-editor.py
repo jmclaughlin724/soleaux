@@ -297,7 +297,7 @@ binding_helper = '''fn preview_binding_hash(preview: &StoredPreview) -> Result<S
             })
         })
         .collect::<Vec<_>>();
-    source_revisions.sort_by(|left, right| left.to_string().cmp(&right.to_string()));
+    source_revisions.sort_by_key(|left| left.to_string());
     let binding = json!({
         "schema_version":"soleaux.preview-claim-binding/v1",
         "preview_schema_version":preview.schema_version,
