@@ -100,7 +100,56 @@ fn canonical_graph_is_typed_revisioned_linked_and_idempotent() {
     assert_eq!(fetched.revision, 2);
     assert!(store.verify_audit_chain().expect("audit chain"));
     assert!(store.audit_after(0, 100).expect("audit").len() >= 4);
-    assert_eq!(EntityKind::ALL.len(), 17);
+    assert_eq!(EntityKind::ALL.len(), 20);
+}
+
+#[test]
+fn native_identity_upsert_is_serialized_and_reuses_the_canonical_record() {
+    let directory = tempdir().expect("tempdir");
+    let store = StateStore::open(directory.path().join("state.sqlite3")).expect("store");
+    let payload = WorkspacePayload {
+        canonical_path: directory.path().to_string_lossy().to_string(),
+        path_hash: "a".repeat(64),
+        display_name: "Fixture".to_string(),
+        trust_state: WorkspaceTrustState::Trusted,
+        profile_digest: LOCKED_PROFILE_SHA256.to_string(),
+        context_digest: LOCKED_CONTEXT_PACKET_SHA256.to_string(),
+        public_tool_ceiling: PUBLIC_TOOL_CEILING,
+        production_claim_allowed: false,
+        metadata: json!({"revision":1}),
+    };
+    let mut input = CanonicalEntityInput::active(payload.clone());
+    input.state = "registered".to_string();
+    input.origin_platform = Some("soleaux.workspace".to_string());
+    input.native_id = Some(payload.path_hash.clone());
+    input.idempotency_key = Some(format!("workspace:{}", payload.path_hash));
+    let first = store.upsert_native(input).expect("first upsert");
+    assert_eq!(first.revision, 1);
+
+    let mut changed = payload;
+    changed.metadata = json!({"revision":2});
+    let mut input = CanonicalEntityInput::active(changed.clone());
+    input.state = "registered".to_string();
+    input.origin_platform = Some("soleaux.workspace".to_string());
+    input.native_id = Some(changed.path_hash.clone());
+    input.idempotency_key = Some(format!("workspace:{}", changed.path_hash));
+    let second = store.upsert_native(input).expect("second upsert");
+    assert_eq!(second.id, first.id);
+    assert_eq!(second.revision, 2);
+    assert_eq!(second.payload.metadata, json!({"revision":2}));
+
+    let fetched = store
+        .get_by_native::<WorkspacePayload>("soleaux.workspace", &changed.path_hash)
+        .expect("native lookup")
+        .expect("workspace");
+    assert_eq!(fetched.id, first.id);
+    assert_eq!(
+        store
+            .list_all::<WorkspacePayload>(10, false)
+            .expect("list")
+            .len(),
+        1
+    );
 }
 
 #[test]

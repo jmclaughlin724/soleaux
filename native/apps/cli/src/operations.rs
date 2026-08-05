@@ -93,6 +93,17 @@ pub fn cache_clear() -> Result<Value> {
     }))
 }
 
+pub async fn registry_call(method: IpcMethod) -> Result<Value> {
+    let paths = SoleauxPaths::resolve()?;
+    let status = service_status(&paths).await?;
+    if !status.running || !paths.endpoint.exists() {
+        bail!(
+            "the Soleaux per-user service must be running for workspace/client registry operations"
+        );
+    }
+    ipc_result(&paths, method).await
+}
+
 pub async fn backup(destination: PathBuf) -> Result<Value> {
     let paths = SoleauxPaths::resolve()?;
     if paths.endpoint.exists() {

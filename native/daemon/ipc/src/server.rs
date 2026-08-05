@@ -81,6 +81,78 @@ impl IpcServer {
                 .state
                 .export_snapshot()
                 .and_then(|value| serde_json::to_value(value).map_err(Into::into)),
+            IpcMethod::RegistryStatus { include_stale } => {
+                crate::registry::status(&self.state, *include_stale)
+            }
+            IpcMethod::WorkspaceRegister {
+                path,
+                display_name,
+                trust_state,
+                metadata,
+            } => crate::registry::register_workspace(
+                &self.state,
+                path,
+                display_name.clone(),
+                *trust_state,
+                metadata.clone(),
+            ),
+            IpcMethod::WorkspaceList => crate::registry::list_workspaces(&self.state),
+            IpcMethod::WorkspaceForget { workspace_id } => {
+                crate::registry::forget_workspace(&self.state, *workspace_id)
+            }
+            IpcMethod::ClientRegister {
+                client_kind,
+                instance_id,
+                display_name,
+                client_version,
+                protocol_version,
+                ttl_ms,
+                capabilities,
+                metadata,
+            } => crate::registry::register_client(
+                &self.state,
+                *client_kind,
+                instance_id.clone(),
+                display_name.clone(),
+                client_version.clone(),
+                protocol_version.clone(),
+                *ttl_ms,
+                capabilities.clone(),
+                metadata.clone(),
+            ),
+            IpcMethod::ClientHeartbeat {
+                client_id,
+                ttl_ms,
+                capabilities,
+            } => crate::registry::heartbeat_client(
+                &self.state,
+                *client_id,
+                *ttl_ms,
+                capabilities.clone(),
+            ),
+            IpcMethod::ClientList { include_stale } => {
+                crate::registry::list_clients(&self.state, *include_stale)
+            }
+            IpcMethod::ClientDisconnect { client_id } => {
+                crate::registry::disconnect_client(&self.state, *client_id)
+            }
+            IpcMethod::ClientBindWorkspace {
+                client_id,
+                workspace_id,
+                access_mode,
+                capabilities,
+                metadata,
+            } => crate::registry::bind_client_workspace(
+                &self.state,
+                *client_id,
+                *workspace_id,
+                *access_mode,
+                capabilities.clone(),
+                metadata.clone(),
+            ),
+            IpcMethod::ClientUnbindWorkspace { binding_id } => {
+                crate::registry::unbind_client_workspace(&self.state, *binding_id)
+            }
             IpcMethod::Shutdown => Ok(json!({"shutdown":true})),
         };
         match result {
@@ -103,6 +175,9 @@ impl IpcServer {
             endpoint: self.paths.endpoint.to_string_lossy().to_string(),
             peer_credential_check: cfg!(unix),
             concurrent_clients: true,
+            workspace_registry: true,
+            client_registry: true,
+            supported_client_kinds: soleaux_state::ClientKind::ALL.to_vec(),
             production_claim_allowed: false,
         }
     }
@@ -149,6 +224,17 @@ fn error_code(method: &IpcMethod) -> &'static str {
         IpcMethod::StateExport { .. } => "state_export_failed",
         IpcMethod::StateRepair => "state_repair_failed",
         IpcMethod::StateIntegrity | IpcMethod::StateSnapshot => "state_read_failed",
+        IpcMethod::RegistryStatus { .. } => "registry_status_failed",
+        IpcMethod::WorkspaceRegister { .. }
+        | IpcMethod::WorkspaceList
+        | IpcMethod::WorkspaceForget { .. } => "workspace_registry_failed",
+        IpcMethod::ClientRegister { .. }
+        | IpcMethod::ClientHeartbeat { .. }
+        | IpcMethod::ClientList { .. }
+        | IpcMethod::ClientDisconnect { .. } => "client_registry_failed",
+        IpcMethod::ClientBindWorkspace { .. } | IpcMethod::ClientUnbindWorkspace { .. } => {
+            "client_workspace_binding_failed"
+        }
         IpcMethod::Ping | IpcMethod::Status | IpcMethod::Shutdown => "daemon_operation_failed",
     }
 }

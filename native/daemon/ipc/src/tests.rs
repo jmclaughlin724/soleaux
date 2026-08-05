@@ -1,5 +1,6 @@
 use super::*;
-use serde_json::Value;
+use serde_json::{Value, json};
+use soleaux_state::{ClientAccessMode, ClientKind, WorkspaceTrustState};
 use std::{fs, path::PathBuf};
 use tempfile::tempdir;
 
@@ -80,6 +81,12 @@ async fn same_user_ipc_supports_concurrent_clients_state_operations_and_shutdown
     assert_eq!(status["product"], "Soleaux");
     assert_eq!(status["peerCredentialCheck"], true);
     assert_eq!(status["concurrentClients"], true);
+    assert_eq!(status["workspaceRegistry"], true);
+    assert_eq!(status["clientRegistry"], true);
+    assert_eq!(
+        status["supportedClientKinds"].as_array().map(Vec::len),
+        Some(4)
+    );
     assert_eq!(status["productionClaimAllowed"], false);
 
     let integrity = client
@@ -132,6 +139,154 @@ async fn same_user_ipc_supports_concurrent_clients_state_operations_and_shutdown
     task.await.expect("server task").expect("server exit");
     assert!(!paths.endpoint.exists());
     assert!(!paths.pid_file.exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn workspace_registry_converges_concurrent_client_types_and_survives_restart() {
+    let directory = tempdir().expect("tempdir");
+    let paths = fixture_paths(directory.path().to_path_buf());
+    let workspace_path = directory.path().join("workspace");
+    fs::create_dir_all(&workspace_path).expect("workspace");
+
+    let server = IpcServer::open(paths.clone()).expect("server");
+    let task = tokio::spawn(server.run());
+    for _ in 0..100 {
+        if paths.endpoint.exists() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+
+    let client = IpcClient::new(&paths.endpoint);
+    let workspace = client
+        .call(IpcRequest::new(IpcMethod::WorkspaceRegister {
+            path: workspace_path.to_string_lossy().to_string(),
+            display_name: Some("Fixture workspace".to_string()),
+            trust_state: WorkspaceTrustState::Trusted,
+            metadata: json!({"source":"test"}),
+        }))
+        .await
+        .expect("register workspace")
+        .result
+        .expect("workspace result");
+    let workspace_id: uuid::Uuid =
+        serde_json::from_value(workspace["workspace"]["id"].clone()).expect("workspace id");
+
+    let mut registrations = Vec::new();
+    for kind in ClientKind::ALL {
+        let endpoint = paths.endpoint.clone();
+        registrations.push(tokio::spawn(async move {
+            let value = IpcClient::new(endpoint)
+                .call(IpcRequest::new(IpcMethod::ClientRegister {
+                    client_kind: kind,
+                    instance_id: format!("{}-fixture", kind.as_str()),
+                    display_name: format!("Fixture {}", kind.as_str()),
+                    client_version: "1.0.0".to_string(),
+                    protocol_version: CLIENT_PROTOCOL_VERSION.to_string(),
+                    ttl_ms: 60_000,
+                    capabilities: json!({"registry":true}),
+                    metadata: json!({"concurrent":true}),
+                }))
+                .await
+                .expect("register client")
+                .result
+                .expect("client result");
+            serde_json::from_value::<uuid::Uuid>(value["client"]["id"].clone()).expect("client id")
+        }));
+    }
+    let mut client_ids = Vec::new();
+    for registration in registrations {
+        client_ids.push(registration.await.expect("registration task"));
+    }
+
+    let mut bindings = Vec::new();
+    for client_id in &client_ids {
+        let endpoint = paths.endpoint.clone();
+        let client_id = *client_id;
+        bindings.push(tokio::spawn(async move {
+            IpcClient::new(endpoint)
+                .call(IpcRequest::new(IpcMethod::ClientBindWorkspace {
+                    client_id,
+                    workspace_id,
+                    access_mode: ClientAccessMode::ReadWrite,
+                    capabilities: json!({"context":true}),
+                    metadata: json!({}),
+                }))
+                .await
+                .expect("bind client")
+        }));
+    }
+    for binding in bindings {
+        binding.await.expect("binding task");
+    }
+
+    let registry = client
+        .call(IpcRequest::new(IpcMethod::RegistryStatus {
+            include_stale: false,
+        }))
+        .await
+        .expect("registry status")
+        .result
+        .expect("registry result");
+    assert_eq!(registry["schemaVersion"], REGISTRY_SCHEMA_VERSION);
+    assert_eq!(registry["workspaces"].as_array().map(Vec::len), Some(1));
+    assert_eq!(registry["clients"].as_array().map(Vec::len), Some(4));
+    assert_eq!(registry["bindings"].as_array().map(Vec::len), Some(4));
+    assert_eq!(registry["publicToolCeiling"], 12);
+    assert_eq!(registry["productionClaimAllowed"], false);
+
+    client
+        .call(IpcRequest::new(IpcMethod::Shutdown))
+        .await
+        .expect("shutdown");
+    task.await.expect("server task").expect("server exit");
+
+    let restarted = IpcServer::open(paths.clone()).expect("restart server");
+    let restarted_task = tokio::spawn(restarted.run());
+    for _ in 0..100 {
+        if paths.endpoint.exists() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    let client = IpcClient::new(&paths.endpoint);
+    let persisted = client
+        .call(IpcRequest::new(IpcMethod::RegistryStatus {
+            include_stale: false,
+        }))
+        .await
+        .expect("persisted registry")
+        .result
+        .expect("persisted result");
+    assert_eq!(persisted["workspaces"].as_array().map(Vec::len), Some(1));
+    assert_eq!(persisted["clients"].as_array().map(Vec::len), Some(4));
+    assert_eq!(persisted["bindings"].as_array().map(Vec::len), Some(4));
+
+    let heartbeat = client
+        .call(IpcRequest::new(IpcMethod::ClientHeartbeat {
+            client_id: client_ids[0],
+            ttl_ms: 60_000,
+            capabilities: Some(json!({"registry":true,"heartbeat":true})),
+        }))
+        .await
+        .expect("heartbeat")
+        .result
+        .expect("heartbeat result");
+    assert!(
+        heartbeat["client"]["revision"]
+            .as_u64()
+            .is_some_and(|value| value >= 2)
+    );
+
+    client
+        .call(IpcRequest::new(IpcMethod::Shutdown))
+        .await
+        .expect("final shutdown");
+    restarted_task
+        .await
+        .expect("restarted task")
+        .expect("restarted server exit");
 }
 
 #[test]

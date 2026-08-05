@@ -22,6 +22,10 @@ enum WriteCommand {
         input: database::SerializedEntityInput,
         reply: mpsc::SyncSender<std::result::Result<SerializedEntityRecord, String>>,
     },
+    UpsertNativeEntity {
+        input: database::SerializedEntityInput,
+        reply: mpsc::SyncSender<std::result::Result<SerializedEntityRecord, String>>,
+    },
     PutLink {
         input: EntityLinkInput,
         reply: mpsc::SyncSender<std::result::Result<EntityLinkRecord, String>>,
@@ -139,37 +143,7 @@ impl StateStore {
         &self,
         input: CanonicalEntityInput<T>,
     ) -> Result<CanonicalRecord<T>> {
-        input.payload.validate()?;
-        if input.state.trim().is_empty() {
-            bail!("canonical entity state must be non-empty");
-        }
-        if input
-            .idempotency_key
-            .as_deref()
-            .is_some_and(|value| value.trim().is_empty())
-        {
-            bail!("canonical idempotency key must be non-empty when supplied");
-        }
-        if input.origin_platform.is_some() != input.native_id.is_some() {
-            bail!("origin platform and native id must be supplied together");
-        }
-        let payload = serde_json::to_value(&input.payload)?;
-        let encoded = serde_json::to_vec(&payload)?;
-        let serialized = database::SerializedEntityInput {
-            id: input.id,
-            kind: T::KIND,
-            workspace_id: input.workspace_id,
-            parent_id: input.parent_id,
-            origin_platform: input.origin_platform,
-            native_id: input.native_id,
-            state: input.state,
-            sensitivity: input.sensitivity,
-            idempotency_key: input.idempotency_key,
-            expected_revision: input.expected_revision,
-            expires_at_unix_ms: input.expires_at_unix_ms,
-            payload,
-            payload_hash: blake3::hash(&encoded).to_hex().to_string(),
-        };
+        let serialized = serialize_entity_input(input)?;
         let (sender, receiver) = mpsc::sync_channel(1);
         self.writer
             .send(WriteCommand::PutEntity {
@@ -181,6 +155,28 @@ impl StateStore {
         typed_record(record)
     }
 
+    pub fn upsert_native<T: CanonicalPayload>(
+        &self,
+        input: CanonicalEntityInput<T>,
+    ) -> Result<CanonicalRecord<T>> {
+        let serialized = serialize_entity_input(input)?;
+        if serialized.origin_platform.is_none() || serialized.native_id.is_none() {
+            bail!("native upsert requires origin platform and native id");
+        }
+        if serialized.expected_revision.is_some() {
+            bail!("native upsert does not accept expected_revision");
+        }
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::UpsertNativeEntity {
+                input: serialized,
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        let record = receive(receiver, "native canonical entity")?;
+        typed_record(record)
+    }
+
     pub fn get<T: CanonicalPayload>(&self, id: Uuid) -> Result<Option<CanonicalRecord<T>>> {
         self.get_serialized(id)?.map(typed_record).transpose()
     }
@@ -188,6 +184,20 @@ impl StateStore {
     pub fn get_serialized(&self, id: Uuid) -> Result<Option<SerializedEntityRecord>> {
         let connection = self.reader()?;
         database::get_entity(&connection, id)
+    }
+
+    pub fn get_by_native<T: CanonicalPayload>(
+        &self,
+        origin_platform: &str,
+        native_id: &str,
+    ) -> Result<Option<CanonicalRecord<T>>> {
+        if origin_platform.trim().is_empty() || native_id.trim().is_empty() {
+            bail!("native identity values must be non-empty");
+        }
+        let connection = self.reader()?;
+        database::get_entity_by_native(&connection, T::KIND, origin_platform, native_id)?
+            .map(typed_record)
+            .transpose()
     }
 
     pub fn list<T: CanonicalPayload>(
@@ -211,6 +221,18 @@ impl StateStore {
     ) -> Result<Vec<SerializedEntityRecord>> {
         let connection = self.reader()?;
         database::list_entities(&connection, kind, workspace_id, limit, include_tombstoned)
+    }
+
+    pub fn list_all<T: CanonicalPayload>(
+        &self,
+        limit: usize,
+        include_tombstoned: bool,
+    ) -> Result<Vec<CanonicalRecord<T>>> {
+        let connection = self.reader()?;
+        database::list_entities_all(&connection, T::KIND, limit, include_tombstoned)?
+            .into_iter()
+            .map(typed_record)
+            .collect()
     }
 
     pub fn link(&self, input: EntityLinkInput) -> Result<EntityLinkRecord> {
@@ -525,6 +547,12 @@ fn writer_loop(
             WriteCommand::PutEntity { input, reply } => {
                 respond(reply, database::put_entity(&mut connection, &input));
             }
+            WriteCommand::UpsertNativeEntity { input, reply } => {
+                respond(
+                    reply,
+                    database::upsert_native_entity(&mut connection, &input),
+                );
+            }
             WriteCommand::PutLink { input, reply } => {
                 respond(reply, database::put_link(&mut connection, &input));
             }
@@ -699,6 +727,42 @@ fn writer_loop(
             WriteCommand::Shutdown => break,
         }
     }
+}
+
+fn serialize_entity_input<T: CanonicalPayload>(
+    input: CanonicalEntityInput<T>,
+) -> Result<database::SerializedEntityInput> {
+    input.payload.validate()?;
+    if input.state.trim().is_empty() {
+        bail!("canonical entity state must be non-empty");
+    }
+    if input
+        .idempotency_key
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
+        bail!("canonical idempotency key must be non-empty when supplied");
+    }
+    if input.origin_platform.is_some() != input.native_id.is_some() {
+        bail!("origin platform and native id must be supplied together");
+    }
+    let payload = serde_json::to_value(&input.payload)?;
+    let encoded = serde_json::to_vec(&payload)?;
+    Ok(database::SerializedEntityInput {
+        id: input.id,
+        kind: T::KIND,
+        workspace_id: input.workspace_id,
+        parent_id: input.parent_id,
+        origin_platform: input.origin_platform,
+        native_id: input.native_id,
+        state: input.state,
+        sensitivity: input.sensitivity,
+        idempotency_key: input.idempotency_key,
+        expected_revision: input.expected_revision,
+        expires_at_unix_ms: input.expires_at_unix_ms,
+        payload,
+        payload_hash: blake3::hash(&encoded).to_hex().to_string(),
+    })
 }
 
 fn respond<T>(reply: mpsc::SyncSender<std::result::Result<T, String>>, result: Result<T>) {

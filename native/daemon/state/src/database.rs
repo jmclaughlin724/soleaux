@@ -364,6 +364,130 @@ pub(crate) fn put_entity(
     Ok(record)
 }
 
+pub(crate) fn upsert_native_entity(
+    connection: &mut Connection,
+    input: &SerializedEntityInput,
+) -> Result<SerializedEntityRecord> {
+    let origin_platform = input
+        .origin_platform
+        .as_deref()
+        .context("native upsert requires an origin platform")?;
+    let native_id = input
+        .native_id
+        .as_deref()
+        .context("native upsert requires a native id")?;
+    if input.expected_revision.is_some() {
+        bail!("native upsert does not accept expected_revision");
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let existing = transaction
+        .query_row(
+            &format!("{ENTITY_SELECT} WHERE kind = ?1 AND origin_platform = ?2 AND native_id = ?3"),
+            params![input.kind.as_str(), origin_platform, native_id],
+            entity_from_row,
+        )
+        .optional()?;
+    let now = unix_ms();
+    let record = if let Some(existing) = existing {
+        if existing.workspace_id != input.workspace_id || existing.parent_id != input.parent_id {
+            bail!("native upsert cannot change canonical workspace or parent identity");
+        }
+        if input.id.is_some_and(|id| id != existing.id) {
+            bail!("native upsert id does not match the existing canonical entity");
+        }
+        if existing.tombstoned_at_unix_ms.is_some() {
+            bail!("tombstoned canonical entity cannot be updated");
+        }
+        if entity_replay_matches(&existing, input) {
+            transaction.commit()?;
+            return Ok(existing);
+        }
+        let revision = existing
+            .revision
+            .checked_add(1)
+            .context("canonical entity revision overflow")?;
+        transaction.execute(
+            "UPDATE canonical_entities
+             SET state = ?2, sensitivity = ?3, revision = ?4, payload_json = ?5,
+                 payload_hash = ?6, idempotency_key = ?7, expires_at_unix_ms = ?8,
+                 updated_at_unix_ms = ?9
+             WHERE id = ?1 AND tombstoned_at_unix_ms IS NULL",
+            params![
+                existing.id.to_string(),
+                input.state,
+                input.sensitivity.as_str(),
+                i64_from_u64(revision, "entity revision")?,
+                serde_json::to_string(&input.payload)?,
+                input.payload_hash,
+                input.idempotency_key,
+                input.expires_at_unix_ms,
+                now,
+            ],
+        )?;
+        append_audit_tx(
+            &transaction,
+            "canonical.entity.native_upserted",
+            input.workspace_id,
+            Some(existing.id),
+            json!({
+                "kind":input.kind,
+                "revision":revision,
+                "payloadHash":input.payload_hash,
+                "state":input.state,
+                "originPlatform":origin_platform,
+                "nativeId":native_id,
+            }),
+        )?;
+        read_entity_tx(&transaction, existing.id)?
+    } else {
+        if let Some(parent_id) = input.parent_id {
+            ensure_live_entity(&transaction, parent_id, "parent")?;
+        }
+        let id = input.id.unwrap_or_else(Uuid::now_v7);
+        transaction.execute(
+            "INSERT INTO canonical_entities(
+                id, kind, workspace_id, workspace_key, parent_id, origin_platform, native_id,
+                state, sensitivity, revision, payload_json, payload_hash, idempotency_key,
+                expires_at_unix_ms, created_at_unix_ms, updated_at_unix_ms,
+                tombstoned_at_unix_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11, ?12, ?13, ?14, ?14, NULL)",
+            params![
+                id.to_string(),
+                input.kind.as_str(),
+                input.workspace_id.map(|value| value.to_string()),
+                workspace_key(input.workspace_id),
+                input.parent_id.map(|value| value.to_string()),
+                origin_platform,
+                native_id,
+                input.state,
+                input.sensitivity.as_str(),
+                serde_json::to_string(&input.payload)?,
+                input.payload_hash,
+                input.idempotency_key,
+                input.expires_at_unix_ms,
+                now,
+            ],
+        )?;
+        append_audit_tx(
+            &transaction,
+            "canonical.entity.created",
+            input.workspace_id,
+            Some(id),
+            json!({
+                "kind":input.kind,
+                "revision":1,
+                "payloadHash":input.payload_hash,
+                "state":input.state,
+                "originPlatform":origin_platform,
+                "nativeId":native_id,
+            }),
+        )?;
+        read_entity_tx(&transaction, id)?
+    };
+    transaction.commit()?;
+    Ok(record)
+}
+
 fn entity_replay_matches(existing: &SerializedEntityRecord, input: &SerializedEntityInput) -> bool {
     existing.kind == input.kind
         && existing.workspace_id == input.workspace_id
@@ -401,6 +525,22 @@ pub(crate) fn get_entity(
         .context("reading canonical entity")
 }
 
+pub(crate) fn get_entity_by_native(
+    connection: &Connection,
+    kind: EntityKind,
+    origin_platform: &str,
+    native_id: &str,
+) -> Result<Option<SerializedEntityRecord>> {
+    connection
+        .query_row(
+            &format!("{ENTITY_SELECT} WHERE kind = ?1 AND origin_platform = ?2 AND native_id = ?3"),
+            params![kind.as_str(), origin_platform, native_id],
+            entity_from_row,
+        )
+        .optional()
+        .context("reading canonical entity by native identity")
+}
+
 pub(crate) fn list_entities(
     connection: &Connection,
     kind: Option<EntityKind>,
@@ -435,6 +575,29 @@ pub(crate) fn list_entities(
         records.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
     }
     Ok(records)
+}
+
+pub(crate) fn list_entities_all(
+    connection: &Connection,
+    kind: EntityKind,
+    limit: usize,
+    include_tombstoned: bool,
+) -> Result<Vec<SerializedEntityRecord>> {
+    let tombstone = if include_tombstoned {
+        ""
+    } else {
+        " AND tombstoned_at_unix_ms IS NULL"
+    };
+    let sql = format!(
+        "{ENTITY_SELECT} WHERE kind = ?1{tombstone}
+         ORDER BY updated_at_unix_ms, id LIMIT ?2"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![kind.as_str(), i64::try_from(limit).unwrap_or(i64::MAX)],
+        entity_from_row,
+    )?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
 pub(crate) fn put_link(

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use soleaux_state::{ClientAccessMode, ClientKind, WorkspaceTrustState};
 use uuid::Uuid;
 
 pub const IPC_SCHEMA_VERSION: &str = "soleaux.ipc/v1";
@@ -29,11 +30,70 @@ pub enum IpcMethod {
     Ping,
     Status,
     StateIntegrity,
-    StateBackup { destination: String },
-    StateRestore { source: String },
-    StateExport { destination: String },
+    StateBackup {
+        destination: String,
+    },
+    StateRestore {
+        source: String,
+    },
+    StateExport {
+        destination: String,
+    },
     StateRepair,
     StateSnapshot,
+    RegistryStatus {
+        #[serde(default)]
+        include_stale: bool,
+    },
+    WorkspaceRegister {
+        path: String,
+        #[serde(default)]
+        display_name: Option<String>,
+        trust_state: WorkspaceTrustState,
+        #[serde(default)]
+        metadata: Value,
+    },
+    WorkspaceList,
+    WorkspaceForget {
+        workspace_id: Uuid,
+    },
+    ClientRegister {
+        client_kind: ClientKind,
+        instance_id: String,
+        display_name: String,
+        client_version: String,
+        protocol_version: String,
+        ttl_ms: u64,
+        #[serde(default)]
+        capabilities: Value,
+        #[serde(default)]
+        metadata: Value,
+    },
+    ClientHeartbeat {
+        client_id: Uuid,
+        ttl_ms: u64,
+        #[serde(default)]
+        capabilities: Option<Value>,
+    },
+    ClientList {
+        #[serde(default)]
+        include_stale: bool,
+    },
+    ClientDisconnect {
+        client_id: Uuid,
+    },
+    ClientBindWorkspace {
+        client_id: Uuid,
+        workspace_id: Uuid,
+        access_mode: ClientAccessMode,
+        #[serde(default)]
+        capabilities: Value,
+        #[serde(default)]
+        metadata: Value,
+    },
+    ClientUnbindWorkspace {
+        binding_id: Uuid,
+    },
     Shutdown,
 }
 
@@ -99,5 +159,8 @@ pub struct DaemonStatus {
     pub endpoint: String,
     pub peer_credential_check: bool,
     pub concurrent_clients: bool,
+    pub workspace_registry: bool,
+    pub client_registry: bool,
+    pub supported_client_kinds: Vec<ClientKind>,
     pub production_claim_allowed: bool,
 }

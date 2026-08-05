@@ -3,11 +3,13 @@ mod operations;
 use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
 use serde_json::{Value, json};
+use soleaux_ipc::IpcMethod;
 use soleaux_mcp::{
     PublicMcpServer,
     gateway::{backend_status, clear_credential, invoke, store_credential},
     provisioning::{adopt_plan, apply_adopt, apply_attach, attach_plan, revert_last},
 };
+use soleaux_state::{ClientAccessMode, ClientKind, WorkspaceTrustState};
 use std::{
     env,
     io::{self, Read},
@@ -95,6 +97,11 @@ enum SoleauxCommand {
     Integrate {
         #[command(subcommand)]
         command: IntegrateCommand,
+    },
+    /// Inspect and mutate the daemon-owned workspace and client registry.
+    Registry {
+        #[command(subcommand)]
+        command: RegistryCommand,
     },
     /// Create a signed canonical handoff record.
     Handoff {
@@ -223,6 +230,107 @@ enum IntegrateCommand {
 }
 
 #[derive(Debug, Subcommand)]
+enum RegistryCommand {
+    /// Show the converged workspace, client, and binding registry.
+    Status {
+        #[arg(long)]
+        include_stale: bool,
+    },
+    /// Manage canonical workspace registrations.
+    Workspace {
+        #[command(subcommand)]
+        command: WorkspaceRegistryCommand,
+    },
+    /// Manage connected CLI, desktop, editor, and adapter clients.
+    Client {
+        #[command(subcommand)]
+        command: ClientRegistryCommand,
+    },
+    /// Bind a registered client to a registered workspace.
+    Bind {
+        client_id: uuid::Uuid,
+        workspace_id: uuid::Uuid,
+        #[arg(long, default_value = "read_only", value_parser = parse_access_mode)]
+        access_mode: ClientAccessMode,
+        #[arg(long, default_value = "{}")]
+        capabilities: String,
+        #[arg(long, default_value = "{}")]
+        metadata: String,
+    },
+    /// Remove a client/workspace binding.
+    Unbind {
+        binding_id: uuid::Uuid,
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum WorkspaceRegistryCommand {
+    /// Register or refresh one canonical local workspace.
+    Register {
+        #[arg(default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        display_name: Option<String>,
+        #[arg(long, default_value = "read_only", value_parser = parse_trust_state)]
+        trust_state: WorkspaceTrustState,
+        #[arg(long, default_value = "{}")]
+        metadata: String,
+    },
+    /// List registered workspaces.
+    List,
+    /// Forget a workspace and tombstone all client bindings to it.
+    Forget {
+        workspace_id: uuid::Uuid,
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ClientRegistryCommand {
+    /// Register or refresh a concurrent client instance.
+    Register {
+        #[arg(long, value_parser = parse_client_kind)]
+        kind: ClientKind,
+        #[arg(long)]
+        instance_id: String,
+        #[arg(long)]
+        display_name: String,
+        #[arg(long)]
+        client_version: String,
+        #[arg(long, default_value = "soleaux.client/v1")]
+        protocol_version: String,
+        #[arg(long, default_value_t = 300_000)]
+        ttl_ms: u64,
+        #[arg(long, default_value = "{}")]
+        capabilities: String,
+        #[arg(long, default_value = "{}")]
+        metadata: String,
+    },
+    /// Refresh the lease and capabilities of a registered client.
+    Heartbeat {
+        client_id: uuid::Uuid,
+        #[arg(long, default_value_t = 300_000)]
+        ttl_ms: u64,
+        #[arg(long)]
+        capabilities: Option<String>,
+    },
+    /// List connected clients, optionally including stale registrations.
+    List {
+        #[arg(long)]
+        include_stale: bool,
+    },
+    /// Disconnect a client and tombstone all workspace bindings.
+    Disconnect {
+        client_id: uuid::Uuid,
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum HandoffCommand {
     Create {
         #[arg(long)]
@@ -315,6 +423,22 @@ fn read_login_token(token_env: Option<String>, token_stdin: bool) -> Result<Stri
     let mut token = String::new();
     io::stdin().read_to_string(&mut token)?;
     Ok(token)
+}
+
+fn parse_client_kind(value: &str) -> std::result::Result<ClientKind, String> {
+    ClientKind::parse(value).map_err(|error| error.to_string())
+}
+
+fn parse_access_mode(value: &str) -> std::result::Result<ClientAccessMode, String> {
+    ClientAccessMode::parse(value).map_err(|error| error.to_string())
+}
+
+fn parse_trust_state(value: &str) -> std::result::Result<WorkspaceTrustState, String> {
+    WorkspaceTrustState::parse(value).map_err(|error| error.to_string())
+}
+
+fn parse_json_argument(value: &str, label: &str) -> Result<Value> {
+    serde_json::from_str(value).with_context(|| format!("{label} must be valid JSON"))
 }
 
 async fn catalog_server(repo: &Path) -> Result<PublicMcpServer> {
@@ -482,6 +606,115 @@ async fn main() -> Result<()> {
                 } else {
                     print_json(apply_attach(&repo)?)
                 }
+            }
+        },
+        SoleauxCommand::Registry { command } => match command {
+            RegistryCommand::Status { include_stale } => print_json(
+                operations::registry_call(IpcMethod::RegistryStatus { include_stale }).await?,
+            ),
+            RegistryCommand::Workspace { command } => match command {
+                WorkspaceRegistryCommand::Register {
+                    repo,
+                    display_name,
+                    trust_state,
+                    metadata,
+                } => print_json(
+                    operations::registry_call(IpcMethod::WorkspaceRegister {
+                        path: repo.to_string_lossy().to_string(),
+                        display_name,
+                        trust_state,
+                        metadata: parse_json_argument(&metadata, "--metadata")?,
+                    })
+                    .await?,
+                ),
+                WorkspaceRegistryCommand::List => {
+                    print_json(operations::registry_call(IpcMethod::WorkspaceList).await?)
+                }
+                WorkspaceRegistryCommand::Forget { workspace_id, yes } => {
+                    if !yes {
+                        bail!("workspace forget requires --yes");
+                    }
+                    print_json(
+                        operations::registry_call(IpcMethod::WorkspaceForget { workspace_id })
+                            .await?,
+                    )
+                }
+            },
+            RegistryCommand::Client { command } => match command {
+                ClientRegistryCommand::Register {
+                    kind,
+                    instance_id,
+                    display_name,
+                    client_version,
+                    protocol_version,
+                    ttl_ms,
+                    capabilities,
+                    metadata,
+                } => print_json(
+                    operations::registry_call(IpcMethod::ClientRegister {
+                        client_kind: kind,
+                        instance_id,
+                        display_name,
+                        client_version,
+                        protocol_version,
+                        ttl_ms,
+                        capabilities: parse_json_argument(&capabilities, "--capabilities")?,
+                        metadata: parse_json_argument(&metadata, "--metadata")?,
+                    })
+                    .await?,
+                ),
+                ClientRegistryCommand::Heartbeat {
+                    client_id,
+                    ttl_ms,
+                    capabilities,
+                } => print_json(
+                    operations::registry_call(IpcMethod::ClientHeartbeat {
+                        client_id,
+                        ttl_ms,
+                        capabilities: capabilities
+                            .as_deref()
+                            .map(|value| parse_json_argument(value, "--capabilities"))
+                            .transpose()?,
+                    })
+                    .await?,
+                ),
+                ClientRegistryCommand::List { include_stale } => print_json(
+                    operations::registry_call(IpcMethod::ClientList { include_stale }).await?,
+                ),
+                ClientRegistryCommand::Disconnect { client_id, yes } => {
+                    if !yes {
+                        bail!("client disconnect requires --yes");
+                    }
+                    print_json(
+                        operations::registry_call(IpcMethod::ClientDisconnect { client_id })
+                            .await?,
+                    )
+                }
+            },
+            RegistryCommand::Bind {
+                client_id,
+                workspace_id,
+                access_mode,
+                capabilities,
+                metadata,
+            } => print_json(
+                operations::registry_call(IpcMethod::ClientBindWorkspace {
+                    client_id,
+                    workspace_id,
+                    access_mode,
+                    capabilities: parse_json_argument(&capabilities, "--capabilities")?,
+                    metadata: parse_json_argument(&metadata, "--metadata")?,
+                })
+                .await?,
+            ),
+            RegistryCommand::Unbind { binding_id, yes } => {
+                if !yes {
+                    bail!("registry unbind requires --yes");
+                }
+                print_json(
+                    operations::registry_call(IpcMethod::ClientUnbindWorkspace { binding_id })
+                        .await?,
+                )
             }
         },
         SoleauxCommand::Handoff { command } => match command {
