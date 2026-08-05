@@ -1,0 +1,43 @@
+name: Fix P4-024 workflow assertion
+
+on:
+  push:
+    branches:
+      - fix/typed-postgres-validation-p4-024-0.4.0-dev.5
+    paths:
+      - .github/workflows/fix-p4-024-workflow-assertion.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Correct flattened envelope trust assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/repair-p4-024.yml')
+          text = path.read_text(encoding='utf-8')
+          old = '              "        assert_eq!(envelope.metadata.trust, \\"verified_validation_result\\");",\n'
+          new = '              "        assert_eq!(envelope.trust, \\"verified_validation_result\\");",\n'
+          if text.count(old) != 1:
+              raise SystemExit('P4-024 workflow assertion target drifted')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/fix-p4-024-workflow-assertion.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/repair-p4-024.yml .github/workflows/fix-p4-024-workflow-assertion.yml
+          git diff --cached --check
+          git commit -m 'ci: correct P4-024 envelope trust assertion'
+          git push origin HEAD:${{ github.ref_name }}
