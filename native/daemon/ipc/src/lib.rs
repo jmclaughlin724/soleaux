@@ -1,7 +1,8 @@
 //! Typed local IPC and per-user service lifecycle for the Soleaux daemon.
 //!
-//! The daemon owns canonical state. Clients use a closed JSONL protocol over a same-user Unix
-//! socket; unsupported transports fail closed rather than silently bypassing peer checks.
+//! The daemon owns canonical state. Concurrent clients use a closed JSONL protocol over a
+//! same-user Unix socket and share the daemon-owned state boundary; unsupported transports fail
+//! closed rather than silently bypassing peer checks.
 
 mod client;
 mod paths;
