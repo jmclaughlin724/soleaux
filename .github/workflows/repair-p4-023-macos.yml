@@ -1,0 +1,163 @@
+name: Repair P4-023 macOS continuation regressions
+
+on:
+  push:
+    branches:
+      - fix/truthful-continuations-p4-023-0.4.0-dev.5
+    paths:
+      - .github/workflows/repair-p4-023-macos.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-p4-023-macos-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: macos-15-arm64
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: brew install protobuf
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply canonical-root and watcher-observation repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def lines(*values: str) -> str:
+              return "\n".join(values) + "\n"
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if text.count(old) != 1:
+                  raise SystemExit(f"P4-023 repair target drifted: {label}")
+              return text.replace(old, new, 1)
+
+          memory = Path("native/daemon/mcp/src/memory.rs")
+          text = memory.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              lines(
+                  "    for memory_root in roots.iter().filter(|entry| entry.path.is_dir()) {",
+                  "        for entry in WalkBuilder::new(&memory_root.path)",
+              ),
+              lines(
+                  "    for memory_root in roots.iter().filter(|entry| entry.path.is_dir()) {",
+                  "        let canonical_root = match fs::canonicalize(&memory_root.path) {",
+                  "            Ok(value) => value,",
+                  "            Err(_) => {",
+                  "                push_gap(",
+                  "                    gaps,",
+                  "                    seen_gaps,",
+                  "                    gap(",
+                  "                        \"memory_root_unavailable\",",
+                  "                        \"An attached memory root could not be canonicalized and was omitted.\",",
+                  "                        \"warning\",",
+                  "                        true,",
+                  "                        Some(\"memory\"),",
+                  "                        Some(&memory_root.path.to_string_lossy()),",
+                  "                    ),",
+                  "                );",
+                  "                continue;",
+                  "            }",
+                  "        };",
+                  "        for entry in WalkBuilder::new(&canonical_root)",
+              ),
+              "canonical memory root",
+          )
+          text = replace_once(
+              text,
+              "                .strip_prefix(&memory_root.path)\n",
+              "                .strip_prefix(&canonical_root)\n",
+              "canonical relative path",
+          )
+          text = replace_once(
+              text,
+              "                root: memory_root.path.clone(),\n",
+              "                root: canonical_root.clone(),\n",
+              "canonical candidate root",
+          )
+          memory.write_text(text, encoding="utf-8")
+
+          mcp = Path("native/daemon/mcp/src/lib.rs")
+          text = mcp.read_text(encoding="utf-8")
+          old = lines(
+              "        fs::write(&source_path, \"export function newState() { return 'new'; }\")",
+              "            .expect(\"external mutation\");",
+              "        let new_after = server",
+              "            .call_async(\"code.search\", &json!({\"query\": \"newState\"}))",
+              "            .await",
+              "            .expect(\"new search\");",
+              "        assert!(",
+              "            new_after",
+              "                .data",
+              "                .get(\"matches\")",
+              "                .and_then(Value::as_array)",
+              "                .is_some_and(|matches| !matches.is_empty())",
+              "        );",
+          )
+          new = lines(
+              "        fs::write(&source_path, \"export function newState() { return 'new'; }\")",
+              "            .expect(\"external mutation\");",
+              "        let mut new_state_observed = false;",
+              "        for _ in 0..100 {",
+              "            let candidate = server",
+              "                .call_async(\"code.search\", &json!({\"query\": \"newState\"}))",
+              "                .await",
+              "                .expect(\"new search\");",
+              "            if candidate",
+              "                .data",
+              "                .get(\"matches\")",
+              "                .and_then(Value::as_array)",
+              "                .is_some_and(|matches| !matches.is_empty())",
+              "            {",
+              "                new_state_observed = true;",
+              "                break;",
+              "            }",
+              "            tokio::time::sleep(std::time::Duration::from_millis(10)).await;",
+              "        }",
+              "        assert!(",
+              "            new_state_observed,",
+              "            \"watcher-backed refresh did not observe the external mutation\"",
+              "        );",
+          )
+          text = replace_once(text, old, new, "macOS watcher observation")
+          mcp.write_text(text, encoding="utf-8")
+          PY
+          cargo fmt --manifest-path native/Cargo.toml --all
+
+      - name: Validate the complete native workspace on macOS
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked
+
+      - name: Commit normal validated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-p4-023-macos.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add native/daemon/mcp/src/memory.rs native/daemon/mcp/src/lib.rs .github/workflows/repair-p4-023-macos.yml
+          git diff --cached --check
+          git commit -m 'fix(mcp): canonicalize memory roots across platforms'
+          git push origin HEAD:${{ github.ref_name }}
