@@ -36,9 +36,10 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - name: Apply storage implementation
+      - name: Apply corrected storage implementation
         run: |
           set -euo pipefail
+          python3 -m py_compile .ci/apply-p4-026-storage.py
           python3 .ci/apply-p4-026-storage.py
           cargo fmt --manifest-path native/Cargo.toml --all
 
