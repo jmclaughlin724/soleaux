@@ -2,43 +2,47 @@
 
 ## Current proven matrix
 
-| Area | Phase 0 | Phase 1 | Phase 2 |
-|---|---:|---:|---:|
-| Rust format/check/Clippy/test/build | Green | Green | Green |
-| Cargo audit | Green | Green | Green |
-| Binary help/version | Green | Green | Green |
-| Contract digests | Green | Green | Green |
-| Exact 12-tool profile | Contract | Green | Green |
-| Context Packet V2 | Contract | Green | Green |
-| Native LSP/search/editor | Foundation | Green | Regression green |
-| Gateway/catalog/provisioning/governance | — | — | Green |
-| Independent artifact verification | Green | Green | Green |
+| Area | Phase 0 | Phase 1 | Phase 2 | Phase 4 |
+|---|---:|---:|---:|---:|
+| Rust format/check/Clippy/test/build | Green | Green | Green | Green |
+| Cargo audit | Green | Green | Green | Green |
+| Binary help/version | Green | Green | Green | Green |
+| Contract digests | Green | Green | Green | Green |
+| Exact 12-tool profile | Contract | Green | Green | Green |
+| Context Packet V2 | Contract | Green | Green | Green |
+| Native LSP/search/editor | Foundation | Green | Regression green | Transactional/freshness green |
+| Gateway/catalog/provisioning/governance | — | — | Green | Transactional regression green |
+| Canonical state/migrations/leases/recovery | — | — | — | Green |
+| Encrypted artifacts and capability policy | — | — | — | Green |
+| Stable CLI/per-user service/typed IPC | — | — | — | Green |
+| Reproducible unsigned package/SBOM | — | — | — | Green |
+| Extracted install/restart/backup/restore/repair/uninstall | — | — | — | Green |
+| Independent artifact verification | Green | Green | Green | Green |
 
-## Open matrices
+## Current Phase 5 matrices
 
-### Phase 3
+- Claude Code SDK/CLI versions and SessionStore behavior.
+- Claude Desktop supported local connector and export/import behavior.
+- Codex CLI/Desktop app-server protocol schemas and lifecycle.
+- OpenCode OpenAPI/SSE/plugin versions and cursor reconciliation.
+- Cursor and generic MCP hosts.
+- TypeScript/VTSLS, BasedPyright, Bash, Rust, Go, SourceKit, clangd, Kotlin, JDT, Vue, Svelte, Astro, MDX, YAML, JSON, HTML, and CSS.
+- Turborepo versions and repository layouts.
+- Next.js applications, route modes, and DevTools capability sets.
+- Memory lifecycle, materializer compatibility, handoffs, runs/subagents, SDKs, CI, and editor integration.
+- `anilize` plus two additional approved design partners.
 
-- Live model/client run.
-- Baseline/treatment task correctness.
-- Tool-schema/file-read/context measurements.
-- Secret and fail-closed live cases.
+## Deferred Phase 3 matrix
 
-### Phase 5
+- Same authenticated model/client and identical tasks across no-Soleaux, historical Python, and native arms.
+- Correctness, tool-schema/file-read/context measurements, retries, time, cost, and failures.
+- Secret leakage, fallback, tool-ceiling, truncation, and task-drift checks.
 
-- Claude Code versions.
-- Claude Desktop versions.
-- Codex CLI/Desktop protocol schemas.
-- OpenCode OpenAPI/SSE versions.
-- Cursor MCP host versions.
-- TypeScript/VTSLS, BasedPyright, Bash, Rust, Go, SourceKit, Clang, Kotlin, Java, Vue, Svelte, Astro, YAML, JSON, CSS, MDX.
-- Turborepo versions.
-- Next.js applications and DevTools capability sets.
+## Phase 6–8 matrices
 
-### Phase 6–8
-
-- macOS/Windows/Linux.
-- Desktop installers.
-- iOS/Android development and store builds.
-- Upgrade/rollback/uninstall.
-- Accessibility.
-- Security and incident response.
+- macOS/Windows/Linux and architectures.
+- Desktop installers and mobile device/store builds.
+- Pairing, LAN, relay, push, revoke, replay, and outage behavior.
+- Upgrade, rollback, repair, backup/restore, and uninstall.
+- Performance, scale, fuzzing, security, privacy, accessibility, and incident response.
+- Signing, notarization, provenance, staged rollout, and rollback thresholds.

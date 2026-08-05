@@ -1,10 +1,10 @@
 {
-  "asOfDate": "2026-08-04",
+  "asOfDate": "2026-08-05",
   "branches": {
     "canonical": "main",
-    "consolidation": "PR #5 merged every receipt-bearing lineage to main with preserved ancestry. PR #6 materialized native source and direct CI. Historical phase branches were deleted after receipt/archive tags were pushed.",
-    "currentAuditBranch": "docs/transcript-gap-reconciliation-0.4.0-dev.5",
-    "mergePolicy": "No force-push or squash of receipt-bearing history. New implementation uses short-lived branches into main.",
+    "consolidation": "Receipt-bearing implementation is consolidated on main through the Phase 4 merge f450c1a9cd2cd74d366324b5e2031e4751fb5942. Fully merged short-lived branches were pruned; branches with unique commits were retained as non-authoritative archival lineage and are listed in the branch consolidation report.",
+    "consolidationReport": "docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json",
+    "mergePolicy": "No force-push or squash of receipt-bearing history. New implementation uses short-lived reviewed branches into main.",
     "receiptTags": [
       "receipts/phase0-source-diagnostic",
       "receipts/phase0-gate",
@@ -17,33 +17,69 @@
       "archive/phase3-live-wedge-0.4.0-dev.5"
     ]
   },
+  "canonicalBranch": "main",
   "capabilityAbsorptionMap": "docs/architecture/CAPABILITY-ABSORPTION-MAP.md",
+  "completedPhase4Capabilities": [
+    "closed MCP request schemas",
+    "watcher-backed fresh repository reads and stale-evidence rejection",
+    "transactional edit rollback and durable reconciliation",
+    "pre-side-effect idempotency and exact replay",
+    "comprehensive shared secret redaction",
+    "transactional adopt/attach/revert",
+    "truthful bounded coverage, gaps, truncation, and continuations",
+    "typed invalid-PostgreSQL validation results",
+    "truthful LSP capability advertisement",
+    "atomic one-time preview claims and immutable binding",
+    "canonical accounts, mappings, sessions, turns, messages, memory claims, handoffs, runs, approvals, artifacts, cursors, audit, tombstones, and retention",
+    "serialized persistence, migrations, recovery, backup, restore, integrity repair, and leases",
+    "encrypted content-addressed artifact vault and deny-by-default policy",
+    "stable operations CLI, per-user service, typed local IPC, and same-user peer checks",
+    "reproducible unsigned development alpha with deterministic SBOM and complete operational smoke"
+  ],
   "currentPhase": {
-    "audit": "docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md",
-    "name": "Durable native alpha foundation",
-    "number": 4,
+    "name": "Adapters, lifecycle, intelligence depth, and extensibility",
+    "number": 5,
     "plan": "ROADMAP.md",
-    "primaryBlocker": "Close the remaining native correctness defects, then implement canonical state, durability, artifact/policy, exact CLI, per-user service, typed IPC, and independently verified alpha packaging.",
-    "status": "in_progress"
+    "primaryBlocker": "Execute P5-001 through P5-029: live client adapters and capability matrices, canonical lifecycle and materialization, intelligence depth, SDK/provider interfaces, design-partner validation, and an exact Phase 5 receipt.",
+    "status": "in_progress",
+    "tasks": "TASKS.md"
+  },
+  "deferredClaimsGate": {
+    "experiment": "docs/experiments/phase3/STATUS.json",
+    "number": 3,
+    "reason": "The three-arm same-model/same-task proof remains mandatory before quantified efficacy claims or a reviewed change to productionClaimAllowed, but it does not block implementation.",
+    "status": "deferred_reconciliation_required"
   },
   "gapRegistry": "docs/audits/TRANSCRIPT-GAP-REGISTRY.json",
   "lockedContracts": {
     "contextPacketV2": {
-      "path": "contracts/context-packet-v2.schema.json",
+      "path": "native/contracts/context-packet-v2.schema.json",
       "sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f"
     },
     "unifiedMcpProfile": {
-      "path": "contracts/unified-mcp-profile-v2.json",
+      "path": "native/contracts/unified-mcp-profile-v2.json",
       "sha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
     }
   },
   "nextActions": [
-    "Merge the transcript gap audit and expanded executable registry after documentation and repository CI pass.",
-    "Execute P4-017 through P4-024 and P4-026 with focused regression tests and the full native gate; P4-025 is closed by PR #7.",
-    "Implement P4-010 through P4-015: canonical data plane, durability/recovery, transactional idempotency and leases, artifact/policy foundation, exact CLI, per-user service, and typed local IPC.",
-    "Produce an unsigned alpha with install/service/doctor/backup/restore/repair/uninstall smoke, an exact Phase 4 receipt, and independent artifact verification.",
-    "Proceed through the expanded Phase 5-8 registry; keep Phase 3 deferred until an efficacy claim is requested and its three-arm design is frozen."
+    "Execute P5-001: converge the installed service and workspace registry across concurrent CLI, desktop, editor, and adapter clients.",
+    "Execute P5-002 through P5-006: live Claude Code, Claude Desktop, Codex, OpenCode, Cursor, and generic MCP-host capability matrices.",
+    "Execute P5-007 through P5-020: canonical sessions/history/memory, materializers, signed handoffs, and durable run/subagent orchestration.",
+    "Execute P5-021 through P5-029: intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.",
+    "Validate anilize plus two approved design partners and close Phase 5 with exact evidence and independent verification.",
+    "Keep Phase 3 deferred until an efficacy claim is requested; keep productionClaimAllowed false."
   ],
+  "phase4Evidence": {
+    "alphaReceipt": "PHASE4-ALPHA-CLOSURE-RECEIPT.json",
+    "artifactId": 8939137324,
+    "artifactSha256": "9917b2dd8335b2d17cdb3f0dc15191699ec7f0d1ff431f9e3b2135e0a1f4684b",
+    "closureReceipt": "PHASE4-CLOSURE-RECEIPT.json",
+    "implementationSourceCommit": "34c394efd01c9bb5348ba38e505317e6ca4da190",
+    "independentVerification": "PHASE4-INDEPENDENT-VERIFICATION.json",
+    "mergeCommit": "f450c1a9cd2cd74d366324b5e2031e4751fb5942",
+    "status": "closed",
+    "workflowRunId": 31026328918
+  },
   "phases": [
     {
       "implementationSourceCommit": "a31820d26f46d258175b52fe30fdbecf7b650265",
@@ -72,28 +108,26 @@
       "workflowRunId": 30818963313
     },
     {
-      "exitGate": "If reactivated, native correctness must meet both no-Soleaux market-value and historical-compatibility gates with lower waste context, exact receipt, and independent verification.",
       "name": "Live same-model / same-task product proof",
-      "note": "Deferred by owner direction. It gates quantified efficacy claims and productionClaimAllowed review, but not implementation phases.",
+      "note": "Claims gate only. If reactivated, freeze no-Soleaux control, historical Python baseline, and native treatment before the first live call.",
       "number": 3,
       "status": "deferred_reconciliation_required"
     },
     {
-      "completedMilestones": [
-        "main is canonical through PR #5",
-        "native source and direct CI materialized through PR #6",
-        "LSP capability truthfulness repaired through PR #7",
-        "telemetry auth/CORS/redaction baseline through PR #8",
-        "same-origin daemon-served dashboard export through PR #10"
-      ],
-      "name": "Durable native alpha foundation",
+      "artifactId": 8939137324,
+      "implementationSourceCommit": "34c394efd01c9bb5348ba38e505317e6ca4da190",
+      "independentVerification": "PHASE4-INDEPENDENT-VERIFICATION.json",
+      "mergeCommit": "f450c1a9cd2cd74d366324b5e2031e4751fb5942",
+      "name": "Correct, durable native alpha foundation",
       "number": 4,
-      "status": "in_progress"
+      "receipt": "PHASE4-CLOSURE-RECEIPT.json",
+      "status": "closed",
+      "workflowRunId": 31026328918
     },
     {
-      "name": "Adapters, data lifecycle, intelligence depth, and extensibility",
+      "name": "Adapters, lifecycle, intelligence depth, and extensibility",
       "number": 5,
-      "status": "blocked_by_phase_4"
+      "status": "in_progress"
     },
     {
       "name": "Desktop, mobile, remote control, installers, and operations",
@@ -138,16 +172,16 @@
     ],
     "substitutionRule": "one-for-one replacement; optional tools never append"
   },
-  "schemaVersion": "soleaux.project-status/v2",
-  "unimplementedProgramAreas": [
-    "remaining native correctness defects and truthful coverage",
-    "canonical sessions/history/memory/handoff/run/subagent/artifact/policy data plane",
-    "exact CLI, per-user service, typed IPC, backup/repair/uninstall and alpha packaging",
-    "live Claude/Claude Desktop/Codex/OpenCode adapters",
-    "complete Oxc/Tree-sitter/LSP/shell/Turbo/Next production depth",
-    "materializer compiler, stable SDK/provider APIs, CI mode, editor integration and event export",
-    "Tauri desktop, Expo mobile, pairing/relay/installers",
-    "performance/security/privacy/accessibility/OS/release assurance"
+  "remainingProgramAreas": [
+    "live Claude Code, Claude Desktop, Codex, OpenCode, Cursor, and generic-host adapters",
+    "complete canonical session/history/memory/materialization/handoff/run lifecycle",
+    "complete Oxc, Tree-sitter, LSP, shell, Turborepo, and Next.js compatibility depth",
+    "stable provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search",
+    "Tauri desktop, Expo mobile, secure pairing/relay, installers, updates, repair, rollback, and device operations",
+    "performance, scale, fuzzing, security, privacy, accessibility, OS parity, relay hardening, and external assurance",
+    "signed/notarized/store artifacts, staged rollout, explicit production-claim decision, and GA",
+    "deferred three-arm live product proof before quantified efficacy claims"
   ],
+  "schemaVersion": "soleaux.project-status/v3",
   "version": "0.4.0-dev.5"
 }

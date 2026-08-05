@@ -1,0 +1,76 @@
+{
+  "archiveSha256": "7c37d6ca086720de86d49773ad6950e5556a35d428f5856108fa05413dd21f56",
+  "closedTasks": [
+    "P4-001",
+    "P4-002",
+    "P4-003",
+    "P4-004",
+    "P4-005",
+    "P4-007",
+    "P4-008",
+    "P4-009",
+    "P4-010",
+    "P4-011",
+    "P4-012",
+    "P4-013",
+    "P4-014",
+    "P4-015",
+    "P4-016",
+    "P4-017",
+    "P4-018",
+    "P4-019",
+    "P4-020",
+    "P4-021",
+    "P4-022",
+    "P4-023",
+    "P4-024",
+    "P4-025",
+    "P4-026"
+  ],
+  "conclusion": "success",
+  "lockedContracts": {
+    "contextPacketV2Sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
+    "unifiedMcpProfileSha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+  },
+  "operationalSmoke": {
+    "backupPassed": true,
+    "daemonRestarted": true,
+    "doctorPassed": true,
+    "exportPassed": true,
+    "firstStop": {
+      "gracefulIpcShutdown": true,
+      "stopped": true
+    },
+    "install": {
+      "cli": "/home/runner/work/_temp/soleaux-alpha-operational-smoke/bin/soleaux",
+      "daemon": "/home/runner/work/_temp/soleaux-alpha-operational-smoke/bin/soleauxd",
+      "endpoint": "/home/runner/work/_temp/soleaux-alpha-operational-smoke/runtime/soleaux/soleaux.sock",
+      "productionClaimAllowed": false,
+      "serviceInstalled": true,
+      "serviceManifest": "/home/runner/work/_temp/soleaux-alpha-operational-smoke/config/systemd/user/soleaux.service",
+      "serviceStarted": false,
+      "stateDatabase": "/home/runner/work/_temp/soleaux-alpha-operational-smoke/state/state/canonical.sqlite3"
+    },
+    "installedFromExtractedArchive": true,
+    "productionClaimAllowed": false,
+    "repairPassed": true,
+    "restorePassed": true,
+    "schemaVersion": "soleaux.phase4-alpha-operations/v1",
+    "secondStop": {
+      "gracefulIpcShutdown": true,
+      "stopped": true
+    },
+    "statePreserved": true,
+    "status": "pass",
+    "uninstallPassed": true
+  },
+  "phase": 4,
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "reproducibleArchive": true,
+  "schemaVersion": "soleaux.phase4-closure-receipt/v1",
+  "sourceCommit": "34c394efd01c9bb5348ba38e505317e6ca4da190",
+  "unsignedAlpha": true,
+  "version": "0.4.0-dev.5",
+  "workflowRunId": 31026328918
+}

@@ -1,5 +1,5 @@
 {
-  "asOfDate": "2026-08-04",
+  "asOfDate": "2026-08-05",
   "canonicalBranch": "main",
   "gaps": [
     {
@@ -7,106 +7,275 @@
       "id": "GAP-001",
       "status": "deferred_reconciliation_required",
       "summary": "Any future efficacy claim requires one frozen three-arm experiment: no-Soleaux control, historical Python baseline, and native treatment using one authenticated model/client and identical tasks/budgets.",
-      "tasks": ["P3-005", "P3-006", "P3-007", "P3-008", "P3-009", "P3-010", "P3-011", "P3-012", "P3-013", "P3-014", "P3-015", "P3-016", "P3-017", "P3-018", "P3-020", "P3-021", "P3-022", "P3-023", "P3-024", "P3-025"]
+      "tasks": [
+        "P3-005",
+        "P3-006",
+        "P3-007",
+        "P3-008",
+        "P3-009",
+        "P3-010",
+        "P3-011",
+        "P3-012",
+        "P3-013",
+        "P3-014",
+        "P3-015",
+        "P3-016",
+        "P3-017",
+        "P3-018",
+        "P3-020",
+        "P3-021",
+        "P3-022",
+        "P3-023",
+        "P3-024",
+        "P3-025"
+      ]
     },
     {
       "area": "source-and-branch-consolidation",
       "id": "GAP-002",
       "status": "closed",
-      "summary": "PR #5 made main canonical and preserved receipt ancestry; PR #6 materialized native source and direct CI; historical branches were removed after durable tags.",
-      "tasks": ["BR-001", "BR-003", "BR-004", "BR-005", "P4-001", "P4-002", "P4-004", "P4-005", "P4-008", "P4-016"]
+      "summary": "main is the sole implementation and status authority. Receipt-bearing source was merged without squashing, fully merged short-lived branches were pruned, and unique-commit branches were retained only as documented non-authoritative archival lineage.",
+      "tasks": [
+        "BR-001",
+        "BR-002",
+        "BR-003",
+        "BR-004",
+        "BR-005",
+        "BR-006",
+        "BR-007",
+        "P4-001",
+        "P4-002",
+        "P4-004",
+        "P4-005",
+        "P4-006",
+        "P4-008",
+        "P4-016"
+      ]
     },
     {
       "area": "native-correctness",
+      "closedTasks": [
+        "P4-017",
+        "P4-018",
+        "P4-019",
+        "P4-020",
+        "P4-021",
+        "P4-022",
+        "P4-023",
+        "P4-024",
+        "P4-025",
+        "P4-026"
+      ],
       "id": "GAP-003",
-      "status": "open_with_one_closed_item",
-      "summary": "Close request-schema validation, stale-index/context, edit rollback integrity, idempotency reservation, complete redaction, transactional adopt/revert, truthful bounded coverage, SQL validation semantics, and preview concurrency/binding. LSP capability truthfulness is closed by PR #7.",
-      "tasks": ["P4-017", "P4-018", "P4-019", "P4-020", "P4-021", "P4-022", "P4-023", "P4-024", "P4-025", "P4-026"],
-      "closedTasks": ["P4-025"]
+      "status": "closed",
+      "summary": "Request schemas, fresh reads, rollback, idempotency, redaction, transactional provisioning, truthful coverage, typed SQL validation, LSP capability truthfulness, and atomic preview binding are merged and exact-gate proven.",
+      "tasks": [
+        "P4-017",
+        "P4-018",
+        "P4-019",
+        "P4-020",
+        "P4-021",
+        "P4-022",
+        "P4-023",
+        "P4-024",
+        "P4-025",
+        "P4-026"
+      ]
     },
     {
       "area": "canonical-data-plane",
+      "closedTasks": [
+        "P4-010",
+        "P4-011",
+        "P4-012"
+      ],
       "id": "GAP-004",
-      "status": "open",
-      "summary": "Implement accounts, native mappings, sessions, turns, messages, content parts, memory claims/lifecycle, handoffs, runs, subagents, approvals, artifacts, materializations, conflicts, cursors, audit, tombstones, and retention.",
-      "tasks": ["P4-010", "P4-011", "P4-012", "P5-007", "P5-018", "P5-019", "P5-020"]
+      "status": "phase4_foundation_closed_phase5_lifecycle_open",
+      "summary": "Phase 4 implemented canonical entity ownership, persistence, migrations, leases, audit, retention, backup, restore, and repair. Phase 5 still owns full cross-client session/history/memory/handoff/run lifecycle and materialization.",
+      "tasks": [
+        "P5-001",
+        "P5-007",
+        "P5-008",
+        "P5-018",
+        "P5-019",
+        "P5-020"
+      ]
     },
     {
       "area": "security-and-artifacts",
+      "closedTasks": [
+        "P4-011",
+        "P4-012",
+        "P4-013",
+        "P4-021"
+      ],
       "id": "GAP-005",
-      "status": "open",
-      "summary": "Implement encrypted content-addressed artifacts, OS-keychain master keys, per-workspace key separation, short-lived attenuated capabilities, peer credentials, comprehensive redaction, policy, backup, repair, rotation, and recovery.",
-      "tasks": ["P4-011", "P4-012", "P4-013", "P4-021", "P7-003", "P7-004", "P7-005"]
+      "status": "phase4_foundation_closed_assurance_open",
+      "summary": "Phase 4 closed comprehensive redaction, encrypted content-addressed artifacts, workspace key separation, rotation, capability policy, peer checks, backup, and recovery. Phase 7 owns external assurance and production hardening.",
+      "tasks": [
+        "P6-004",
+        "P6-005",
+        "P6-014",
+        "P7-003",
+        "P7-004",
+        "P7-005",
+        "P7-012"
+      ]
     },
     {
       "area": "cli-service-ipc",
+      "closedTasks": [
+        "P4-014",
+        "P4-015"
+      ],
       "id": "GAP-006",
-      "status": "open",
-      "summary": "Complete exact CLI/runbook, per-user daemon lifecycle, typed local IPC, peer checks, JSON/dry-run behavior, install/service/doctor/CI/cache/index/integrate/handoff/backup/restore/export/repair/uninstall flows.",
-      "tasks": ["P4-014", "P4-015"]
+      "status": "closed",
+      "summary": "The stable operations CLI, per-user service, typed local IPC, peer checks, concurrent clients, and install/service/doctor/backup/restore/repair/uninstall flows are implemented and exact-gate proven.",
+      "tasks": [
+        "P4-014",
+        "P4-015"
+      ]
     },
     {
       "area": "platform-adapters",
       "id": "GAP-007",
       "status": "open",
       "summary": "Implement and live-test Claude Code Agent SDK/SessionStore/hooks, Claude Desktop supported MCP/export-import boundaries, Codex generated app-server client, and OpenCode generated OpenAPI/SSE/plugin adapter with unknown-version safe mode.",
-      "tasks": ["P5-002", "P5-003", "P5-004", "P5-005", "P5-014", "P5-015", "P5-016", "P5-017"]
+      "tasks": [
+        "P5-002",
+        "P5-003",
+        "P5-004",
+        "P5-005",
+        "P5-014",
+        "P5-015",
+        "P5-016",
+        "P5-017"
+      ]
     },
     {
       "area": "memory-sessions-handoffs",
       "id": "GAP-008",
       "status": "open",
-      "summary": "Implement memory proposal/validation/supersession/tombstones, canonical history, same-platform resume/fork/archive, and signed cross-platform handoffs carrying Git/code state, artifacts, exclusions, permissions, and lineage.",
-      "tasks": ["P5-007", "P5-018", "P5-019"]
+      "summary": "Complete cross-client history and same-platform resume/fork/archive, full memory lifecycle, compatibility materialization, and signed handoffs.",
+      "tasks": [
+        "P5-007",
+        "P5-008",
+        "P5-018",
+        "P5-019"
+      ]
     },
     {
       "area": "runs-subagents-approvals",
+      "closedTasks": [
+        "P4-012",
+        "P4-020"
+      ],
       "id": "GAP-009",
-      "status": "open",
-      "summary": "Implement durable command/run/approval/subagent orchestration with leases, transactional idempotency, budgets, worktree isolation, capability attenuation, crash reconciliation, cancellation propagation, and result aggregation.",
-      "tasks": ["P4-012", "P4-020", "P5-020"]
+      "status": "phase4_foundation_closed_orchestration_open",
+      "summary": "Phase 4 closed canonical run/subagent/approval records, leases, idempotency, recovery, and capability foundations. Phase 5 still owns complete execution orchestration, budgets, worktrees, cancellation, and aggregation.",
+      "tasks": [
+        "P5-020"
+      ]
     },
     {
       "area": "intelligence-depth",
       "id": "GAP-010",
       "status": "open",
       "summary": "Complete Oxc extraction, Tree-sitter query packs/injections/incremental watcher corpus, LibCST writes, mvdan shell semantics/sandbox, real LSP matrix, Turbo documented CLI/probes, Next Oxc static index plus capability-driven DevTools merge, and scale/pathological behavior.",
-      "tasks": ["P5-009", "P5-010", "P5-021", "P5-022", "P5-023", "P5-024", "P5-025", "P7-001", "P7-002", "P7-011"]
+      "tasks": [
+        "P5-009",
+        "P5-010",
+        "P5-021",
+        "P5-022",
+        "P5-023",
+        "P5-024",
+        "P5-025",
+        "P7-001",
+        "P7-002",
+        "P7-011"
+      ]
     },
     {
       "area": "materializers-and-catalog",
       "id": "GAP-011",
       "status": "open",
       "summary": "Complete cross-host rules/skills/agents compatibility compiler, guidance-versus-enforcement reporting, diff/backup/atomic apply/rollback, object/revision/origin/idempotency metadata, echo prevention, and native load verification.",
-      "tasks": ["P5-008"]
+      "tasks": [
+        "P5-008"
+      ]
     },
     {
       "area": "extensibility-and-automation",
       "id": "GAP-012",
       "status": "open",
       "summary": "Add versioned parser/workspace/route/context/materializer/gateway provider interfaces, stable native-daemon SDKs, deterministic CI mode, editor extension, and capability-gated webhook/SIEM export.",
-      "tasks": ["P5-026", "P5-027", "P5-028"]
+      "tasks": [
+        "P5-026",
+        "P5-027",
+        "P5-028"
+      ]
     },
     {
       "area": "search",
       "id": "GAP-013",
       "status": "open_optional",
       "summary": "Add optional licensed/checksummed hybrid lexical-vector-graph search with sensitivity exclusions, incremental embedding, migrations, rebuild, and corruption recovery after core correctness.",
-      "tasks": ["P5-029"]
+      "tasks": [
+        "P5-029"
+      ]
     },
     {
       "area": "desktop-mobile-remote",
       "id": "GAP-014",
       "status": "open",
       "summary": "Build the Tauri desktop, one Expo/React Native mobile app, onboarding, Context Inspector, sessions/runs/subagents, approvals, catalog/memory, diagnostics, pairing, device certificates, LAN, E2E relay, push, revoke, updates, backup/restore, and installer lifecycle.",
-      "tasks": ["P6-001", "P6-002", "P6-003", "P6-004", "P6-005", "P6-006", "P6-007", "P6-008", "P6-009", "P6-010", "P6-011", "P6-012", "P6-013", "P6-014", "P6-015", "P6-016"]
+      "tasks": [
+        "P6-001",
+        "P6-002",
+        "P6-003",
+        "P6-004",
+        "P6-005",
+        "P6-006",
+        "P6-007",
+        "P6-008",
+        "P6-009",
+        "P6-010",
+        "P6-011",
+        "P6-012",
+        "P6-013",
+        "P6-014",
+        "P6-015",
+        "P6-016"
+      ]
     },
     {
       "area": "assurance-and-release",
       "id": "GAP-015",
       "status": "open",
       "summary": "Complete measured performance, fuzzing, cross-workspace/prompt-injection assurance, external security/privacy/license/accessibility review, OS parity, signed SBOM/provenance, relay hardening, incident/rollback exercises, signed/notarized/store artifacts, staged rollout, and explicit production-claim decision.",
-      "tasks": ["P7-001", "P7-002", "P7-003", "P7-004", "P7-005", "P7-006", "P7-007", "P7-008", "P7-009", "P7-010", "P7-011", "P7-012", "P7-013", "P8-001", "P8-002", "P8-003", "P8-004", "P8-005", "P8-006", "P8-007", "P8-008"]
+      "tasks": [
+        "P7-001",
+        "P7-002",
+        "P7-003",
+        "P7-004",
+        "P7-005",
+        "P7-006",
+        "P7-007",
+        "P7-008",
+        "P7-009",
+        "P7-010",
+        "P7-011",
+        "P7-012",
+        "P7-013",
+        "P8-001",
+        "P8-002",
+        "P8-003",
+        "P8-004",
+        "P8-005",
+        "P8-006",
+        "P8-007",
+        "P8-008"
+      ]
     },
     {
       "area": "superseded-proposals",
@@ -118,17 +287,28 @@
   ],
   "locked": {
     "contextPacketV2Sha256": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
-    "productionClaimAllowed": false,
     "productVersion": "0.4.0-dev.5",
+    "productionClaimAllowed": false,
     "publicToolCeiling": 12,
     "unifiedMcpProfileSha256": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc"
+  },
+  "phase4Evidence": {
+    "artifactId": 8939137324,
+    "artifactSha256": "9917b2dd8335b2d17cdb3f0dc15191699ec7f0d1ff431f9e3b2135e0a1f4684b",
+    "independentVerification": "PHASE4-INDEPENDENT-VERIFICATION.json",
+    "mergeCommit": "f450c1a9cd2cd74d366324b5e2031e4751fb5942",
+    "receipt": "PHASE4-CLOSURE-RECEIPT.json",
+    "sourceCommit": "34c394efd01c9bb5348ba38e505317e6ca4da190",
+    "status": "closed",
+    "workflowRunId": 31026328918
   },
   "reviewedSources": [
     "system-design-proposal-transcript-2026-08-03.md",
     "grok-session-transcript-timestamped-2026-08-03.md",
-    "main through merge commit 4b0fccb9204180522ca4aa31481cff9b010fde80",
-    "Phase 0-2 receipts and Phase 2 independent artifact",
-    "merged PRs #4 through #10"
+    "main through Phase 4 merge f450c1a9cd2cd74d366324b5e2031e4751fb5942",
+    "Phase 0-2 receipts and independent verification",
+    "Phase 4 alpha receipt and independent verification",
+    "merged PRs #4 through #34, including Phase 4 PR #32"
   ],
-  "schemaVersion": "soleaux.transcript-gap-registry/v4"
+  "schemaVersion": "soleaux.transcript-gap-registry/v5"
 }

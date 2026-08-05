@@ -1,8 +1,8 @@
 # Soleaux Project Status
 
-<!-- soleaux-docs:status current_phase=4 phase2=closed phase3=deferred_reconciliation_required phase4=in_progress version=0.4.0-dev.5 production_claim_allowed=false -->
+<!-- soleaux-docs:status current_phase=5 phase2=closed phase3=deferred_reconciliation_required phase4=closed phase5=in_progress version=0.4.0-dev.5 production_claim_allowed=false -->
 
-**As of:** 2026-08-04  
+**As of:** 2026-08-05
 **Machine-readable owner:** [`PROJECT-STATUS.json`](PROJECT-STATUS.json)
 
 ## Executive state
@@ -15,27 +15,48 @@ Phase 0:                     CLOSED
 Phase 1:                     CLOSED
 Phase 2:                     CLOSED
 Phase 3:                     DEFERRED — RECONCILIATION REQUIRED BEFORE USE
-Phase 4:                     IN PROGRESS
+Phase 4:                     CLOSED
+Phase 5:                     IN PROGRESS
+Phase 6:                     BLOCKED BY PHASE 5
+Phase 7:                     BLOCKED BY PHASE 6
+Phase 8:                     BLOCKED BY PHASE 7
 Canonical branch:            main
 Public MCP ceiling:          12
+Unsigned alpha:              reproducible and independently verified
 productionClaimAllowed:      false
 Production readiness:        prohibited
 ```
 
-Phases 0–2 prove the locked native repository-intelligence foundation. PRs #5 and #6 completed branch/source consolidation. PR #7 repaired LSP capability truthfulness. PRs #8 and #10 added a secured telemetry API and daemon-served dashboard foundation. These milestones do not prove the complete session, memory, adapter, desktop, mobile, orchestration, security, and distribution product described in the reviewed transcripts.
+## Phase 4 closure
 
-## Proven phases and consolidation
+Phase 4 closed the correct, durable native-alpha foundation on implementation source `34c394efd01c9bb5348ba38e505317e6ca4da190` and merge `f450c1a9cd2cd74d366324b5e2031e4751fb5942`.
 
 | Evidence | Outcome |
 |---|---|
-| Phase 0 source `a31820d26...`, workflow `30766171022` | Contracts and native foundation closed |
-| Phase 1 source `d3eecd458...`, workflow `30773147694` | Exact twelve-tool catalog and Context Packet V2 closed |
-| Phase 2 source `6768d9de...`, workflow `30818963313`, artifact `8858165328` | Gateway/catalog/adopt/attach/governance closed and independently verified |
-| PR #5 | Receipt-bearing lineage merged to `main`; historical branches safely archived/tagged |
-| PR #6 | Verified Rust source checked in under `native/`; carrier chain retired; direct native CI established |
-| PR #7 | `inspect`/`navigate` now advertise and call only initialized LSP capabilities; regression tests added |
-| PR #8 | Telemetry daemon bearer, origin/CORS, token-file, and process-argument redaction baseline |
-| PR #10 | Static dashboard export served same-origin by the daemon; unsafe PR #9 closed |
+| Exact alpha workflow `31026328918` | Native fmt/check/strict Clippy/tests/release/audit, canonical and substituted MCP smokes, deterministic packaging, archive verification, and operational smoke passed |
+| Artifact `8939137324` | Checksummed Phase 4 evidence and reproducible unsigned alpha |
+| [`PHASE4-ALPHA-CLOSURE-RECEIPT.json`](PHASE4-ALPHA-CLOSURE-RECEIPT.json) | Exact producing-workflow receipt |
+| [`PHASE4-INDEPENDENT-VERIFICATION.json`](PHASE4-INDEPENDENT-VERIFICATION.json) | Independent ZIP, checksum, source, contract, binary, package, and lifecycle verification |
+| [`PHASE4-CLOSURE-RECEIPT.json`](PHASE4-CLOSURE-RECEIPT.json) | Final phase closure and documentation convergence |
+
+The closed implementation includes:
+
+- strict request-schema validation;
+- watcher-backed fresh reads and stale-evidence rejection;
+- transactional edit rollback and reconciliation receipts;
+- pre-side-effect idempotency and exact result replay;
+- shared comprehensive secret redaction;
+- transactional adopt, attach, and revert;
+- truthful coverage gaps, truncation, and continuations;
+- typed invalid-PostgreSQL validation;
+- truthful LSP capability advertisement;
+- atomic one-time preview claims and immutable binding;
+- canonical accounts, mappings, sessions, turns, messages, memory claims, handoffs, runs, approvals, artifacts, cursors, audit, tombstones, and retention;
+- serialized persistence, migrations, recovery, backup, restore, integrity repair, and leases;
+- encrypted content-addressed artifacts and deny-by-default capability policy;
+- stable CLI, per-user service, typed local IPC, peer checks, and concurrent clients;
+- reproducible unsigned development-alpha packaging with deterministic Cargo SBOM;
+- clean install, daemon restart, doctor, backup, export, repair, offline restore, and state-preserving uninstall.
 
 ## Locked invariants
 
@@ -51,72 +72,43 @@ PRODUCTION_CLAIM_ALLOWED:     false
 HARD_CEILING:                 12
 ```
 
-Canonical tools:
+## Current Phase 5 gate
 
-```text
-context.compile
-code.search
-memory.search
-get_symbols
-registry.list
-registry.read
-repo_info
-navigate
-inspect
-preview
-edit
-restart_lsp
-```
+Phase 5 owns four work groups.
 
-Broader capabilities remain required behind existing slot modes, MCP resources, namespaced gateway operations, daemon APIs, CLI, desktop/mobile operations, hooks/plugins, SDKs, and generated native files. See [`docs/architecture/CAPABILITY-ABSORPTION-MAP.md`](docs/architecture/CAPABILITY-ABSORPTION-MAP.md).
+### A. Live platform adapters
 
-## Transcript-to-repository audit
+- Claude Code Agent SDK, SessionStore, hooks, permissions, compaction, and restart reconciliation.
+- Claude Desktop supported local connector and export/import boundaries.
+- Codex generated app-server client, approvals, steering, compaction, archive, cursors, reconnect, and safe mode.
+- OpenCode generated OpenAPI client, persistent SSE cursor/reconciliation, permissions, and plugin/session lifecycle.
+- Cursor and generic MCP-host verification.
 
-Both complete transcripts were reconciled against current `main`, exact receipts, the independently verified source artifact, and merged PRs through #10.
+### B. Canonical lifecycle and orchestration
 
-The audit distinguishes implemented foundations from missing product systems and owns the expanded finish line:
+- Same-platform resume, fork, and archive where supported.
+- Full memory proposal, validation, activation, conflict, supersession, expiry, tombstone, import/export, and compaction lifecycle.
+- Signed cross-platform handoffs with Git/code state, artifacts, exclusions, permissions, and destination-native lineage.
+- Durable runs and subagents with budgets, worktree leases, attenuated capabilities, approvals, recovery, cancellation propagation, and aggregation.
+- Compatibility materializers with diff, backup, atomic apply, rollback, echo guards, and load verification.
 
-- [`docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md`](docs/audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md)
-- [`docs/audits/TRANSCRIPT-GAP-REGISTRY.json`](docs/audits/TRANSCRIPT-GAP-REGISTRY.json)
+### C. Intelligence and extensibility depth
 
-## Current Phase 4 gate
+- Complete Oxc, Tree-sitter, LibCST, shell, LSP, Turbo, and Next.js production matrices.
+- Versioned parser, graph, route, context, materializer, and gateway provider interfaces.
+- Stable Rust API and generated Python/TypeScript daemon SDKs.
+- Deterministic `soleaux ci`, editor extension, and capability-gated event export.
+- Optional hybrid search only after licensing, sensitivity, migration, and corruption-recovery gates.
 
-Phase 4 now has three remaining work groups.
+### D. Real repositories and evidence
 
-### A. Native correctness
-
-Close `P4-017` through `P4-024` and `P4-026`:
-
-- closed request schemas;
-- fresh index/context claims;
-- transactional edit and rollback integrity;
-- pre-side-effect idempotency reservation;
-- comprehensive secret redaction;
-- transactional adopt/apply/revert;
-- truthful bounded coverage and continuations;
-- typed invalid-SQL semantics;
-- atomic one-time preview claim and complete binding metadata.
-
-`P4-025` is closed by PR #7.
-
-### B. Durable native core
-
-Implement `P4-010` through `P4-015`:
-
-- canonical accounts/mappings/sessions/messages/memory/runs/approvals/artifacts/materializations/cursors/audit/tombstones;
-- serialized writes, migrations, replay, backup, integrity repair and downgrade refusal;
-- durable operation reservation, execution leases, process/native-session reconciliation, cancellation and approval recovery;
-- encrypted content-addressed artifacts, keychain and policy/capability foundation;
-- exact CLI with JSON and dry-run behavior;
-- per-user service and typed local IPC with peer checks.
-
-### C. Alpha closure
-
-Produce a reproducible unsigned alpha with install/service/doctor/backup/restore/repair/uninstall smoke, exact Phase 4 receipt, and independent artifact verification.
+- Validate `jmclaughlin724/anilize`.
+- Validate two additional approved design partners.
+- Close Phase 5 only with an exact beta receipt and independent verification.
 
 ## Deferred Phase 3
 
-Phase 3 does not block implementation. Before it can support any efficacy claim, it must be re-frozen as:
+Phase 3 remains deferred and does not block implementation. Before any quantified efficacy claim, freeze and execute:
 
 ```text
 control_no_soleaux
@@ -124,18 +116,21 @@ historical_python
 native_treatment
 ```
 
-The no-Soleaux arm proves market value; the historical arm proves compatibility. Context savings cannot compensate for lower correctness. `productionClaimAllowed` remains false.
+The same authenticated model/client, tasks, budgets, sampling, protocol, retries, oracles, and scoring must apply to every arm. Context economy cannot compensate for lower correctness. `productionClaimAllowed` remains false.
 
 ## Remaining program
 
 | Phase | Purpose | Dependency |
 |---:|---|---|
-| 4 | Correct, durable native alpha foundation | In progress |
-| 5 | Live adapters, canonical lifecycle, intelligence depth, materializers, SDK/provider/editor/automation | Phase 4 receipt |
-| 6 | Tauri desktop, Expo mobile, secure remote control, installers and operations | Phase 5 receipt |
-| 7 | Performance/scale/security/privacy/accessibility/OS/relay/enterprise assurance | Phase 6 receipt |
-| 8 | Signed RC, stores, staged rollout, production-claim decision and GA | Phase 7 receipt |
+| 5 | Adapters, lifecycle, intelligence depth, materializers, SDKs, design partners | In progress |
+| 6 | Tauri desktop, Expo mobile, secure remote control, installers, and operations | Phase 5 receipt |
+| 7 | Performance, scale, security, privacy, accessibility, OS/relay/enterprise assurance | Phase 6 receipt |
+| 8 | Signed RC, stores, staged rollout, explicit production-claim decision, and GA | Phase 7 receipt |
+
+## Branch state
+
+`main` is the sole implementation and status authority. Fully merged short-lived branches were pruned. Branches with unique commits were retained as non-authoritative archival lineage and are enumerated in [`docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json`](docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json).
 
 ## Update rule
 
-Status changes require reviewed planning evidence for planned work and exact receipts plus independent verification for completed gates. Contracts and receipts outrank prose. A merge to `main` does not imply production readiness.
+Status changes require coordinated updates to machine status, human status, roadmap, tasks, handoff, changelog, audit registry, release gates, and public claims. Contracts and exact receipts outrank prose. A merge does not imply production readiness.

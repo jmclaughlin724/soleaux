@@ -1,76 +1,129 @@
 # Soleaux Release Checklist
 
-**Current version:** `0.4.0-dev.5`
-**Current release posture:** development only
-**productionClaimAllowed:** `false`
-
-This checklist controls release eligibility. A completed development phase does not imply a signed release.
-
-## Gate summary
-
-| Gate | Required evidence | Current |
-|---|---|---|
-| Contracts | Locked schemas and drift checks | Green |
-| Native foundation | fmt/check/Clippy/test/build/audit | Green through Phase 2 |
-| Public surface | Exact 12 tools and substitutions | Green |
-| Context contract | Context Packet V2 schema and fail-closed behavior | Green |
-| Native capabilities | Gateway/catalog/adopt/attach/governance | Green |
-| Live product proof | Same-model/same-task comparison | **Open** |
-| Canonical source | Normal native source on reviewed default branch | Open |
-| Live compatibility | Agent clients, LSPs, Turbo/Next, design partners | Open |
-| Product apps | Desktop/mobile/installers | Open |
-| Assurance | Benchmarks, security, privacy, accessibility, OS parity | Open |
-| Distribution | Signing, notarization, stores, staged rollout | Open |
-| Production claim | Explicit reviewed decision | Prohibited |
-
-## Version ladder
+## Current classification
 
 ```text
-0.4.0-dev.x
-    current; contracts/native core proven, live product proof incomplete
-
-0.4.0-alpha.x
-    eligible after Phase 3 and canonical-source consolidation begin
-
-0.4.0-beta.x
-    eligible after live client/repository matrices and product workflows
-
-1.0.0-rc.x
-    eligible only after assurance gates and signed candidate artifacts
-
-1.0.0
-    eligible only after staged rollout and explicit production-claim decision
+Version:                     0.4.0-dev.5
+Phase 0:                     CLOSED
+Phase 1:                     CLOSED
+Phase 2:                     CLOSED
+Phase 3:                     DEFERRED — CLAIMS GATE
+Phase 4:                     CLOSED
+Phase 5:                     IN PROGRESS
+Unsigned development alpha:  independently verified
+Signed distribution:         not available
+productionClaimAllowed:      false
 ```
 
-## Required RC evidence
+## Immutable release identity
 
-- Exact source commit and reproducible build.
-- Locked contract digests.
-- Full native gate logs.
-- Live Phase 3 product-proof results.
-- At least three design-partner repository results.
-- Declared client and LSP compatibility matrix.
-- Cold/warm p50/p95/p99 benchmarks on defined hardware.
-- Security, privacy, license, and accessibility reviews.
-- Install, upgrade, repair, rollback, uninstall evidence.
-- Signed SBOM and provenance.
-- Signed/notarized desktop artifacts.
-- Mobile internal-distribution evidence.
-- Incident response and rollback runbook.
-- Known limitations and support policy.
-- Explicit approval to change `productionClaimAllowed`.
+- [x] Product identity is Soleaux.
+- [x] Version remains `0.4.0-dev.5`.
+- [x] Public MCP hard ceiling is 12.
+- [x] Optional providers replace one slot and never append.
+- [x] Unified MCP profile digest is locked.
+- [x] Context Packet V2 digest is locked.
+- [x] `productionClaimAllowed` remains false.
 
-## Prohibited current claims
+## Phase evidence
 
-Until the relevant gates pass, do not say:
+- [x] Phase 0 exact receipt.
+- [x] Phase 1 exact receipt.
+- [x] Phase 2 exact receipt and independent verification.
+- [x] Phase 4 alpha exact receipt.
+- [x] Phase 4 independent artifact verification.
+- [x] Phase 4 final closure and synchronized default-branch documentation.
+- [ ] Deferred Phase 3 three-arm live proof.
+- [ ] Phase 5 beta receipt and independent verification.
+- [ ] Phase 6 app/device/install receipt.
+- [ ] Phase 7 assurance receipt.
+- [ ] Phase 8 signed-release and rollout receipt.
 
-- production-ready;
-- generally available;
-- release candidate;
-- proven to improve model correctness;
-- universal native session resume;
-- complete cross-client memory synchronization;
-- fully compatible with every LSP/client/OS;
-- signed or store-ready.
+## Native development-alpha gate — green
 
-See [`docs/governance/CLAIMS-POLICY.md`](docs/governance/CLAIMS-POLICY.md).
+- [x] Rust format, check, strict Clippy, complete tests, release build, and Cargo audit.
+- [x] Canonical and every optional-substitution MCP smoke at exactly 12 tools.
+- [x] Context Packet V2 validation.
+- [x] Canonical state, migrations, leases, replay, backup, restore, and repair.
+- [x] Encrypted artifact vault and deny-by-default policy.
+- [x] Stable CLI, per-user service, typed IPC, peer checks, and concurrent clients.
+- [x] Deterministic package metadata and path-independent Cargo SBOM.
+- [x] Two byte-identical independently built archives.
+- [x] Extracted-package install, launch, restart, doctor, backup, export, repair, restore, and uninstall.
+- [x] State preserved by default on uninstall.
+- [x] Exact receipt and independent artifact verification.
+
+Evidence:
+
+- `PHASE4-ALPHA-CLOSURE-RECEIPT.json`
+- `PHASE4-INDEPENDENT-VERIFICATION.json`
+- `PHASE4-CLOSURE-RECEIPT.json`
+
+## Phase 5 beta gate — open
+
+- [ ] Installed service/workspace registry converges across concurrent client classes.
+- [ ] Claude Code matrix green.
+- [ ] Claude Desktop supported boundary matrix green.
+- [ ] Codex CLI/Desktop app-server matrix green.
+- [ ] OpenCode OpenAPI/SSE/plugin matrix green.
+- [ ] Cursor and generic MCP-host matrix green.
+- [ ] Canonical session/history lifecycle green.
+- [ ] Memory lifecycle and compaction survival green.
+- [ ] Signed handoffs and destination-native lineage green.
+- [ ] Durable runs/subagents/approvals/cancellation/recovery green.
+- [ ] Rules/skills/agents materializer diff/apply/rollback/load verification green.
+- [ ] Real LSP, Turbo, and Next matrices green.
+- [ ] `anilize` plus two approved design partners green.
+- [ ] Provider interfaces, SDKs, deterministic CI, and editor MVP green.
+- [ ] Exact Phase 5 receipt and independent verification.
+
+## Deferred Phase 3 claims gate — open
+
+Before measured efficacy claims:
+
+- [ ] Freeze the no-Soleaux, historical Python, and native arms.
+- [ ] Freeze exact authenticated model/client/build/protocol/sampling/budgets/retries.
+- [ ] Freeze tasks, prompts, rubrics, oracles, and hashes.
+- [ ] Run all arms and retain every attempt/failure.
+- [ ] Require equal-or-better correctness before considering context economy.
+- [ ] Independently verify results.
+- [ ] Keep `productionClaimAllowed=false` unless explicitly reviewed later.
+
+## Phase 6 distribution candidate gate — open
+
+- [ ] Tauri desktop and Expo mobile complete.
+- [ ] Pairing, LAN, E2E relay fallback, revoke, push, and audit complete.
+- [ ] macOS, Windows, and Linux development installers complete.
+- [ ] Upgrade, repair, rollback, uninstall, and native-file restoration complete.
+- [ ] Desktop/device E2E and accessibility-ready UX complete.
+
+## Phase 7 assurance gate — open
+
+- [ ] Defined-hardware performance matrix.
+- [ ] Parser/LSP/protocol fuzzing.
+- [ ] Large-repository and resource-pressure matrix.
+- [ ] Security, prompt-injection, path-jail, shell, update, pairing, and cross-workspace tests.
+- [ ] External penetration test.
+- [ ] Privacy, retention, deletion, license, accessibility, and internationalization reviews.
+- [ ] OS/architecture parity.
+- [ ] Signed SBOM and provenance.
+- [ ] Incident, outage, backup/restore, upgrade/downgrade, and rollback exercises.
+
+## Phase 8 release gate — open
+
+- [ ] Freeze `1.0.0-rc.1` only after Phase 7.
+- [ ] Sign and notarize desktop artifacts and sign Windows packages.
+- [ ] TestFlight and Play internal/staged delivery.
+- [ ] Design-partner then public staged rollout with rollback thresholds.
+- [ ] Publish release notes, support policy, compatibility, privacy, and known limitations.
+- [ ] Explicitly review `productionClaimAllowed`.
+- [ ] Verify GA and publish `1.0.0`.
+
+## Prohibited conclusions
+
+The verified unsigned development alpha does not establish:
+
+- quantified model-success or context-savings claims;
+- universal client, LSP, framework, OS, or repository compatibility;
+- completed desktop/mobile distribution;
+- signing, notarization, store approval, release-candidate status, or general availability.
