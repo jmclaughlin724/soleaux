@@ -1991,11 +1991,16 @@ name = "soleaux-cli"
 version = "0.4.0-dev.5"
 dependencies = [
  "anyhow",
+ "blake3",
  "clap",
  "serde",
  "serde_json",
+ "soleaux-engine",
+ "soleaux-ipc",
  "soleaux-mcp",
+ "soleaux-state",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -2006,6 +2011,7 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
+ "soleaux-ipc",
  "soleaux-mcp",
  "tokio",
  "tracing",
@@ -2041,6 +2047,22 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-typescript",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "soleaux-ipc"
+version = "0.4.0-dev.5"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "rustix 1.1.4",
+ "serde",
+ "serde_json",
+ "soleaux-state",
+ "tempfile",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 

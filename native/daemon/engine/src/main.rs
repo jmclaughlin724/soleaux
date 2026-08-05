@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use soleaux_engine::{IntegrationSelection, doctor, index, serve_stdio, serve_streamable_http};
+use soleaux_ipc::{IpcServer, SoleauxPaths};
 use soleaux_mcp::ToolSubstitution;
 use std::{net::SocketAddr, path::PathBuf};
 
@@ -21,6 +22,8 @@ enum Command {
     Serve(ServeArguments),
     /// Serve authenticated Streamable HTTP on loopback.
     Http(HttpArguments),
+    /// Serve daemon-owned canonical state over same-user local IPC.
+    Ipc(IpcArguments),
     /// Build or refresh the persistent structural index.
     Index(WorkspaceArguments),
     /// Report native profile, provider, and storage health.
@@ -53,6 +56,16 @@ struct HttpArguments {
     token: String,
     #[command(flatten)]
     profile: ProfileArguments,
+}
+
+#[derive(Debug, Args)]
+struct IpcArguments {
+    /// Override the canonical per-user IPC endpoint.
+    #[arg(long)]
+    endpoint: Option<PathBuf>,
+    /// Override the canonical daemon-owned state database.
+    #[arg(long)]
+    state_db: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, Args)]
@@ -107,6 +120,21 @@ async fn main() -> Result<()> {
                 arguments.token,
             )
             .await
+        }
+        Command::Ipc(arguments) => {
+            let mut paths = SoleauxPaths::resolve()?;
+            if let Some(endpoint) = arguments.endpoint {
+                paths.runtime = endpoint
+                    .parent()
+                    .context("IPC endpoint has no parent directory")?
+                    .to_path_buf();
+                paths.endpoint = endpoint;
+                paths.pid_file = paths.runtime.join("soleauxd.pid");
+            }
+            if let Some(state_db) = arguments.state_db {
+                paths.state_database = state_db;
+            }
+            IpcServer::open(paths)?.run().await
         }
         Command::Index(arguments) => {
             let value = index(arguments.repo, arguments.profile.into()).await?;
