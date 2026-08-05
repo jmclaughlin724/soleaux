@@ -1,0 +1,41 @@
+name: Repair P4-026 editor applicator
+
+on:
+  push:
+    branches:
+      - fix/atomic-preview-claim-p4-026-0.4.0-dev.5
+    paths:
+      - .github/workflows/fix-p4-026-editor-script.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Apply compiler-prescribed sort repair
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.ci/apply-p4-026-editor.py')
+          text = path.read_text(encoding='utf-8')
+          old = '    source_revisions.sort_by(|left, right| left.to_string().cmp(&right.to_string()));'
+          new = '    source_revisions.sort_by_key(|left| left.to_string());'
+          if text.count(old) != 1:
+              raise SystemExit('P4-026 Clippy repair target drifted')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .ci/apply-p4-026-editor.py
+          git diff --cached --check
+          git commit -m 'ci: apply strict Clippy repair to P4-026 editor source'
+          git push origin HEAD:${{ github.ref_name }}
