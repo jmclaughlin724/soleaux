@@ -38,6 +38,7 @@ use soleaux_intelligence::{
     nextjs::index_nextjs,
     turborepo::{load_graph, packages_for_path, search_scope},
 };
+use soleaux_redaction::redact_text;
 use soleaux_storage::{IndexedFileRecord, Store, SymbolHit, SymbolRecord};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -1498,7 +1499,9 @@ fn is_supported_rpc_method(method: &str) -> bool {
 }
 
 fn json_rpc_error(id: Value, code: i64, message: impl Into<String>) -> Value {
-    json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message.into()}})
+    let message = message.into();
+    let redacted = redact_text(&message);
+    json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":redacted.value}})
 }
 
 fn negotiate_version(requested: Option<&str>) -> &'static str {

@@ -9,6 +9,7 @@ futures-util = "0.3"
 getrandom = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+soleaux-redaction = { path = "../../native/daemon/redaction" }
 serde_urlencoded = "0.7"
 subtle = "2"
 sysinfo = "0.35"

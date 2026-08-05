@@ -322,10 +322,7 @@ fn redact_prefixed_tokens(line: &str) -> Redaction<String> {
 fn redact_auth_schemes(line: &str) -> Redaction<String> {
     let bearer = redact_after_ascii_marker(line, "bearer ");
     let basic = redact_after_ascii_marker(&bearer.value, "basic ");
-    Redaction::new(
-        basic.value,
-        bearer.count.saturating_add(basic.count),
-    )
+    Redaction::new(basic.value, bearer.count.saturating_add(basic.count))
 }
 
 fn redact_after_ascii_marker(line: &str, marker: &str) -> Redaction<String> {

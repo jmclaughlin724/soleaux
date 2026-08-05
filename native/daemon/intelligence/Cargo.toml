@@ -22,6 +22,7 @@ rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+soleaux-redaction = { path = "../redaction" }
 soleaux-storage = { path = "../storage" }
 tokio.workspace = true
 tracing.workspace = true

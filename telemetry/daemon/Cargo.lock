@@ -546,6 +546,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "soleaux-redaction",
  "subtle",
  "sysinfo",
  "tokio",
@@ -554,6 +555,13 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "soleaux-redaction"
+version = "0.4.0-dev.5"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

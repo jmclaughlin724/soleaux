@@ -10,6 +10,7 @@ use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use soleaux_redaction::redact_text;
 use soleaux_storage::{IndexedFileRecord, SymbolHit};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -1510,61 +1511,8 @@ fn unix_ms() -> u64 {
 }
 
 fn redact_secret_like(source: &str) -> (String, usize) {
-    let mut output = String::with_capacity(source.len());
-    let mut count = 0usize;
-    let mut private_key = false;
-    for line in source.split_inclusive('\n') {
-        let newline = line.ends_with('\n');
-        let body = line.strip_suffix('\n').unwrap_or(line);
-        let trimmed = body.trim();
-        if private_key {
-            count = count.saturating_add(1);
-            output.push_str("[REDACTED PRIVATE KEY]");
-            if newline {
-                output.push('\n');
-            }
-            if trimmed.starts_with("-----END ") && trimmed.ends_with("PRIVATE KEY-----") {
-                private_key = false;
-            }
-            continue;
-        }
-        if trimmed.starts_with("-----BEGIN ") && trimmed.ends_with("PRIVATE KEY-----") {
-            private_key = true;
-            count = count.saturating_add(1);
-            output.push_str("[REDACTED PRIVATE KEY]");
-            if newline {
-                output.push('\n');
-            }
-            continue;
-        }
-        let lower = body.to_ascii_lowercase();
-        let sensitive = [
-            "api_key",
-            "apikey",
-            "secret",
-            "token",
-            "password",
-            "private_key",
-            "authorization",
-        ]
-        .iter()
-        .any(|needle| lower.contains(needle));
-        if sensitive && (body.contains('=') || body.contains(':')) {
-            let delimiter = body
-                .find('=')
-                .or_else(|| body.find(':'))
-                .unwrap_or(body.len());
-            output.push_str(&body[..delimiter.saturating_add(1)]);
-            output.push_str(" [REDACTED]");
-            count = count.saturating_add(1);
-        } else {
-            output.push_str(body);
-        }
-        if newline {
-            output.push('\n');
-        }
-    }
-    (output, count)
+    let redacted = redact_text(source);
+    (redacted.value, redacted.count)
 }
 
 #[cfg(test)]
@@ -1614,6 +1562,16 @@ mod tests {
         assert!(packet.gaps.len() <= MAX_CONTEXT_GAPS);
         assert!(packet.consumed_bytes <= packet.byte_budget);
         assert!(packet.consumed_tokens <= packet.token_budget);
+    }
+
+    #[test]
+    fn context_v2_redacts_vendor_tokens_without_sensitive_variable_names() {
+        let leaked = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+        let source = format!("export const harmless = '{leaked}';");
+        let (redacted, count) = redact_secret_like(&source);
+        assert_eq!(count, 1);
+        assert!(!redacted.contains(leaked));
+        assert!(redacted.contains("[REDACTED]"));
     }
 
     #[test]
