@@ -79,9 +79,7 @@ fn configure(connection: &Connection) -> Result<()> {
 pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
     let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version > SCHEMA_VERSION {
-        bail!(
-            "Soleaux canonical schema {version} is newer than supported schema {SCHEMA_VERSION}"
-        );
+        bail!("Soleaux canonical schema {version} is newer than supported schema {SCHEMA_VERSION}");
     }
     if version == 0 {
         connection.execute_batch(
@@ -241,7 +239,9 @@ pub(crate) fn put_entity(
                 transaction.commit()?;
                 return Ok(existing);
             }
-            bail!("canonical idempotency collision: immutable request differs");
+            if input.id != Some(existing.id) {
+                bail!("canonical idempotency collision: immutable request differs");
+            }
         }
     }
 
@@ -364,10 +364,7 @@ pub(crate) fn put_entity(
     Ok(record)
 }
 
-fn entity_replay_matches(
-    existing: &SerializedEntityRecord,
-    input: &SerializedEntityInput,
-) -> bool {
+fn entity_replay_matches(existing: &SerializedEntityRecord, input: &SerializedEntityInput) -> bool {
     existing.kind == input.kind
         && existing.workspace_id == input.workspace_id
         && existing.parent_id == input.parent_id
@@ -412,7 +409,11 @@ pub(crate) fn list_entities(
     include_tombstoned: bool,
 ) -> Result<Vec<SerializedEntityRecord>> {
     let workspace = workspace_key(workspace_id);
-    let tombstone = if include_tombstoned { "" } else { " AND tombstoned_at_unix_ms IS NULL" };
+    let tombstone = if include_tombstoned {
+        ""
+    } else {
+        " AND tombstoned_at_unix_ms IS NULL"
+    };
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
     let mut records = Vec::new();
     if let Some(kind) = kind {
@@ -421,7 +422,8 @@ pub(crate) fn list_entities(
              ORDER BY updated_at_unix_ms, id LIMIT ?3"
         );
         let mut statement = connection.prepare(&sql)?;
-        let rows = statement.query_map(params![kind.as_str(), workspace, limit], entity_from_row)?;
+        let rows =
+            statement.query_map(params![kind.as_str(), workspace, limit], entity_from_row)?;
         records.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
     } else {
         let sql = format!(
@@ -840,10 +842,7 @@ pub(crate) fn apply_retention(
         if candidates.len() >= limit {
             break;
         }
-        let cutoff = now.saturating_sub(i64_from_u64(
-            policy.retain_for_ms,
-            "retention duration",
-        )?);
+        let cutoff = now.saturating_sub(i64_from_u64(policy.retain_for_ms, "retention duration")?);
         let remaining = limit.saturating_sub(candidates.len());
         let workspace = workspace_key(policy.workspace_id);
         let mut sql = String::from(
@@ -992,7 +991,11 @@ pub(crate) fn acquire_operation(
                     .result
                     .context("completed operation omitted its result")?,
             ),
-            "leased" if existing.lease_expires_at_unix_ms.is_some_and(|value| value > now) => {
+            "leased"
+                if existing
+                    .lease_expires_at_unix_ms
+                    .is_some_and(|value| value > now) =>
+            {
                 OperationLeaseOutcome::InFlight(existing)
             }
             "leased" | "abandoned" | "failed" | "cancelled" => {
@@ -1054,8 +1057,8 @@ pub(crate) fn acquire_operation(
                 now,
             ],
         )?;
-        let acquired = operation_tx(&transaction, operation_key)?
-            .context("new operation disappeared")?;
+        let acquired =
+            operation_tx(&transaction, operation_key)?.context("new operation disappeared")?;
         append_audit_tx(
             &transaction,
             "operation.lease.acquired",
@@ -1100,8 +1103,8 @@ pub(crate) fn renew_operation(
     if changed != 1 {
         bail!("operation lease cannot be renewed");
     }
-    let record = operation_tx(&transaction, operation_key)?
-        .context("renewed operation disappeared")?;
+    let record =
+        operation_tx(&transaction, operation_key)?.context("renewed operation disappeared")?;
     transaction.commit()?;
     Ok(record)
 }
@@ -1170,13 +1173,15 @@ fn transition_operation(
     error: Option<&Value>,
 ) -> Result<OperationLease> {
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let existing = operation_tx(&transaction, operation_key)?
-        .context("operation does not exist")?;
+    let existing =
+        operation_tx(&transaction, operation_key)?.context("operation does not exist")?;
     let now = unix_ms();
     if existing.state != "leased"
         || existing.lease_id != Some(lease_id)
         || existing.owner_id.as_deref() != Some(owner_id)
-        || existing.lease_expires_at_unix_ms.is_none_or(|value| value <= now)
+        || existing
+            .lease_expires_at_unix_ms
+            .is_none_or(|value| value <= now)
     {
         bail!("operation lease ownership or expiration check failed");
     }
@@ -1208,8 +1213,8 @@ fn transition_operation(
             "attempt":existing.attempt,
         }),
     )?;
-    let record = operation_tx(&transaction, operation_key)?
-        .context("transitioned operation disappeared")?;
+    let record =
+        operation_tx(&transaction, operation_key)?.context("transitioned operation disappeared")?;
     transaction.commit()?;
     Ok(record)
 }
@@ -1245,8 +1250,8 @@ pub(crate) fn recover_expired_operations(
                 now,
             ],
         )?;
-        let record = operation_tx(&transaction, &key)?
-            .context("recovered operation disappeared")?;
+        let record =
+            operation_tx(&transaction, &key)?.context("recovered operation disappeared")?;
         append_audit_tx(
             &transaction,
             "operation.abandoned",
@@ -1310,7 +1315,13 @@ pub(crate) fn append_audit(
 ) -> Result<AuditEntry> {
     require_non_empty(event_type, "audit event type")?;
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let entry = append_audit_tx(&transaction, event_type, workspace_id, entity_id, payload.clone())?;
+    let entry = append_audit_tx(
+        &transaction,
+        event_type,
+        workspace_id,
+        entity_id,
+        payload.clone(),
+    )?;
     transaction.commit()?;
     Ok(entry)
 }
@@ -1462,10 +1473,7 @@ pub(crate) fn repair(connection: &mut Connection, path: &Path) -> Result<Integri
     Ok(report)
 }
 
-pub(crate) fn backup(
-    connection: &mut Connection,
-    destination: &Path,
-) -> Result<BackupManifest> {
+pub(crate) fn backup(connection: &mut Connection, destination: &Path) -> Result<BackupManifest> {
     if destination.exists() {
         fs::remove_file(destination)
             .with_context(|| format!("removing existing backup {}", destination.display()))?;
@@ -1717,8 +1725,14 @@ fn operation_from_row(row: &Row<'_>) -> rusqlite::Result<OperationLease> {
         owner_id: row.get(6)?,
         attempt: parse_u64(7, attempt)?,
         lease_expires_at_unix_ms: row.get(8)?,
-        result: result.as_deref().map(|value| parse_json(9, value)).transpose()?,
-        error: error.as_deref().map(|value| parse_json(10, value)).transpose()?,
+        result: result
+            .as_deref()
+            .map(|value| parse_json(9, value))
+            .transpose()?,
+        error: error
+            .as_deref()
+            .map(|value| parse_json(10, value))
+            .transpose()?,
         created_at_unix_ms: row.get(11)?,
         updated_at_unix_ms: row.get(12)?,
     })
@@ -1760,12 +1774,15 @@ fn audit_hash(
         &mut hasher,
         workspace_id
             .as_ref()
-            .map(Uuid::as_bytes)
+            .map(|value| value.as_bytes().as_slice())
             .unwrap_or(&[]),
     );
     hash_field(
         &mut hasher,
-        entity_id.as_ref().map(Uuid::as_bytes).unwrap_or(&[]),
+        entity_id
+            .as_ref()
+            .map(|value| value.as_bytes().as_slice())
+            .unwrap_or(&[]),
     );
     hash_field(&mut hasher, payload_hash.as_bytes());
     hash_field(&mut hasher, &created_at_unix_ms.to_le_bytes());
@@ -1829,7 +1846,9 @@ fn sibling(path: &Path, suffix: &str) -> PathBuf {
 }
 
 fn workspace_key(workspace_id: Option<Uuid>) -> String {
-    workspace_id.map(|value| value.to_string()).unwrap_or_default()
+    workspace_id
+        .map(|value| value.to_string())
+        .unwrap_or_default()
 }
 
 fn require_non_empty(value: &str, label: &str) -> Result<()> {
@@ -1865,25 +1884,33 @@ fn parse_uuid(index: usize, value: &str) -> rusqlite::Result<Uuid> {
 }
 
 fn parse_optional_uuid(index: usize, value: Option<String>) -> rusqlite::Result<Option<Uuid>> {
-    value.as_deref().map(|value| parse_uuid(index, value)).transpose()
+    value
+        .as_deref()
+        .map(|value| parse_uuid(index, value))
+        .transpose()
+}
+
+fn invalid_text_value(index: usize, error: anyhow::Error) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(
+        index,
+        Type::Text,
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            error.to_string(),
+        )),
+    )
 }
 
 fn parse_kind(index: usize, value: &str) -> rusqlite::Result<EntityKind> {
-    EntityKind::parse(value).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(error))
-    })
+    EntityKind::parse(value).map_err(|error| invalid_text_value(index, error))
 }
 
 fn parse_sensitivity(index: usize, value: &str) -> rusqlite::Result<Sensitivity> {
-    Sensitivity::parse(value).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(error))
-    })
+    Sensitivity::parse(value).map_err(|error| invalid_text_value(index, error))
 }
 
 fn parse_relationship(index: usize, value: &str) -> rusqlite::Result<RelationshipKind> {
-    RelationshipKind::parse(value).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(error))
-    })
+    RelationshipKind::parse(value).map_err(|error| invalid_text_value(index, error))
 }
 
 fn parse_json(index: usize, value: &str) -> rusqlite::Result<Value> {

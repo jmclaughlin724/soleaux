@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 pub const SCHEMA_VERSION: i64 = database::SCHEMA_VERSION;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StateStore {
     path: Arc<PathBuf>,
     writer: mpsc::Sender<WriteCommand>,
@@ -120,9 +120,10 @@ impl StateStore {
         let mut connection = database::open_writer(&path)?;
         database::migrate(&mut connection)?;
         let (sender, receiver) = mpsc::channel();
+        let writer_path = path.clone();
         thread::Builder::new()
             .name("soleaux-canonical-state-writer".to_string())
-            .spawn(move || writer_loop(connection, receiver))
+            .spawn(move || writer_loop(connection, receiver, writer_path))
             .context("starting canonical state writer")?;
         Ok(Self {
             path: Arc::new(path),
@@ -181,9 +182,7 @@ impl StateStore {
     }
 
     pub fn get<T: CanonicalPayload>(&self, id: Uuid) -> Result<Option<CanonicalRecord<T>>> {
-        self.get_serialized(id)?
-            .map(typed_record)
-            .transpose()
+        self.get_serialized(id)?.map(typed_record).transpose()
     }
 
     pub fn get_serialized(&self, id: Uuid) -> Result<Option<SerializedEntityRecord>> {
@@ -230,10 +229,7 @@ impl StateStore {
         database::links_from(&connection, source_id)
     }
 
-    pub fn put_adapter_cursor(
-        &self,
-        input: AdapterCursorInput,
-    ) -> Result<AdapterCursorRecord> {
+    pub fn put_adapter_cursor(&self, input: AdapterCursorInput) -> Result<AdapterCursorRecord> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.writer
             .send(WriteCommand::PutAdapterCursor {
@@ -290,11 +286,7 @@ impl StateStore {
         receive(receiver, "canonical tombstone")
     }
 
-    pub fn apply_retention(
-        &self,
-        now_unix_ms: i64,
-        limit: usize,
-    ) -> Result<Vec<TombstoneRecord>> {
+    pub fn apply_retention(&self, now_unix_ms: i64, limit: usize) -> Result<Vec<TombstoneRecord>> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.writer
             .send(WriteCommand::ApplyRetention {
@@ -526,6 +518,7 @@ impl Drop for StateStore {
 fn writer_loop(
     mut connection: rusqlite::Connection,
     receiver: mpsc::Receiver<WriteCommand>,
+    path: PathBuf,
 ) {
     while let Ok(command) = receiver.recv() {
         match command {
@@ -539,7 +532,10 @@ fn writer_loop(
                 respond(reply, database::put_adapter_cursor(&mut connection, &input));
             }
             WriteCommand::PutRetentionPolicy { input, reply } => {
-                respond(reply, database::put_retention_policy(&mut connection, &input));
+                respond(
+                    reply,
+                    database::put_retention_policy(&mut connection, &input),
+                );
             }
             WriteCommand::TombstoneEntity {
                 entity_id,
@@ -698,33 +694,25 @@ fn writer_loop(
                 respond(reply, database::backup(&mut connection, &destination));
             }
             WriteCommand::Repair { reply } => {
-                respond(reply, database::repair(&mut connection, &PathBuf::from("")));
+                respond(reply, database::repair(&mut connection, &path));
             }
             WriteCommand::Shutdown => break,
         }
     }
 }
 
-fn respond<T>(
-    reply: mpsc::SyncSender<std::result::Result<T, String>>,
-    result: Result<T>,
-) {
+fn respond<T>(reply: mpsc::SyncSender<std::result::Result<T, String>>, result: Result<T>) {
     let _ = reply.send(result.map_err(|error| format!("{error:#}")));
 }
 
-fn receive<T>(
-    receiver: mpsc::Receiver<std::result::Result<T, String>>,
-    label: &str,
-) -> Result<T> {
+fn receive<T>(receiver: mpsc::Receiver<std::result::Result<T, String>>, label: &str) -> Result<T> {
     receiver
         .recv()
         .with_context(|| format!("canonical state writer dropped {label} reply"))?
         .map_err(anyhow::Error::msg)
 }
 
-fn typed_record<T: CanonicalPayload>(
-    record: SerializedEntityRecord,
-) -> Result<CanonicalRecord<T>> {
+fn typed_record<T: CanonicalPayload>(record: SerializedEntityRecord) -> Result<CanonicalRecord<T>> {
     if record.kind != T::KIND {
         bail!(
             "canonical entity kind mismatch: requested {}, stored {}",
