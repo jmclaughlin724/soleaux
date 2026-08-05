@@ -84,27 +84,42 @@ jobs:
                   '    if invalid_commit:\n',
                   'source commit validation',
               ),
-              (
-                  'Run `./install.sh` to copy `soleaux` and `soleauxd` into `${{SOLEAUX_INSTALL_BIN:-$HOME/.local/bin}}` and write a per-user service manifest. The installer does not mutate Claude, Codex, OpenCode, Cursor, or other vendor-native stores.\n\n'
-                  'Run `soleaux service start` after reviewing the generated per-user service manifest. Use `soleaux doctor`, `soleaux service status`, `soleaux backup`, `soleaux export`, and `soleaux repair` for operational checks.\n\n'
-                  'Run `./uninstall.sh` to call `soleaux uninstall --preserve-state true`. State removal requires an explicit separate decision.\n',
-                  'Run `./install.sh` to copy `soleaux` and `soleauxd` into\n'
-                  '`${{SOLEAUX_INSTALL_BIN:-$HOME/.local/bin}}` and write a per-user service manifest.\n'
-                  'The installer does not mutate Claude, Codex, OpenCode, Cursor, or other\n'
-                  'vendor-native stores.\n\n'
-                  'Run `soleaux service start` after reviewing the generated per-user service\n'
-                  'manifest. Use `soleaux doctor`, `soleaux service status`, `soleaux backup`,\n'
-                  '`soleaux export`, and `soleaux repair` for operational checks.\n\n'
-                  'Run `./uninstall.sh` to call `soleaux uninstall`. State removal requires an\n'
-                  'explicit separate decision.\n',
-                  'installation guidance',
-              ),
           ]
           for old, new, label in replacements:
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'alpha packager target drifted for {label}: {count}')
               text = text.replace(old, new, 1)
+
+          install_target = '${' + '{SOLEAUX_INSTALL_BIN:-$HOME/.local/bin}}'
+          old_guidance = (
+              'Run `./install.sh` to copy `soleaux` and `soleauxd` into `'
+              + install_target
+              + '` and write a per-user service manifest. The installer does not mutate '
+              'Claude, Codex, OpenCode, Cursor, or other vendor-native stores.\n\n'
+              'Run `soleaux service start` after reviewing the generated per-user service '
+              'manifest. Use `soleaux doctor`, `soleaux service status`, `soleaux backup`, '
+              '`soleaux export`, and `soleaux repair` for operational checks.\n\n'
+              'Run `./uninstall.sh` to call `soleaux uninstall`. State removal requires an '
+              'explicit separate decision.\n'
+          )
+          new_guidance = (
+              'Run `./install.sh` to copy `soleaux` and `soleauxd` into\n'
+              '`'
+              + install_target
+              + '` and write a per-user service manifest.\n'
+              'The installer does not mutate Claude, Codex, OpenCode, Cursor, or other\n'
+              'vendor-native stores.\n\n'
+              'Run `soleaux service start` after reviewing the generated per-user service\n'
+              'manifest. Use `soleaux doctor`, `soleaux service status`, `soleaux backup`,\n'
+              '`soleaux export`, and `soleaux repair` for operational checks.\n\n'
+              'Run `./uninstall.sh` to call `soleaux uninstall`. State removal requires an\n'
+              'explicit separate decision.\n'
+          )
+          count = text.count(old_guidance)
+          if count != 1:
+              raise SystemExit(f'alpha packager target drifted for installation guidance: {count}')
+          text = text.replace(old_guidance, new_guidance, 1)
           build.write_text(text, encoding='utf-8')
 
           smoke = Path('scripts/smoke_unsigned_alpha.py')
