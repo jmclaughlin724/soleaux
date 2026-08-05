@@ -304,7 +304,7 @@ install -m 0755 "$HERE/bin/soleauxd" "$BIN/soleauxd"
 set -eu
 BIN=${SOLEAUX_INSTALL_BIN:-"$HOME/.local/bin"}
 if [ -x "$BIN/soleaux" ]; then
-  "$BIN/soleaux" uninstall --preserve-state true
+  "$BIN/soleaux" uninstall
 fi
 """,
             0o755,
