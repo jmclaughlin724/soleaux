@@ -2,7 +2,9 @@
 //!
 //! Production key material is protected by the operating-system credential service. Artifact
 //! encryption is workspace-separated and authenticated, while policy evaluation is explicit,
-//! deny-by-default, risk-bounded, sensitivity-bounded, and approval-aware.
+//! deny-by-default, risk-bounded, sensitivity-bounded, and approval-aware. Decryption and policy
+//! decisions fail closed when workspace identity, key version, integrity, or approval evidence
+//! cannot be verified.
 
 mod keyring;
 mod policy;
