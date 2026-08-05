@@ -1,0 +1,126 @@
+name: Materialize stable CLI and per-user daemon IPC
+
+on:
+  push:
+    branches:
+      - feat/service-cli-p4-014-p4-015-main-0.4.0-dev.5
+    paths:
+      - .github/workflows/materialize-service-cli-p4-014-p4-015.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-service-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 125
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Reconstruct the compiler-observed service and CLI delta
+        run: |
+          set -euo pipefail
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff 20f2a9acdf18e8cfeb8af8e76c2a948f4c14259d af97b56a151926b7b4d2fdc7ce8c87c2fde1eb55 -- \
+            native/apps/cli/Cargo.toml \
+            native/apps/cli/src/operations.rs \
+            native/daemon/engine/Cargo.toml \
+            native/daemon/engine/src/main.rs \
+            native/daemon/ipc \
+            | git apply --3way
+          git show 1351fd2ae46847732d4d2e1d7e2b3cb0c5c3da3c:.ci/apply-service-cli-p4-014-p4-015.py \
+            > /tmp/apply-service-cli.py
+          python3 -m py_compile /tmp/apply-service-cli.py
+          python3 /tmp/apply-service-cli.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service = Path('native/daemon/ipc/src/service.rs')
+          text = service.read_text(encoding='utf-8')
+          text = text.replace(
+              'fn platform_start(paths: &SoleauxPaths) -> Result<()> {',
+              'fn platform_start(_paths: &SoleauxPaths) -> Result<()> {',
+              1,
+          )
+          text = text.replace('&paths.service_manifest', '&_paths.service_manifest', 2)
+          text = text.replace('        let _ = paths;\n        bail!("Soleaux service start', '        let _ = _paths;\n        bail!("Soleaux service start', 1)
+          text = text.replace(
+              'fn platform_stop(paths: &SoleauxPaths) -> Result<()> {',
+              'fn platform_stop(_paths: &SoleauxPaths) -> Result<()> {',
+              1,
+          )
+          text = text.replace('        let _ = paths;\n        bail!("Soleaux service stop', '        let _ = _paths;\n        bail!("Soleaux service stop', 1)
+          text = text.replace(
+              'fn xml_escape(value: &str) -> String {',
+              '#[cfg(any(target_os = "macos", target_os = "windows"))]\nfn xml_escape(value: &str) -> String {',
+              1,
+          )
+          text = text.replace(
+              'fn systemd_escape(value: &str) -> String {',
+              '#[cfg(all(unix, not(target_os = "macos")))]\nfn systemd_escape(value: &str) -> String {',
+              1,
+          )
+          service.write_text(text, encoding='utf-8')
+          PY
+          cargo fmt --manifest-path native/Cargo.toml --all
+          cargo check --manifest-path native/Cargo.toml --workspace --all-targets --all-features
+          (
+            cd native
+            cargo clippy --fix --workspace --all-targets --all-features --allow-dirty --allow-staged || true
+            cargo fmt --all
+          )
+          git diff --check
+
+      - name: Validate typed IPC, service operations, CLI, and complete native workspace
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-ipc --all-features --locked
+          cargo test -p soleaux-state --all-features --locked
+          cargo test --workspace --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --help
+          ./target/release/soleauxd --help
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings
+
+      - name: Commit only validated normal source
+        run: |
+          set -euo pipefail
+          rm .github/workflows/materialize-service-cli-p4-014-p4-015.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            native/Cargo.toml \
+            native/Cargo.lock \
+            native/apps/cli \
+            native/daemon/engine \
+            native/daemon/ipc \
+            .github/workflows/materialize-service-cli-p4-014-p4-015.yml
+          git diff --cached --check
+          git commit -m 'feat(service): add typed per-user daemon IPC and stable operations CLI'
+          git push origin HEAD:${{ github.ref_name }}
