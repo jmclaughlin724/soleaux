@@ -4,8 +4,12 @@
 //! serialized SQLite writer, while reads use short-lived read-only connections. The canonical
 //! model is deliberately platform-neutral and stores vendor-native identifiers only as mappings.
 
+mod database;
 mod model;
 mod store;
 
 pub use model::*;
 pub use store::{SCHEMA_VERSION, StateStore};
+
+#[cfg(test)]
+mod tests;
