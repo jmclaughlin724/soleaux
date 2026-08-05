@@ -1,0 +1,57 @@
+name: Apply P4-021 telemetry Clippy correction
+
+on:
+  push:
+    branches:
+      - fix/comprehensive-secret-redaction-p4-021-0.4.0-dev.5
+    paths:
+      - .ci/apply-p4-021-clippy.py
+      - .github/workflows/apply-p4-021-clippy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-p4-021-clippy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/comprehensive-secret-redaction-p4-021-0.4.0-dev.5
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply exact source correction
+        run: python3 .ci/apply-p4-021-clippy.py
+
+      - name: Run focused telemetry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path telemetry/daemon/Cargo.toml --all
+          cargo fmt --manifest-path telemetry/daemon/Cargo.toml --all --check
+          cargo check --manifest-path telemetry/daemon/Cargo.toml --all-targets --locked
+          cargo clippy --manifest-path telemetry/daemon/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path telemetry/daemon/Cargo.toml --locked
+
+      - name: Commit normal source and remove the one-shot applicator
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .ci/apply-p4-021-clippy.py
+          git rm .github/workflows/apply-p4-021-clippy.yml
+          git add telemetry/daemon/src/main.rs
+          git diff --cached --check
+          git commit -m "fix(telemetry): satisfy Rust 1.97 Clippy"
+          git push origin HEAD:fix/comprehensive-secret-redaction-p4-021-0.4.0-dev.5
