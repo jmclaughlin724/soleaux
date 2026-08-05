@@ -30,8 +30,8 @@ jobs:
           bad = '        "            \\"#,","'
           good = '        "            \\"#,",'
           count = text.count(bad)
-          if count != 3:
-              raise SystemExit(f'expected three malformed raw-string lines, observed {count}')
+          if count != 2:
+              raise SystemExit(f'expected two malformed raw-string lines, observed {count}')
           path.write_text(text.replace(bad, good), encoding='utf-8')
           compile(path.read_text(encoding='utf-8'), str(path), 'exec')
           PY
