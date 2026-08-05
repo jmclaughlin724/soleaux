@@ -31,26 +31,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("telemetry/daemon/src/main.rs")
-          text = path.read_text(encoding="utf-8")
-          old = '''            query
-                .backend
-                .as_deref()
-                .map_or(true, |backend| event.backend == backend)
-'''
-          new = '''            query
-                .backend
-                .as_deref()
-                .is_none_or(|backend| event.backend == backend)
-'''
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected exactly one P4-021 Clippy target, found {count}")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
-          PY
+          test "$(grep -F -c '.map_or(true, |backend| event.backend == backend)' telemetry/daemon/src/main.rs)" = 1
+          sed -i 's/\.map_or(true, |backend| event\.backend == backend)/.is_none_or(|backend| event.backend == backend)/' telemetry/daemon/src/main.rs
           git diff --check
           grep -F '.is_none_or(|backend| event.backend == backend)' telemetry/daemon/src/main.rs
           git config user.name "github-actions[bot]"
