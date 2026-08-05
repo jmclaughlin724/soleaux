@@ -55,7 +55,7 @@ jobs:
           grep -F 'continuation cursor does not match the current request' native/daemon/mcp/src/cursor.rs
           grep -F 'continuation cursor snapshot is stale' native/daemon/mcp/src/cursor.rs
           grep -F 'memory_content_truncated' native/daemon/mcp/src/memory.rs
-          grep -F 'memory_scope_unavailable' native/daemon/mcp/src/memory.rs
+          grep -F 'memory_scope_not_attached' native/daemon/mcp/src/memory.rs
           grep -F 'coverage_complete' native/daemon/mcp/src/lib.rs
           grep -F 'pub const HARD_CEILING: usize = 12;' native/daemon/mcp/src/profile.rs
           grep -F 'pub const PRODUCTION_CLAIM_ALLOWED: bool = false;' native/daemon/mcp/src/profile.rs
@@ -109,7 +109,7 @@ jobs:
               'requestBinding': 'continuation cursor does not match the current request' in cursor,
               'snapshotBinding': 'continuation cursor snapshot is stale' in cursor,
               'typedMemoryGap': 'memory_content_truncated' in memory,
-              'missingScopeGap': 'memory_scope_unavailable' in memory,
+              'missingScopeGap': 'memory_scope_not_attached' in memory,
               'truthfulCoverage': 'coverage_complete' in server,
               'storageSnapshot': 'snapshot_id' in storage,
           }
