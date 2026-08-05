@@ -42,6 +42,7 @@ jobs:
           python3 -m py_compile .ci/apply-p4-026-storage.py
           python3 .ci/apply-p4-026-storage.py
           cargo fmt --manifest-path native/Cargo.toml --all
+          git diff --check
 
       - name: Validate storage and complete native workspace
         working-directory: native
