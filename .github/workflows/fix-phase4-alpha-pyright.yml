@@ -1,0 +1,71 @@
+name: Repair Phase 4 alpha Pyright typing
+
+on:
+  push:
+    branches:
+      - release/phase4-unsigned-alpha-main-0.4.0-dev.5
+    paths:
+      - .github/workflows/fix-phase4-alpha-pyright.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-phase4-alpha-pyright-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Repair the conflicting local type and validate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/build_unsigned_alpha.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    for node in node_values:
+        dependencies = sorted(
+            id_to_key[str(value)] for value in cast(list[Any], node.get("dependencies", []))
+        )
+'''
+          new = '''    for node in node_values:
+        node_dependencies = sorted(
+            id_to_key[str(value)] for value in cast(list[Any], node.get("dependencies", []))
+        )
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'node dependency declaration drifted: {text.count(old)}')
+          text = text.replace(old, new, 1)
+          old_use = '                "dependencies": dependencies,\n                "dependencyEdges": dependency_edges,\n'
+          new_use = '                "dependencies": node_dependencies,\n                "dependencyEdges": dependency_edges,\n'
+          if text.count(old_use) != 1:
+              raise SystemExit(f'node dependency use drifted: {text.count(old_use)}')
+          path.write_text(text.replace(old_use, new_use, 1), encoding='utf-8')
+          PY
+          uv sync --locked
+          uv run --locked ruff check --fix scripts/build_unsigned_alpha.py scripts/smoke_unsigned_alpha.py
+          uv run --locked ruff format scripts/build_unsigned_alpha.py scripts/smoke_unsigned_alpha.py
+          uv run --locked ruff check scripts/build_unsigned_alpha.py scripts/smoke_unsigned_alpha.py
+          uv run --locked ruff format --check scripts/build_unsigned_alpha.py scripts/smoke_unsigned_alpha.py
+          uv run --locked pyright scripts/build_unsigned_alpha.py scripts/smoke_unsigned_alpha.py
+          python3 -m py_compile scripts/build_unsigned_alpha.py scripts/smoke_unsigned_alpha.py
+
+      - name: Commit validated permanent source
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/build_unsigned_alpha.py scripts/smoke_unsigned_alpha.py
+          git diff --cached --check
+          git commit -m 'fix(alpha): separate Cargo node dependency typing'
+          git push origin HEAD:${{ github.ref_name }}
