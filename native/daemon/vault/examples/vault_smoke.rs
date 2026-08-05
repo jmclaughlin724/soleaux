@@ -78,9 +78,7 @@ fn main() -> Result<()> {
     let mut tampered = raw_after_rotation.clone();
     tampered[last] ^= 0x40;
     fs::write(&descriptor.storage_path, &tampered)?;
-    let tamper_rejected = vault
-        .read(workspace_id, &descriptor.content_hash)
-        .is_err();
+    let tamper_rejected = vault.read(workspace_id, &descriptor.content_hash).is_err();
     fs::write(&descriptor.storage_path, &raw_after_rotation)?;
     if !tamper_rejected {
         bail!("tampered artifact was not rejected");
