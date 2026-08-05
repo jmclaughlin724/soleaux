@@ -1,0 +1,279 @@
+name: Verify P4-024 typed PostgreSQL results on current mainline
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - native/**
+      - .github/workflows/verify-p4-024-main-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-p4-024-main-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  exact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema xz-utils
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Verify exact source, locked identity, and typed SQL ownership
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test ! -e .ci/apply-p4-024-clean.py
+          test ! -e .github/workflows/apply-p4-024-clean.yml
+          grep -F 'pub errors: Vec<String>' native/daemon/intelligence/src/lib.rs
+          grep -F 'valid: false' native/daemon/intelligence/src/lib.rs
+          grep -F 'verified_validation_result' native/daemon/mcp/src/lib.rs
+          grep -F 'invalid_postgres_sql_returns_a_successful_typed_validation_result' native/daemon/mcp/src/lib.rs
+          grep -F 'pub const HARD_CEILING: usize = 12;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCTION_CLAIM_ALLOWED: bool = false;' native/daemon/mcp/src/profile.rs
+          grep -F 'pub const PRODUCT_VERSION: &str = "0.4.0-dev.5";' native/daemon/mcp/src/profile.rs
+          echo '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc  native/contracts/unified-mcp-profile-v2.json' | sha256sum -c -
+          echo '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f  native/contracts/context-packet-v2.schema.json' | sha256sum -c -
+
+      - name: Complete native build and regression gate
+        working-directory: native
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-intelligence --all-features --locked postgres_analysis | tee ../evidence/postgres-intelligence-tests.txt
+          cargo test -p soleaux-mcp --all-features --locked postgres_sql | tee ../evidence/postgres-mcp-tests.txt
+          cargo test -p soleaux-mcp --all-features --locked explicit_substitution | tee ../evidence/substitution-tests.txt
+          cargo test --workspace --all-features --locked | tee ../evidence/native-workspace-tests.txt
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --version | tee ../evidence/soleaux-version.txt
+          ./target/release/soleauxd --version | tee ../evidence/soleauxd-version.txt
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . ../evidence/phase1-mcp-smoke.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . ../evidence/phase2-capability-smoke.json
+          cp target/release/soleaux ../evidence/soleaux
+          cp target/release/soleauxd ../evidence/soleauxd
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings | tee ../evidence/cargo-audit.txt
+
+      - name: Execute valid, invalid, and input-failure PostgreSQL MCP smoke
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee evidence/p4-024-postgres-smoke.json
+          from __future__ import annotations
+
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import tempfile
+          from typing import Any
+
+          class Mcp:
+              def __init__(self, argv: list[str], env: dict[str, str]) -> None:
+                  self.process = subprocess.Popen(
+                      argv,
+                      stdin=subprocess.PIPE,
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                      text=True,
+                      bufsize=1,
+                      env=env,
+                  )
+                  assert self.process.stdin is not None
+                  assert self.process.stdout is not None
+                  self.stdin = self.process.stdin
+                  self.stdout = self.process.stdout
+                  self.next_id = 1
+
+              def call(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+                  request_id = self.next_id
+                  self.next_id += 1
+                  request: dict[str, Any] = {
+                      'jsonrpc': '2.0',
+                      'id': request_id,
+                      'method': method,
+                  }
+                  if params is not None:
+                      request['params'] = params
+                  self.stdin.write(json.dumps(request, separators=(',', ':')) + '\n')
+                  self.stdin.flush()
+                  line = self.stdout.readline()
+                  if not line:
+                      stderr = self.process.stderr.read() if self.process.stderr is not None else ''
+                      raise AssertionError(f'MCP stopped before response: {stderr}')
+                  response = json.loads(line)
+                  assert response.get('id') == request_id, response
+                  if 'error' in response:
+                      raise AssertionError(response)
+                  return response['result']
+
+              def tool(self, name: str, arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+                  result = self.call('tools/call', {'name': name, 'arguments': arguments})
+                  return result['structuredContent'], bool(result['isError'])
+
+              def close(self) -> None:
+                  self.stdin.close()
+                  code = self.process.wait(timeout=20)
+                  stderr = self.process.stderr.read() if self.process.stderr is not None else ''
+                  if code != 0:
+                      raise AssertionError(f'MCP exited {code}: {stderr}')
+
+          def assert_success_envelope(value: dict[str, Any], source: str) -> None:
+              assert value['schema_version'] == 'soleaux.mcp/v2'
+              assert value['product_version'] == '0.4.0-dev.5'
+              assert value['source'] == source
+              assert value['status'] == 'ok'
+              assert value['error'] is None
+              assert value['data'] is not None
+
+          binary = pathlib.Path('native/target/release/soleaux').resolve()
+          with tempfile.TemporaryDirectory(prefix='soleaux-p4-024-workspace-') as workspace, tempfile.TemporaryDirectory(prefix='soleaux-p4-024-home-') as home:
+              root = pathlib.Path(workspace)
+              (root / 'README.md').write_text('postgres validation fixture\n', encoding='utf-8')
+              env = dict(os.environ)
+              env['SOLEAUX_HOME'] = home
+              mcp = Mcp([
+                  str(binary),
+                  'serve',
+                  str(root),
+                  '--substitute',
+                  'restart_lsp=parse_and_validate_postgres_sql',
+              ], env)
+              initialize = mcp.call('initialize', {'protocolVersion': '2026-07-28'})
+              assert initialize['protocolVersion'] == '2026-07-28'
+              tools = mcp.call('tools/list')['tools']
+              names = [tool['name'] for tool in tools]
+              assert len(names) == 12
+              assert names[-1] == 'parse_and_validate_postgres_sql'
+              assert 'restart_lsp' not in names
+
+              valid, valid_error = mcp.tool(
+                  'parse_and_validate_postgres_sql',
+                  {'sql': 'select u.id from public.users u'},
+              )
+              assert not valid_error
+              assert_success_envelope(valid, 'parse_and_validate_postgres_sql')
+              assert valid['data']['valid'] is True
+              assert valid['data']['errors'] == []
+              assert valid['trust'] == 'verified_sql_structure'
+
+              invalid, invalid_error = mcp.tool(
+                  'parse_and_validate_postgres_sql',
+                  {'sql': 'select from where'},
+              )
+              assert not invalid_error
+              assert_success_envelope(invalid, 'parse_and_validate_postgres_sql')
+              assert invalid['data']['valid'] is False
+              assert invalid['data']['statement_count'] == 0
+              assert invalid['data']['errors']
+              assert invalid['trust'] == 'verified_validation_result'
+
+              missing, missing_error = mcp.tool('parse_and_validate_postgres_sql', {})
+              assert missing_error
+              assert missing['status'] == 'error'
+              mcp.close()
+
+              result = {
+                  'schemaVersion': 'soleaux.p4-024-smoke/v1',
+                  'sourceCommit': os.environ['SOURCE_COMMIT'],
+                  'toolCount': len(names),
+                  'validSql': {
+                      'status': valid['status'],
+                      'valid': valid['data']['valid'],
+                      'trust': valid['trust'],
+                  },
+                  'invalidSql': {
+                      'status': invalid['status'],
+                      'valid': invalid['data']['valid'],
+                      'errorCount': len(invalid['data']['errors']),
+                      'trust': invalid['trust'],
+                  },
+                  'missingInputIsToolError': bool(missing_error),
+                  'productionClaimAllowed': False,
+                  'status': 'pass',
+              }
+              print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Validate repository documentation
+        run: python3 scripts/check_documentation_consistency.py
+
+      - name: Write exact-head receipt and checksummed evidence
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          printf '%s\n' "$SOURCE_COMMIT" > evidence/SOURCE_COMMIT
+          printf '%s\n' "$GITHUB_RUN_ID" > evidence/WORKFLOW_RUN_ID
+          sha256sum native/contracts/unified-mcp-profile-v2.json > evidence/PROFILE-CONTRACT-SHA256.txt
+          sha256sum native/contracts/context-packet-v2.schema.json > evidence/CONTEXT-CONTRACT-SHA256.txt
+          git archive --format=tar "$SOURCE_COMMIT" | xz -T0 -9 > evidence/soleaux-p4-024-source.tar.xz
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = {
+              'schemaVersion': 'soleaux.phase4-task-receipt/v1',
+              'task': 'P4-024',
+              'sourceCommit': os.environ['SOURCE_COMMIT'],
+              'workflowRunId': int(os.environ['GITHUB_RUN_ID']),
+              'conclusion': 'success',
+              'version': '0.4.0-dev.5',
+              'productionClaimAllowed': False,
+              'publicToolCeiling': 12,
+              'validSqlIsTypedSuccess': True,
+              'invalidSqlIsTypedSuccess': True,
+              'missingRequiredInputIsToolError': True,
+              'lockedContracts': {
+                  'unifiedMcpProfileSha256': '89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc',
+                  'contextPacketV2Sha256': '3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f',
+              },
+          }
+          Path('evidence/P4-024-NATIVE-GATE-RECEIPT.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          (
+            cd evidence
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-p4-024-main-${{ env.SOURCE_COMMIT }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
