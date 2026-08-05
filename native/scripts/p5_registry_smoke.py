@@ -50,9 +50,7 @@ def start_daemon(
             return process
         if process.poll() is not None:
             stdout, stderr = process.communicate(timeout=5)
-            raise RuntimeError(
-                f"soleauxd exited before creating IPC endpoint: {stdout}\n{stderr}"
-            )
+            raise RuntimeError(f"soleauxd exited before creating IPC endpoint: {stdout}\n{stderr}")
         time.sleep(0.025)
     process.kill()
     stdout, stderr = process.communicate(timeout=5)
@@ -71,9 +69,7 @@ def stop_daemon(cli: Path, process: subprocess.Popen[str], env: dict[str, str]) 
 
 def main() -> int:
     if len(sys.argv) != 5:
-        raise SystemExit(
-            "usage: p5_registry_smoke.py SOLEAUX SOLEAUXD REPOSITORY OUTPUT_JSON"
-        )
+        raise SystemExit("usage: p5_registry_smoke.py SOLEAUX SOLEAUXD REPOSITORY OUTPUT_JSON")
     cli = Path(sys.argv[1]).resolve()
     daemon = Path(sys.argv[2]).resolve()
     repository = Path(sys.argv[3]).resolve()
