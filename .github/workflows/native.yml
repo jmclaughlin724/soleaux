@@ -52,6 +52,8 @@ jobs:
         run: python3 scripts/phase1_mcp_smoke.py target/release/soleaux . /tmp/phase1-smoke.json
       - name: Capability smoke
         run: python3 scripts/phase2_capability_smoke.py target/release/soleaux target/release/soleauxd . /tmp/phase2-smoke.json
+      - name: Per-user workspace/client registry smoke
+        run: python3 scripts/p5_registry_smoke.py target/release/soleaux target/release/soleauxd . /tmp/p5-registry-smoke.json
       - run: cargo audit --deny warnings
 
   macos:
@@ -81,3 +83,4 @@ jobs:
           python3 -m pip install --user --break-system-packages jsonschema
           python3 scripts/phase1_mcp_smoke.py target/release/soleaux . /tmp/phase1-smoke.json
           python3 scripts/phase2_capability_smoke.py target/release/soleaux target/release/soleauxd . /tmp/phase2-smoke.json
+          python3 scripts/p5_registry_smoke.py target/release/soleaux target/release/soleauxd . /tmp/p5-registry-smoke.json
