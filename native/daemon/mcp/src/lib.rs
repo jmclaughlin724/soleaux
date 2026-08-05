@@ -936,12 +936,17 @@ impl PublicMcpServer {
             "fingerprint": analysis.fingerprint,
             "relations": analysis.relations,
             "statement_count": analysis.statement_count,
-            "errors": [],
+            "errors": analysis.errors,
             "engine": analysis.engine,
             "engine_version": analysis.engine_version,
         });
         let mut metadata = SuccessMetadata::repository(OPTIONAL_POSTGRES, "pg_query/libpg_query");
-        metadata.trust = "verified_sql_structure".to_string();
+        metadata.trust = if analysis.valid {
+            "verified_sql_structure"
+        } else {
+            "verified_validation_result"
+        }
+        .to_string();
         metadata.cache_status = "live".to_string();
         Ok(ToolEnvelopeV2::success(
             self.workspace_id(),
@@ -2705,6 +2710,42 @@ mod tests {
         assert_eq!(names.len(), 12);
         assert_eq!(names[11], OPTIONAL_POSTGRES);
         assert!(!names.contains(&"restart_lsp".to_string()));
+    }
+
+    #[tokio::test]
+    async fn invalid_postgres_sql_returns_a_successful_typed_validation_result() {
+        let temp = tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname='fixture'\nversion='0.1.0'\n",
+        )
+        .expect("fixture");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server")
+            .substitute_tool("restart_lsp", OPTIONAL_POSTGRES)
+            .expect("substitution");
+        server.prepare().await.expect("prepare");
+        let envelope = server
+            .call_async(OPTIONAL_POSTGRES, &json!({"sql":"select from where"}))
+            .await
+            .expect("typed validation result");
+        assert_eq!(envelope.status, "ok");
+        assert_eq!(
+            envelope.data.get("valid").and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            envelope.data.get("statement_count").and_then(Value::as_u64),
+            Some(0)
+        );
+        assert!(
+            envelope
+                .data
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        );
+        assert_eq!(envelope.trust, "verified_validation_result");
     }
 
     #[tokio::test]
