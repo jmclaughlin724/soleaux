@@ -57,3 +57,5 @@ jobs:
           git diff --cached --check
           git commit -m 'fix(provisioning): make adopt attach and revert transactional'
           git push origin HEAD:${{ github.ref_name }}
+
+# Retry marker: repaired the current provisioning path-admission signature.
