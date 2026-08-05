@@ -1,0 +1,96 @@
+name: Reconcile exact-gated vault with service and CLI source
+
+on:
+  push:
+    branches:
+      - feat/service-cli-p4-014-p4-015-main-0.4.0-dev.5
+    paths:
+      - .github/workflows/reconcile-service-cli-main.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-service-cli-main-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Merge current main and resolve only combined workspace metadata
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          set +e
+          git merge --no-ff --no-commit origin/main
+          MERGE_CODE=$?
+          set -e
+          if [ "$MERGE_CODE" -ne 0 ]; then
+            CONFLICTS="$(git diff --name-only --diff-filter=U | sort)"
+            EXPECTED="$(printf '%s\n' native/Cargo.lock native/Cargo.toml | sort)"
+            test "$CONFLICTS" = "$EXPECTED"
+            git checkout --ours native/Cargo.toml native/Cargo.lock
+            python3 - <<'PY'
+            from pathlib import Path
+
+            path = Path('native/Cargo.toml')
+            text = path.read_text(encoding='utf-8')
+            marker = '  "daemon/state",\n  "daemon/ipc",'
+            replacement = '  "daemon/state",\n  "daemon/vault",\n  "daemon/ipc",'
+            if text.count(marker) != 2:
+                raise SystemExit(f'combined workspace marker drifted: {text.count(marker)}')
+            path.write_text(text.replace(marker, replacement), encoding='utf-8')
+            PY
+            git add native/Cargo.toml
+          fi
+          cargo fmt --manifest-path native/Cargo.toml --all
+          cargo check --manifest-path native/Cargo.toml --workspace --all-targets --all-features
+          git add -A
+          git diff --cached --check
+
+      - name: Validate the combined vault, IPC, CLI, state, and native workspace
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-vault --all-features --locked
+          cargo test -p soleaux-ipc --all-features --locked
+          cargo test -p soleaux-state --all-features --locked
+          cargo test --workspace --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+          cargo audit --deny warnings
+
+      - name: Commit the validated dependency merge
+        run: |
+          set -euo pipefail
+          rm .github/workflows/reconcile-service-cli-main.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Merge exact-gated P4-013 into service and CLI branch'
+          git push origin HEAD:${{ github.ref_name }}
