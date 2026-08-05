@@ -17,7 +17,7 @@ concurrency:
 jobs:
   apply:
     runs-on: ubuntu-24.04
-    timeout-minutes: 105
+    timeout-minutes: 115
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,6 +54,9 @@ jobs:
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
           cargo test -p soleaux-vault --all-features --locked
           cargo test --workspace --all-features --locked
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
           cargo audit --deny warnings
 
       - name: Commit compiler-proven normal source
