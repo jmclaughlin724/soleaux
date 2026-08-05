@@ -61,6 +61,45 @@ pub const PUBLIC_ROOT_TOOL_COUNT: usize = profile::HARD_CEILING;
 pub const PUBLIC_ROOT_TOOL_MAX: usize = profile::HARD_CEILING;
 pub const MAX_RESULT_BYTES: usize = 256 * 1024;
 
+#[cfg(test)]
+pub(crate) mod test_environment {
+    use std::{
+        ffi::OsString,
+        path::Path,
+        sync::{Mutex, MutexGuard},
+    };
+
+    static SOLEAUX_HOME_LOCK: Mutex<()> = Mutex::new(());
+
+    pub struct SoleauxHomeGuard {
+        previous: Option<OsString>,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl SoleauxHomeGuard {
+        pub fn set(path: &Path) -> Self {
+            let lock = SOLEAUX_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let previous = std::env::var_os("SOLEAUX_HOME");
+            unsafe { std::env::set_var("SOLEAUX_HOME", path) };
+            Self {
+                previous,
+                _lock: lock,
+            }
+        }
+    }
+
+    impl Drop for SoleauxHomeGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => unsafe { std::env::set_var("SOLEAUX_HOME", value) },
+                None => unsafe { std::env::remove_var("SOLEAUX_HOME") },
+            }
+        }
+    }
+}
+
 pub const OPTIONAL_POSTGRES: &str = "parse_and_validate_postgres_sql";
 pub const OPTIONAL_TURBOREPO: &str = "turborepo.packages";
 pub const OPTIONAL_NEXTJS: &str = "next.get_routes";

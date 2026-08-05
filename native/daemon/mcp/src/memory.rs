@@ -9,7 +9,7 @@ use ignore::WalkBuilder;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -542,7 +542,7 @@ mod tests {
     fn memory_pages_are_disjoint_and_cursor_is_request_bound() {
         let root = tempdir().expect("root");
         let home = tempdir().expect("home");
-        unsafe { std::env::set_var("SOLEAUX_HOME", home.path()) };
+        let _home_guard = crate::test_environment::SoleauxHomeGuard::set(home.path());
         let memory = root.path().join(".soleaux/sessions");
         fs::create_dir_all(&memory).expect("memory root");
         for index in 0..3 {
@@ -592,7 +592,7 @@ mod tests {
     fn memory_reports_missing_scope_and_content_truncation() {
         let root = tempdir().expect("root");
         let home = tempdir().expect("home");
-        unsafe { std::env::set_var("SOLEAUX_HOME", home.path()) };
+        let _home_guard = crate::test_environment::SoleauxHomeGuard::set(home.path());
         let memory = root.path().join(".soleaux/sessions");
         fs::create_dir_all(&memory).expect("memory root");
         fs::write(
