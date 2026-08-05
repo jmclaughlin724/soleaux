@@ -1,0 +1,40 @@
+name: Format P5 registry smoke
+
+on:
+  push:
+    branches:
+      - agent/p5-001-workspace-client-registry
+    paths:
+      - .github/workflows/format-p5-registry-smoke.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Apply the repository's pinned Ruff formatter
+        run: |
+          set -euo pipefail
+          uv sync --locked
+          uv run --locked ruff check --fix native/scripts/p5_registry_smoke.py
+          uv run --locked ruff format native/scripts/p5_registry_smoke.py
+          uv run --locked ruff check native/scripts/p5_registry_smoke.py
+          uv run --locked ruff format --check native/scripts/p5_registry_smoke.py
+
+      - name: Commit formatter output only
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add native/scripts/p5_registry_smoke.py
+          git diff --cached --check
+          git commit -m 'style: format P5 registry smoke'
+          git push origin HEAD:${{ github.ref_name }}
