@@ -36,7 +36,7 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - name: Apply editor integration
+      - name: Apply Clippy-clean editor integration
         run: |
           set -euo pipefail
           python3 -m py_compile .ci/apply-p4-026-editor.py
