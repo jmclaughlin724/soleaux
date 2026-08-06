@@ -1,0 +1,94 @@
+name: Apply P5 client capability matrix integration
+
+on:
+  push:
+    branches:
+      - agent/p5-002-p5-006-client-capability-matrices
+    paths:
+      - .ci/p5-client-matrix-payload.part*
+      - .github/workflows/p5-client-matrix-implementation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p5-client-matrix-implementation
+  cancel-in-progress: true
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.11.28
+          enable-cache: true
+
+      - name: Apply exact source integration
+        run: |
+          set -euo pipefail
+          cat .ci/p5-client-matrix-payload.part* > /tmp/p5-client-matrix-apply.py
+          echo '10e2fdbc1d3f310f0a6bb442b0e4f84afa6f2f64b3af6ed214e3d32a02834bba  /tmp/p5-client-matrix-apply.py' | sha256sum -c -
+          python3 -m py_compile /tmp/p5-client-matrix-apply.py
+          python3 /tmp/p5-client-matrix-apply.py
+          cargo fmt --manifest-path native/Cargo.toml --all
+          uvx --from ruff==0.15.22 ruff format \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          python3 native/scripts/validate_client_capability_matrix.py \
+            --matrix native/contracts/client-capability-matrix-v1.json \
+            --output /tmp/client-capability-matrix-validation.json
+          git diff --check
+
+      - name: Validate the matrix owner and exact compatibility gate
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo check -p soleaux-ipc --all-targets --locked
+          cargo clippy -p soleaux-ipc --all-targets --locked -- -D warnings
+          cargo test -p soleaux-ipc --locked
+
+      - name: Commit only normal product source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            .github/workflows/client-capability-matrix.yml \
+            docs/testing/CLIENT-CAPABILITY-MATRIX.md \
+            native/contracts/client-capability-matrix-v1.json \
+            native/daemon/ipc/Cargo.toml \
+            native/daemon/ipc/src/compatibility.rs \
+            native/daemon/ipc/src/lib.rs \
+            native/daemon/ipc/src/registry.rs \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/p5_client_matrix_smoke.py
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only -- .ci .github/workflows/p5-client-matrix-implementation.yml)"
+          git commit -m 'feat: add exact client capability matrices and safe-mode probes'
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${GITHUB_REF_NAME}"
+
+      - name: Upload integration validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: p5-client-matrix-integration-${{ github.run_id }}
+          path: /tmp/client-capability-matrix-validation.json
+          if-no-files-found: error
+          retention-days: 30
