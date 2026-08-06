@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -50,5 +51,15 @@ validator = replace_once(
     "OpenCode URL parser",
 )
 validator_path.write_text(validator, encoding="utf-8")
+
+matrix_path = Path("native/contracts/client-capability-matrix-v1.json")
+matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+for platform in matrix["platforms"]:
+    if platform["id"] != "codex":
+        continue
+    for source in platform["sources"]:
+        if source.get("url") == "https://registry.npmjs.org/@openai/codex/latest":
+            source["url"] = "https://registry.npmjs.org/@openai/codex/0.146.1"
+matrix_path.write_text(json.dumps(matrix, indent=2) + "\n", encoding="utf-8")
 
 print("generated PR38 probe sources repaired")
