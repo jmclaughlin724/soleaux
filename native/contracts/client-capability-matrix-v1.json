@@ -1,6 +1,7 @@
 {
   "asOfDate": "2026-08-06",
   "clientProtocolVersion": "soleaux.client/v1",
+  "externalRuntimeWriteAdmission": "disabled_until_daemon_trusted_receipt_verifier",
   "platforms": [
     {
       "capabilities": {
@@ -33,7 +34,7 @@
           ".claude/skills",
           "plugin_skills"
         ],
-        "writePolicy": "read_only_until_authenticated_runtime_probe"
+        "writePolicy": "read_only_until_authenticated_adapter_receipt"
       },
       "clientKind": "adapter",
       "displayName": "Claude Code",
@@ -58,7 +59,11 @@
         },
         {
           "type": "official_package",
-          "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/latest"
+          "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.223"
+        },
+        {
+          "type": "official_package_tarball",
+          "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.223.tgz"
         }
       ],
       "task": "P5-002",
@@ -78,7 +83,14 @@
             ]
           },
           "mutationEligible": false,
-          "releaseChannel": "npm-latest-observed-2026-08-06",
+          "packageArtifact": {
+            "integrity": "sha512-t6la5i6TP8p/zf6QlZjwzpMKM3kCty6aGRv6opeOnMVnJRcVuchPWSPgcdZZdvE82Alk4xbJ83XQXGOj6F4mlA==",
+            "package": "@anthropic-ai/claude-code",
+            "shasum": "a05d73e01e71d5a68708d30421b9945b41a15641",
+            "tarball": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.223.tgz",
+            "version": "2.1.223"
+          },
+          "releaseChannel": "npm-exact-immutable",
           "requiredBinarySignals": [
             "version",
             "help",
@@ -171,7 +183,7 @@
           "experimental_websocket",
           "unix_socket"
         ],
-        "writePolicy": "read_only_until_authenticated_app_server_probe"
+        "writePolicy": "read_only_until_authenticated_adapter_receipt"
       },
       "clientKind": "adapter",
       "displayName": "Codex CLI and desktop app-server",
@@ -188,7 +200,11 @@
         },
         {
           "type": "official_package",
-          "url": "https://registry.npmjs.org/@openai/codex/latest"
+          "url": "https://registry.npmjs.org/@openai/codex/0.146.1"
+        },
+        {
+          "type": "official_package_tarball",
+          "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.146.1.tgz"
         },
         {
           "type": "official_release",
@@ -212,7 +228,14 @@
             ]
           },
           "mutationEligible": false,
-          "releaseChannel": "npm-and-github-stable",
+          "packageArtifact": {
+            "integrity": "sha512-f51R56E/G15soLhf5l5pWUiM+mGHK0NdLozOtzjRoAa+bA20hgWrkyxE/fpwCnuGQM6XNdktHYtK9xQ7bPIbTA==",
+            "package": "@openai/codex",
+            "shasum": "016c49faa4bfa60801f3a5949ae42c4d4e095411",
+            "tarball": "https://registry.npmjs.org/@openai/codex/-/codex-0.146.1.tgz",
+            "version": "0.146.1"
+          },
+          "releaseChannel": "npm-and-github-exact",
           "requiredBinarySignals": [
             "version",
             "help",
@@ -253,7 +276,7 @@
           "openapi",
           "server_sent_events"
         ],
-        "writePolicy": "read_only_until_authenticated_http_sse_probe"
+        "writePolicy": "read_only_until_authenticated_adapter_receipt"
       },
       "clientKind": "adapter",
       "displayName": "OpenCode",
@@ -302,7 +325,7 @@
             "url": "https://github.com/anomalyco/opencode/releases/download/v1.18.14/opencode-linux-x64.tar.gz"
           },
           "mutationEligible": false,
-          "releaseChannel": "github-stable",
+          "releaseChannel": "github-exact",
           "requiredBinarySignals": [
             "version",
             "help",
@@ -378,7 +401,7 @@
         "transport": [
           "stdio_jsonrpc"
         ],
-        "writePolicy": "read_write_only_with_exact_matrix_bound_probe"
+        "writePolicy": "read_only_until_daemon_issued_authenticated_adapter_receipt"
       },
       "clientKind": "adapter",
       "displayName": "Generic MCP host conformance fixture",
@@ -407,14 +430,14 @@
       "versions": [
         {
           "binaryCommands": {},
-          "mutationEligible": true,
+          "mutationEligible": false,
           "releaseChannel": "locked_conformance_protocol",
           "requiredBinarySignals": [
             "initialize",
             "tools_list",
             "context_compile",
             "registry_registration",
-            "read_write_binding",
+            "read_only_binding",
             "tool_ceiling"
           ],
           "version": "mcp-2025-11-25"
