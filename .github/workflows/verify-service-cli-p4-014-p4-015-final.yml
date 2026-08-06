@@ -1,3 +1,4 @@
+# P5-001 normalized-source validation trigger
 name: Verify stable CLI and per-user daemon P4-014 P4-015
 
 on:
