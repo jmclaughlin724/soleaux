@@ -49,7 +49,7 @@ jobs:
           test ! -e .ci/apply-canonical-state-repairs.py
           test ! -e .github/workflows/apply-canonical-state-p4-010-p4-012.yml
           grep -F '"daemon/state"' native/Cargo.toml
-          grep -F 'pub const SCHEMA_VERSION: i64 = 1;' native/daemon/state/src/database.rs
+          grep -F 'pub const SCHEMA_VERSION: i64 = 2;' native/daemon/state/src/database.rs
           grep -F 'pub enum EntityKind' native/daemon/state/src/model.rs
           grep -F 'pub struct SessionPayload' native/daemon/state/src/model.rs
           grep -F 'pub struct MemoryClaimPayload' native/daemon/state/src/model.rs
@@ -63,6 +63,7 @@ jobs:
           grep -F 'CREATE TABLE state_audit' native/daemon/state/src/database.rs
           grep -F 'VACUUM INTO ?1' native/daemon/state/src/database.rs
           grep -F 'newer than supported schema' native/daemon/state/src/database.rs
+          grep -F 'canonical_schema_one_migrates_to_registry_schema_two' native/daemon/state/src/tests.rs
           grep -F 'operation_leases_have_one_winner_recovery_and_exact_result_replay' native/daemon/state/src/tests.rs
           grep -F 'backup_restore_export_and_repair_preserve_integrity' native/daemon/state/src/tests.rs
           grep -F 'pub const HARD_CEILING: usize = 12;' native/daemon/mcp/src/profile.rs
@@ -109,7 +110,7 @@ jobs:
           root = pathlib.Path('evidence/canonical-smoke')
           report = json.loads((root / 'canonical-state-smoke.json').read_text(encoding='utf-8'))
           assert report['schemaVersion'] == 'soleaux.canonical-state-smoke/v1'
-          assert report['databaseSchemaVersion'] == 1
+          assert report['databaseSchemaVersion'] == 2
           assert report['status'] == 'pass'
           assert report['auditChainValid'] is True
           assert report['entityCount'] == 2
@@ -161,7 +162,7 @@ jobs:
               ).fetchone()
               connection.close()
               assert integrity == 'ok'
-              assert schema_version == 1
+              assert schema_version == 2
               assert not foreign_key_violations
               assert expected_tables.issubset(tables)
               assert entity_count == 2
@@ -215,8 +216,8 @@ jobs:
               'version': '0.4.0-dev.5',
               'productionClaimAllowed': False,
               'publicToolCeiling': 12,
-              'canonicalStateSchemaVersion': 1,
-              'canonicalEntityKinds': 17,
+              'canonicalStateSchemaVersion': 2,
+              'canonicalEntityKinds': 20,
               'serializedWriter': True,
               'readOnlyConnections': True,
               'optimisticRevisions': True,
