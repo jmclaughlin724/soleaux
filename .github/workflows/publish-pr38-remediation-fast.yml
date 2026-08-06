@@ -1,0 +1,130 @@
+name: Publish fail-closed PR38 remediation
+
+on:
+  push:
+    branches:
+      - automation/pr38-remediation-final
+    paths:
+      - .github/workflows/publish-pr38-remediation-fast.yml
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: agent/p5-002-p5-006-client-capability-matrices
+  EXPECTED_TARGET: 42d2b7808182ac0da9a478d395f00f3a2c55f4a8
+  CARRIER_SHA256: 114dc26a7f1294f9b16a18b9b0c83eb47b9154569e53c4e5060bb75874f87666
+  GZIP_SHA256: 92dc1eeb49d307b1a2da4a955bf884d6c7df35e1e2dc66d81349fbb050bd6842
+  SCRIPT_SHA256: e7e6b6bcef55fcb8cf671be48835b004cdfb8267319a18c99f9c0c3e2c2a89cb
+
+concurrency:
+  group: publish-pr38-remediation-fast
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - name: Clone exact automation and target source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --no-tags \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          git checkout "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse refs/remotes/origin/${TARGET_BRANCH})" = "${EXPECTED_TARGET}"
+
+      - name: Install pinned Python validation tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pip python3-pytest python3-yaml
+          python3 -m pip install --user ruff==0.15.22
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Validate and publish exact normal source
+        working-directory: repo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cat .ci/pr38-remediation.part0[0-5] > /tmp/pr38-remediation.py.gz.b64
+          test "$(wc -c < /tmp/pr38-remediation.py.gz.b64)" = "47900"
+          echo "${CARRIER_SHA256}  /tmp/pr38-remediation.py.gz.b64" | sha256sum -c -
+          base64 -d /tmp/pr38-remediation.py.gz.b64 > /tmp/pr38-remediation.py.gz
+          echo "${GZIP_SHA256}  /tmp/pr38-remediation.py.gz" | sha256sum -c -
+          gzip -dc /tmp/pr38-remediation.py.gz > /tmp/pr38-remediation.py
+          echo "${SCRIPT_SHA256}  /tmp/pr38-remediation.py" | sha256sum -c -
+          python3 -m py_compile /tmp/pr38-remediation.py
+          python3 /tmp/pr38-remediation.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/test_client_capability_matrix.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'assert "observed=12.1.223" in result.stderr'
+          new = 'assert "observed=12.1.2230" in result.stderr'
+          if text.count(old) != 1:
+              raise SystemExit('exact-version regression assertion drifted')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          ruff check --fix \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          ruff format \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          ruff check \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          ruff format --check \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          python3 native/scripts/validate_client_capability_matrix.py --output /tmp/matrix.json
+          python3 -m pytest tests/test_client_capability_matrix.py -vv
+          python3 scripts/check_documentation_consistency.py
+          git diff --check
+
+          files=(
+            docs/testing/CLIENT-CAPABILITY-MATRIX.md
+            native/contracts/client-capability-matrix-v1.json
+            native/daemon/ipc/src/compatibility.rs
+            native/daemon/ipc/src/registry.rs
+            native/daemon/state/src/database.rs
+            native/daemon/state/src/store.rs
+            native/daemon/state/src/tests.rs
+            native/scripts/p5_client_matrix_smoke.py
+            native/scripts/probe_client_capabilities.py
+            native/scripts/validate_client_capability_matrix.py
+            tests/test_client_capability_matrix.py
+          )
+          tar -czf /tmp/pr38-overlay.tar.gz "${files[@]}"
+          git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+          test "$(git rev-parse refs/remotes/origin/${TARGET_BRANCH})" = "${EXPECTED_TARGET}"
+          git reset --hard "refs/remotes/origin/${TARGET_BRANCH}"
+          git clean -fdx
+          git checkout -B "${TARGET_BRANCH}" "refs/remotes/origin/${TARGET_BRANCH}"
+          tar -xzf /tmp/pr38-overlay.tar.gz
+          rm -f .ci/p5-client-review-fixes.py .ci/p5-client-wave2-hardening.py
+          chmod +x native/scripts/p5_client_matrix_smoke.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${files[@]}" .ci/p5-client-review-fixes.py .ci/p5-client-wave2-hardening.py
+          git diff --cached --check
+          git commit -m 'fix: make external client capability admission fail closed'
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${TARGET_BRANCH}"
