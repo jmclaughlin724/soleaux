@@ -63,7 +63,6 @@
   },
   "nextActions": [
     "Execute P5-002 through P5-006: live Claude Code, Claude Desktop, Codex, OpenCode, Cursor, and generic MCP-host capability matrices.",
-    "Execute P5-001: converge the installed service and workspace registry across concurrent CLI, desktop, editor, and adapter clients.",
     "Execute P5-007 through P5-020: canonical sessions/history/memory, materializers, signed handoffs, and durable run/subagent orchestration.",
     "Execute P5-021 through P5-029: intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.",
     "Validate anilize plus two approved design partners and close Phase 5 with exact evidence and independent verification.",
