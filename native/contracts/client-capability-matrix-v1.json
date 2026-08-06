@@ -1,0 +1,439 @@
+{
+  "asOfDate": "2026-08-06",
+  "clientProtocolVersion": "soleaux.client/v1",
+  "platforms": [
+    {
+      "capabilities": {
+        "agents": [
+          ".claude/agents",
+          "isolated_subagents"
+        ],
+        "hooks": [
+          "settings_hooks",
+          "plugin_hooks"
+        ],
+        "mcp": [
+          "project_mcp_json",
+          "user_mcp",
+          "managed_mcp"
+        ],
+        "memory": [
+          "CLAUDE.md",
+          "auto_memory"
+        ],
+        "rules": [
+          "CLAUDE.md",
+          ".claude/rules"
+        ],
+        "sessions": [
+          "native_resume",
+          "native_fork"
+        ],
+        "skills": [
+          ".claude/skills",
+          "plugin_skills"
+        ],
+        "writePolicy": "read_only_until_authenticated_runtime_probe"
+      },
+      "clientKind": "adapter",
+      "displayName": "Claude Code",
+      "id": "claude_code",
+      "probeMode": "binary_and_documentation",
+      "sources": [
+        {
+          "type": "official_docs",
+          "url": "https://code.claude.com/docs/en/features-overview"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://code.claude.com/docs/en/memory"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://code.claude.com/docs/en/sub-agents"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://code.claude.com/docs/en/hooks"
+        },
+        {
+          "type": "official_package",
+          "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/latest"
+        }
+      ],
+      "task": "P5-002",
+      "versionPolicy": "exact",
+      "versions": [
+        {
+          "binaryCommands": {
+            "help": [
+              "--help"
+            ],
+            "mcp": [
+              "mcp",
+              "--help"
+            ],
+            "version": [
+              "--version"
+            ]
+          },
+          "mutationEligible": false,
+          "releaseChannel": "npm-latest-observed-2026-08-06",
+          "requiredBinarySignals": [
+            "version",
+            "help",
+            "mcp"
+          ],
+          "version": "2.1.223"
+        }
+      ]
+    },
+    {
+      "capabilities": {
+        "connectors": [
+          "remote_mcp_custom_connectors",
+          "prebuilt_connectors"
+        ],
+        "exportImport": [
+          "account_data_export",
+          "chat_history_export"
+        ],
+        "localConfiguration": [
+          "desktop_extensions",
+          "supported_local_connectors"
+        ],
+        "sessions": [
+          "user_facing_conversation_history"
+        ],
+        "unsupportedDirectSurface": [
+          "hosted_session_crud",
+          "hosted_memory_crud"
+        ],
+        "writePolicy": "read_only_documented_surface"
+      },
+      "clientKind": "desktop",
+      "displayName": "Claude Desktop",
+      "id": "claude_desktop",
+      "probeMode": "documentation_contract",
+      "sources": [
+        {
+          "type": "official_help",
+          "url": "https://support.claude.com/en/articles/9450526-how-can-i-export-my-claude-data"
+        },
+        {
+          "type": "official_help",
+          "url": "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
+        },
+        {
+          "type": "official_help",
+          "url": "https://support.claude.com/en/articles/11175165-about-custom-integrations-using-remote-mcp"
+        }
+      ],
+      "task": "P5-003",
+      "versionPolicy": "supported_current",
+      "versions": [
+        {
+          "binaryCommands": {},
+          "mutationEligible": false,
+          "releaseChannel": "anthropic-supported-current",
+          "requiredBinarySignals": [],
+          "version": "supported-current"
+        }
+      ]
+    },
+    {
+      "capabilities": {
+        "approvals": [
+          "command_approval",
+          "file_change_approval"
+        ],
+        "apps": [
+          "apps_list"
+        ],
+        "instructions": [
+          "AGENTS.md",
+          "config_toml"
+        ],
+        "sessions": [
+          "thread_start",
+          "thread_resume",
+          "thread_fork",
+          "thread_list",
+          "thread_read",
+          "archive"
+        ],
+        "skills": [
+          "skills_list",
+          "skills_read"
+        ],
+        "transport": [
+          "jsonl_stdio",
+          "experimental_websocket",
+          "unix_socket"
+        ],
+        "writePolicy": "read_only_until_authenticated_app_server_probe"
+      },
+      "clientKind": "adapter",
+      "displayName": "Codex CLI and desktop app-server",
+      "id": "codex",
+      "probeMode": "binary_and_documentation",
+      "sources": [
+        {
+          "type": "official_source",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md"
+        },
+        {
+          "type": "official_source",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/README.md"
+        },
+        {
+          "type": "official_package",
+          "url": "https://registry.npmjs.org/@openai/codex/latest"
+        },
+        {
+          "type": "official_release",
+          "url": "https://github.com/openai/codex/releases/tag/rust-v0.146.1"
+        }
+      ],
+      "task": "P5-004",
+      "versionPolicy": "exact",
+      "versions": [
+        {
+          "binaryCommands": {
+            "app_server": [
+              "app-server",
+              "--help"
+            ],
+            "help": [
+              "--help"
+            ],
+            "version": [
+              "--version"
+            ]
+          },
+          "mutationEligible": false,
+          "releaseChannel": "npm-and-github-stable",
+          "requiredBinarySignals": [
+            "version",
+            "help",
+            "app_server"
+          ],
+          "version": "0.146.1"
+        }
+      ]
+    },
+    {
+      "capabilities": {
+        "agents": [
+          "primary_agents",
+          "subagents",
+          "parallel_general_agent"
+        ],
+        "configuration": [
+          "opencode_json",
+          "global_config"
+        ],
+        "plugins": [
+          "typescript_plugins",
+          "javascript_plugins"
+        ],
+        "rules": [
+          "AGENTS.md",
+          "rules_files"
+        ],
+        "sessions": [
+          "fork",
+          "abort",
+          "summarize",
+          "revert",
+          "event_replay"
+        ],
+        "transport": [
+          "http_server",
+          "openapi",
+          "server_sent_events"
+        ],
+        "writePolicy": "read_only_until_authenticated_http_sse_probe"
+      },
+      "clientKind": "adapter",
+      "displayName": "OpenCode",
+      "id": "opencode",
+      "probeMode": "binary_and_documentation",
+      "sources": [
+        {
+          "type": "official_docs",
+          "url": "https://opencode.ai/docs/agents/"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://opencode.ai/docs/rules/"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://opencode.ai/docs/plugins/"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://opencode.ai/docs/server/"
+        },
+        {
+          "type": "official_release",
+          "url": "https://github.com/anomalyco/opencode/releases/tag/v1.18.14"
+        }
+      ],
+      "task": "P5-005",
+      "versionPolicy": "exact",
+      "versions": [
+        {
+          "binaryCommands": {
+            "help": [
+              "--help"
+            ],
+            "serve": [
+              "serve",
+              "--help"
+            ],
+            "version": [
+              "--version"
+            ]
+          },
+          "linuxX64Asset": {
+            "sha256": "f23980ba2aebfbfa53948e55e213d3f2a53740fd7326553828e89ad27e970572",
+            "url": "https://github.com/anomalyco/opencode/releases/download/v1.18.14/opencode-linux-x64.tar.gz"
+          },
+          "mutationEligible": false,
+          "releaseChannel": "github-stable",
+          "requiredBinarySignals": [
+            "version",
+            "help",
+            "serve"
+          ],
+          "version": "1.18.14"
+        }
+      ]
+    },
+    {
+      "capabilities": {
+        "hooks": [
+          "parallel_hooks"
+        ],
+        "mcp": [
+          "shared_ide_cli_mcp_configuration",
+          "mcp_enable_disable"
+        ],
+        "rules": [
+          ".cursor/rules",
+          "AGENTS.md"
+        ],
+        "sessions": [
+          "native_cli_history"
+        ],
+        "writePolicy": "read_only_until_exact_version_authenticated_probe"
+      },
+      "clientKind": "editor",
+      "displayName": "Cursor CLI and editor",
+      "id": "cursor",
+      "probeMode": "runtime_observed_binary_and_documentation",
+      "sources": [
+        {
+          "type": "official_docs",
+          "url": "https://cursor.com/docs/cli/installation"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://cursor.com/docs/cli/using"
+        },
+        {
+          "type": "official_docs",
+          "url": "https://cursor.com/docs/context/rules"
+        }
+      ],
+      "task": "P5-006",
+      "versionPolicy": "runtime_observed_read_only",
+      "versions": [
+        {
+          "binaryCommands": {
+            "help": [
+              "--help"
+            ],
+            "version": [
+              "--version"
+            ]
+          },
+          "mutationEligible": false,
+          "releaseChannel": "official_install_script_current",
+          "requiredBinarySignals": [
+            "version",
+            "help"
+          ],
+          "version": "runtime-observed"
+        }
+      ]
+    },
+    {
+      "capabilities": {
+        "context": [
+          "soleaux_context_v2"
+        ],
+        "mcp": [
+          "initialize",
+          "tools_list",
+          "tools_call"
+        ],
+        "registry": [
+          "client_registration",
+          "workspace_binding",
+          "lease_heartbeat"
+        ],
+        "transport": [
+          "stdio_jsonrpc"
+        ],
+        "writePolicy": "read_write_only_with_exact_matrix_bound_probe"
+      },
+      "clientKind": "adapter",
+      "displayName": "Generic MCP host conformance fixture",
+      "id": "generic_mcp_host",
+      "probeMode": "native_binary_conformance",
+      "sources": [
+        {
+          "path": "native/contracts/unified-mcp-profile-v2.json",
+          "type": "locked_internal_contract"
+        },
+        {
+          "path": "native/contracts/context-packet-v2.schema.json",
+          "type": "locked_internal_contract"
+        },
+        {
+          "path": "native/scripts/phase1_mcp_smoke.py",
+          "type": "native_smoke"
+        },
+        {
+          "path": "native/scripts/p5_client_matrix_smoke.py",
+          "type": "native_smoke"
+        }
+      ],
+      "task": "P5-006",
+      "versionPolicy": "exact",
+      "versions": [
+        {
+          "binaryCommands": {},
+          "mutationEligible": true,
+          "releaseChannel": "locked_conformance_protocol",
+          "requiredBinarySignals": [
+            "initialize",
+            "tools_list",
+            "context_compile",
+            "registry_registration",
+            "read_write_binding",
+            "tool_ceiling"
+          ],
+          "version": "mcp-2025-11-25"
+        }
+      ]
+    }
+  ],
+  "probeSchemaVersion": "soleaux.client-capability-probe/v1",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.client-capability-matrix/v1"
+}

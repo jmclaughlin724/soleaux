@@ -5,6 +5,7 @@
 //! closed rather than silently bypassing peer checks.
 
 mod client;
+mod compatibility;
 mod paths;
 mod protocol;
 mod registry;
@@ -14,6 +15,11 @@ mod service;
 mod unix;
 
 pub use client::IpcClient;
+pub use compatibility::{
+    CLIENT_CAPABILITY_MATRIX_JSON, CLIENT_CAPABILITY_MATRIX_SCHEMA_VERSION,
+    CLIENT_CAPABILITY_PROBE_SCHEMA_VERSION, client_capability_matrix_sha256,
+    client_capability_matrix_summary, validate_client_capability_matrix,
+};
 pub use paths::SoleauxPaths;
 pub use protocol::{
     DaemonStatus, IPC_MAX_FRAME_BYTES, IPC_SCHEMA_VERSION, IpcError, IpcMethod, IpcRequest,
