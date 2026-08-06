@@ -197,7 +197,9 @@ mod tests {
             }
         }))
         .expect("workspace request");
-        assert!(matches!(workspace, IpcMethod::WorkspaceRegister { metadata, .. } if metadata == serde_json::json!({})));
+        assert!(
+            matches!(workspace, IpcMethod::WorkspaceRegister { metadata, .. } if metadata == serde_json::json!({}))
+        );
 
         let client: IpcMethod = serde_json::from_value(serde_json::json!({
             "name":"client_register",
@@ -211,7 +213,9 @@ mod tests {
             }
         }))
         .expect("client request");
-        assert!(matches!(client, IpcMethod::ClientRegister { capabilities, metadata, .. } if capabilities == serde_json::json!({}) && metadata == serde_json::json!({})));
+        assert!(
+            matches!(client, IpcMethod::ClientRegister { capabilities, metadata, .. } if capabilities == serde_json::json!({}) && metadata == serde_json::json!({}))
+        );
 
         let binding: IpcMethod = serde_json::from_value(serde_json::json!({
             "name":"client_bind_workspace",
@@ -222,7 +226,9 @@ mod tests {
             }
         }))
         .expect("binding request");
-        assert!(matches!(binding, IpcMethod::ClientBindWorkspace { capabilities, metadata, .. } if capabilities == serde_json::json!({}) && metadata == serde_json::json!({})));
+        assert!(
+            matches!(binding, IpcMethod::ClientBindWorkspace { capabilities, metadata, .. } if capabilities == serde_json::json!({}) && metadata == serde_json::json!({}))
+        );
     }
 }
 

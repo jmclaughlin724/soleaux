@@ -150,8 +150,7 @@ pub(crate) fn list_workspaces(
 pub(crate) fn forget_workspace(state: &StateStore, workspace_id: Uuid) -> Result<Value> {
     let result =
         state.registry_forget_workspace(workspace_id, "workspace forgotten", "soleaux-registry")?;
-    let (binding_ids, binding_count, bindings_truncated) =
-        bounded_children(result.binding_ids)?;
+    let (binding_ids, binding_count, bindings_truncated) = bounded_children(result.binding_ids)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.workspace-forget/v1",
         "workspaceId":workspace_id,
@@ -282,8 +281,7 @@ pub(crate) fn list_bindings(
 pub(crate) fn disconnect_client(state: &StateStore, client_id: Uuid) -> Result<Value> {
     let result =
         state.registry_disconnect_client(client_id, "client disconnected", "soleaux-registry")?;
-    let (binding_ids, binding_count, bindings_truncated) =
-        bounded_children(result.binding_ids)?;
+    let (binding_ids, binding_count, bindings_truncated) = bounded_children(result.binding_ids)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.client-disconnect/v1",
         "clientId":client_id,
@@ -462,7 +460,9 @@ mod tests {
         assert_eq!(total, REGISTRY_PAGE_LIMIT_DEFAULT + 1);
         assert!(truncated);
         assert!(
-            serde_json::to_vec(&bounded).expect("serialize bounded children").len()
+            serde_json::to_vec(&bounded)
+                .expect("serialize bounded children")
+                .len()
                 <= REGISTRY_MUTATION_CHILDREN_MAX_BYTES
         );
     }

@@ -183,10 +183,7 @@ pub fn attachment_workspace_id(root: &Path) -> Result<Option<Uuid>> {
     };
     match Uuid::parse_str(value) {
         Ok(workspace_id) => Ok(Some(workspace_id)),
-        Err(_)
-            if value.len() == 32
-                && value.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
-        {
+        Err(_) if value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) => {
             Ok(None)
         }
         Err(error) => Err(error).context("attachment marker contains an invalid workspace_id"),
@@ -213,8 +210,7 @@ pub fn bind_attachment_workspace_id(root: &Path, workspace_id: Uuid) -> Result<(
         .records
         .iter_mut()
         .find(|record| {
-            record.scope == BackupScope::Workspace
-                && record.path == ".soleaux/attachment.json"
+            record.scope == BackupScope::Workspace && record.path == ".soleaux/attachment.json"
         })
         .context("attachment manifest omitted its workspace marker record")?;
     record.applied_sha256 = sha256_hex(&marker_bytes);
@@ -966,8 +962,11 @@ mod tests {
                 "applied_sha256":sha256_hex(b"legacy registry entry")
             }]
         });
-        atomic_write(&manifest_path, &serde_json::to_vec_pretty(&manifest).expect("manifest"))
-            .expect("write manifest");
+        atomic_write(
+            &manifest_path,
+            &serde_json::to_vec_pretty(&manifest).expect("manifest"),
+        )
+        .expect("write manifest");
         let restored = revert_last(&root).expect("legacy revert");
         assert_eq!(restored, vec!["workspaces/legacy.json"]);
         assert!(!legacy_path.exists());

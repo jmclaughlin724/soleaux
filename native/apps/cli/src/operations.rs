@@ -178,7 +178,8 @@ async fn finish_attachment(
             if let Err(failure) =
                 soleaux_mcp::provisioning::bind_attachment_workspace_id(root, workspace_id)
             {
-                let registry_rollback = registry_call(IpcMethod::WorkspaceForget { workspace_id }).await;
+                let registry_rollback =
+                    registry_call(IpcMethod::WorkspaceForget { workspace_id }).await;
                 let local_rollback = soleaux_mcp::provisioning::revert_last(root);
                 let manifest_path = root.join(".soleaux/backups/latest.json");
                 let manifest_restore =
@@ -490,7 +491,10 @@ mod tests {
 
         assert_eq!(result["canonicalWorkspaceId"], workspace_id.to_string());
         assert_eq!(result["canonicalWorkspaceRemoved"], false);
-        assert_eq!(fs::read(&marker_path).expect("preserved marker"), marker_before);
+        assert_eq!(
+            fs::read(&marker_path).expect("preserved marker"),
+            marker_before
+        );
     }
 
     #[cfg(unix)]
