@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+import subprocess
 from pathlib import Path
 
 
@@ -14,16 +17,29 @@ def replace_once(path: str, old: str, new: str, label: str) -> None:
 registry = "native/daemon/ipc/src/registry.rs"
 replace_once(
     registry,
-    "    ClientKind, ClientRegistrationPayload, ClientWorkspaceBindingPayload,\n",
-    "    ClientKind, ClientRegistrationPayload, ClientRegistrationResult,\n"
-    "    ClientWorkspaceBindingPayload,\n",
-    "import client registration result",
+    '''use soleaux_state::{
+    CanonicalEntityInput, CanonicalRecord, ClientAccessMode, ClientCompatibilityState,
+    ClientKind, ClientRegistrationPayload, ClientWorkspaceBindingPayload,
+''',
+    '''use soleaux_state::{
+    CanonicalEntityInput, ClientAccessMode, ClientKind, ClientRegistrationPayload,
+    ClientRegistrationResult, ClientWorkspaceBindingPayload,
+''',
+    "registry imports",
 )
 replace_once(
     registry,
-    "    CanonicalEntityInput, CanonicalRecord, ClientAccessMode, ClientCompatibilityState,\n",
-    "    CanonicalEntityInput, ClientAccessMode,\n",
-    "remove obsolete registry imports",
+    '''};
+use std::{
+    fs,
+''',
+    '''};
+#[cfg(test)]
+use soleaux_state::ClientCompatibilityState;
+use std::{
+    fs,
+''',
+    "test-only compatibility import",
 )
 replace_once(
     registry,
@@ -47,13 +63,13 @@ replace_once(
         "schemaVersion":"soleaux.client-heartbeat/v1",
         "client":result.client,
 ''',
-    "return mutation-owned heartbeat bindings",
+    "heartbeat returns writer-owned bindings",
 )
 replace_once(
     registry,
     "    let (_client, compatibility) = revalidate_client(state, client_id, None, None, false)?;\n",
     "    let (_result, compatibility) = revalidate_client(state, client_id, None, None, false)?;\n",
-    "bind revalidation result",
+    "binding revalidation result",
 )
 replace_once(
     registry,
@@ -90,13 +106,13 @@ replace_once(
         expected_revision: Some(existing.revision),
         expires_at_unix_ms,
 ''',
-    "bind revalidation to read revision",
+    "revision-bound revalidation",
 )
 replace_once(
     registry,
     "    Ok((result.client, compatibility))\n",
     "    Ok((result, compatibility))\n",
-    "return complete writer result",
+    "complete writer result",
 )
 
 compatibility = "native/daemon/ipc/src/compatibility.rs"
@@ -104,7 +120,7 @@ replace_once(
     compatibility,
     "fn is_lower_hex_digest(value: &str) -> bool {\n",
     "#[cfg(test)]\nfn is_lower_hex_digest(value: &str) -> bool {\n",
-    "scope digest helper to tests",
+    "test-only digest helper",
 )
 
 database = "native/daemon/state/src/database.rs"
@@ -170,12 +186,14 @@ replace_once(
     Ok(SerializedClientRegistrationResult { client, bindings })
 }
 ''',
-    "revision-aware serialized client mutation",
+    "serialized revision-aware client mutation",
 )
 
 tests = Path("native/daemon/state/src/tests.rs")
 text = tests.read_text(encoding="utf-8")
-regression = r'''
+if "registry_client_revalidation_rejects_stale_revision" in text:
+    raise SystemExit("registry revalidation regressions already exist")
+text += r'''
 
 #[test]
 fn registry_client_revalidation_rejects_stale_revision() {
@@ -192,7 +210,6 @@ fn registry_client_revalidation_rejects_stale_revision() {
             json!({"sequence":"initial"}),
         ))
         .expect("initial client");
-
     let mut first = registry_client_input(
         ClientKind::Cli,
         "revision-fixture",
@@ -213,7 +230,6 @@ fn registry_client_revalidation_rejects_stale_revision() {
     );
     stale.id = Some(initial.client.id);
     stale.expected_revision = Some(initial.client.revision);
-
     let updated = store
         .registry_register_client(first)
         .expect("first revalidation");
@@ -237,7 +253,6 @@ fn registry_client_revalidation_returns_owned_bindings_without_global_paging() {
         ))
         .expect("workspace")
         .workspace;
-
     for index in 0..27 {
         let filler = store
             .registry_register_client(registry_client_input(
@@ -258,7 +273,6 @@ fn registry_client_revalidation_returns_owned_bindings_without_global_paging() {
             ))
             .expect("filler binding");
     }
-
     let target = store
         .registry_register_client(registry_client_input(
             ClientKind::Cli,
@@ -277,7 +291,6 @@ fn registry_client_revalidation_returns_owned_bindings_without_global_paging() {
             ClientAccessMode::ReadWrite,
         ))
         .expect("target binding");
-
     let mut revalidation = registry_client_input(
         ClientKind::Cli,
         "target-client",
@@ -296,8 +309,6 @@ fn registry_client_revalidation_returns_owned_bindings_without_global_paging() {
     assert_eq!(result.bindings[0].payload.client_id, target.id);
 }
 '''
-if "registry_client_revalidation_rejects_stale_revision" in text:
-    raise SystemExit("state revalidation regressions already exist")
-tests.write_text(text + regression, encoding="utf-8")
+tests.write_text(text, encoding="utf-8")
 
-__import__("subprocess").run(["git", "add", compatibility], check=True)
+subprocess.run(["git", "add", compatibility], check=True)
