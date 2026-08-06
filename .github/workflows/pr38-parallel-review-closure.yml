@@ -1,0 +1,310 @@
+name: Parallel PR38 review closure
+
+on:
+  push:
+    branches:
+      - automation/pr38-parallel-review-closure
+    paths:
+      - .ci/pr38-security-track.py
+      - .ci/pr38-probe-track.py
+      - .ci/pr38-smoke-track.py
+      - .github/workflows/client-capability-matrix.yml
+      - .github/workflows/pr38-parallel-review-closure.yml
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: agent/p5-002-p5-006-client-capability-matrices
+  TARGET_BASE: 42d2b7808182ac0da9a478d395f00f3a2c55f4a8
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Install native prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - name: Apply and validate runtime admission security fixes
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .ci/pr38-security-track.py
+          python3 .ci/pr38-security-track.py
+          (cd native && cargo fmt --all)
+          (cd native && cargo check -p soleaux-ipc --all-targets --all-features --locked)
+          (cd native && cargo clippy -p soleaux-ipc --all-targets --all-features --locked -- -D warnings)
+          (cd native && cargo test -p soleaux-ipc --all-features --locked)
+          git diff --check
+          tar -czf /tmp/pr38-security.tar.gz \
+            native/daemon/ipc/src/compatibility.rs \
+            native/daemon/ipc/src/registry.rs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr38-security-${{ github.run_id }}
+          path: /tmp/pr38-security.tar.gz
+          if-no-files-found: error
+
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - name: Apply and validate probe and matrix hardening
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .ci/pr38-probe-track.py
+          python3 .ci/pr38-probe-track.py
+          chmod +x \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          uv sync --locked
+          uv run --locked ruff check --fix \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          uv run --locked ruff format \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          uv run --locked ruff check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          uv run --locked ruff format --check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          python3 -m py_compile \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          python3 native/scripts/validate_client_capability_matrix.py
+          python3 native/scripts/validate_client_capability_matrix.py --self-test
+          python3 native/scripts/probe_client_capabilities.py --self-test
+          git diff --check
+          tar -czf /tmp/pr38-probe.tar.gz \
+            native/contracts/client-capability-matrix-v1.json \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            docs/testing/CLIENT-CAPABILITY-MATRIX.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr38-probe-${{ github.run_id }}
+          path: /tmp/pr38-probe.tar.gz
+          if-no-files-found: error
+
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - name: Apply and validate lifecycle smoke rewrite
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .ci/pr38-smoke-track.py
+          python3 .ci/pr38-smoke-track.py
+          chmod +x native/scripts/p5_client_matrix_smoke.py
+          uv sync --locked
+          uv run --locked ruff check --fix native/scripts/p5_client_matrix_smoke.py
+          uv run --locked ruff format native/scripts/p5_client_matrix_smoke.py
+          uv run --locked ruff check native/scripts/p5_client_matrix_smoke.py
+          uv run --locked ruff format --check native/scripts/p5_client_matrix_smoke.py
+          python3 -m py_compile native/scripts/p5_client_matrix_smoke.py
+          git diff --check
+          tar -czf /tmp/pr38-smoke.tar.gz native/scripts/p5_client_matrix_smoke.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr38-smoke-${{ github.run_id }}
+          path: /tmp/pr38-smoke.tar.gz
+          if-no-files-found: error
+
+  workflow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Validate exact provenance and supply-chain workflow rules
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/client-capability-matrix.yml
+          grep -F -- '- native/**' "$workflow"
+          grep -F 'SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}' "$workflow"
+          test "$(grep -c 'ref: ${{ env.SOURCE_COMMIT }}' "$workflow")" -ge 8
+          ! grep -F 'cursor.com/install' "$workflow"
+          grep -F 'npmArtifact' "$workflow"
+          grep -F 'linuxX64Asset' "$workflow"
+          grep -F 'test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"' "$workflow"
+          tar -czf /tmp/pr38-workflow.tar.gz "$workflow"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr38-workflow-${{ github.run_id }}
+          path: /tmp/pr38-workflow.tar.gz
+          if-no-files-found: error
+
+  integrate:
+    needs:
+      - security
+      - probe
+      - smoke
+      - workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pr38-*-${{ github.run_id }}
+          path: /tmp/pr38-overlays
+          merge-multiple: true
+      - name: Install complete validation environment
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler \
+            python3-jsonschema sqlite3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - uses: taiki-e/install-action@cargo-audit
+      - uses: astral-sh/setup-uv@v7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Integrate all parallel tracks
+        run: |
+          set -euo pipefail
+          tar -xzf /tmp/pr38-overlays/pr38-security.tar.gz
+          tar -xzf /tmp/pr38-overlays/pr38-probe.tar.gz
+          tar -xzf /tmp/pr38-overlays/pr38-smoke.tar.gz
+          tar -xzf /tmp/pr38-overlays/pr38-workflow.tar.gz
+          rm -f .ci/p5-client-review-fixes.py .ci/p5-client-wave2-hardening.py
+          chmod +x \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/p5_client_matrix_smoke.py
+          uv sync --locked
+          pnpm install --frozen-lockfile
+          uv run --locked ruff check --fix \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/p5_client_matrix_smoke.py
+          uv run --locked ruff format \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/p5_client_matrix_smoke.py
+          (cd native && cargo fmt --all)
+          git diff --check
+
+      - name: Run complete Python and documentation gates
+        run: |
+          set -euo pipefail
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+          uv run --locked pyright
+          uv run --locked pytest
+          python3 scripts/check_documentation_consistency.py
+          python3 native/scripts/validate_client_capability_matrix.py
+          python3 native/scripts/validate_client_capability_matrix.py --self-test
+          python3 native/scripts/probe_client_capabilities.py --self-test
+
+      - name: Run complete native, release, lifecycle, and audit gates
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          python3 scripts/phase1_mcp_smoke.py target/release/soleaux . /tmp/phase1.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/phase2.json
+          python3 scripts/p5_registry_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/p5-registry.json
+          python3 scripts/p5_client_matrix_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/p5-client-matrix.json
+          cargo audit --deny warnings
+
+      - name: Publish only validated non-workflow product source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          files=(
+            docs/testing/CLIENT-CAPABILITY-MATRIX.md
+            native/contracts/client-capability-matrix-v1.json
+            native/daemon/ipc/src/compatibility.rs
+            native/daemon/ipc/src/registry.rs
+            native/scripts/p5_client_matrix_smoke.py
+            native/scripts/probe_client_capabilities.py
+            native/scripts/validate_client_capability_matrix.py
+          )
+          tar -czf /tmp/pr38-product-overlay.tar.gz "${files[@]}"
+          mkdir -p /tmp/pr38-evidence
+          cp /tmp/phase1.json /tmp/phase2.json /tmp/p5-registry.json \
+            /tmp/p5-client-matrix.json /tmp/pr38-evidence/
+          git fetch origin "$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+          test "$(git rev-parse refs/remotes/origin/$TARGET_BRANCH)" = "$TARGET_BASE"
+          git reset --hard "refs/remotes/origin/$TARGET_BRANCH"
+          git clean -fdx
+          git checkout -B "$TARGET_BRANCH" "refs/remotes/origin/$TARGET_BRANCH"
+          tar -xzf /tmp/pr38-product-overlay.tar.gz
+          rm -f .ci/p5-client-review-fixes.py .ci/p5-client-wave2-hardening.py
+          chmod +x \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/p5_client_matrix_smoke.py
+          git diff --check
+          (cd native && cargo fmt --all --check)
+          uv run --locked ruff check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/p5_client_matrix_smoke.py
+          uv run --locked ruff format --check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/p5_client_matrix_smoke.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "${files[@]}" .ci/p5-client-review-fixes.py .ci/p5-client-wave2-hardening.py
+          git diff --cached --check
+          git commit -m 'fix: close P5 client capability review findings'
+          git rev-parse HEAD | tee /tmp/pr38-evidence/SOURCE_COMMIT
+          git diff-tree --no-commit-id --name-status -r HEAD \
+            > /tmp/pr38-evidence/changed-files.txt
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/$TARGET_BRANCH"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-pr38-parallel-review-closure-${{ github.run_id }}
+          path: /tmp/pr38-evidence
+          if-no-files-found: error
+          retention-days: 30
