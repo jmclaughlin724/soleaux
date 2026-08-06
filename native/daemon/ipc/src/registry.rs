@@ -1,13 +1,15 @@
-use crate::IPC_MAX_FRAME_BYTES;
+use crate::{
+    IPC_MAX_FRAME_BYTES,
+    compatibility::{client_capability_matrix_summary, evaluate_client_compatibility},
+};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::{Value, json};
 use soleaux_state::{
-    CanonicalEntityInput, ClientAccessMode, ClientCompatibilityState, ClientKind,
-    ClientRegistrationPayload, ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256,
-    LOCKED_PROFILE_SHA256, PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES,
-    REGISTRY_PAGE_LIMIT_DEFAULT, REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload,
-    WorkspaceTrustState,
+    CanonicalEntityInput, ClientAccessMode, ClientKind, ClientRegistrationPayload,
+    ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256, LOCKED_PROFILE_SHA256,
+    PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES, REGISTRY_PAGE_LIMIT_DEFAULT,
+    REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload, WorkspaceTrustState,
 };
 use std::{
     fs,
@@ -46,6 +48,7 @@ pub(crate) fn status(
     bounded_response(json!({
         "schemaVersion":REGISTRY_SCHEMA_VERSION,
         "clientProtocolVersion":CLIENT_PROTOCOL_VERSION,
+        "clientCapabilityMatrix":client_capability_matrix_summary()?,
         "workspaces":snapshot.workspaces.items,
         "clients":snapshot.clients.items,
         "bindings":snapshot.bindings.items,
@@ -184,8 +187,16 @@ pub(crate) fn register_client(
     if protocol_version != CLIENT_PROTOCOL_VERSION {
         bail!("unsupported Soleaux client protocol version: {protocol_version}");
     }
-    let compatibility_state = compatibility_state(client_kind, &client_version, &protocol_version);
-    let write_capable = compatibility_state == ClientCompatibilityState::Verified;
+    let compatibility = evaluate_client_compatibility(
+        client_kind,
+        &client_version,
+        &protocol_version,
+        CLIENT_PROTOCOL_VERSION,
+        &capabilities,
+        &metadata,
+    )?;
+    let compatibility_state = compatibility.state;
+    let write_capable = compatibility.write_capable;
     let now = unix_ms();
     let native_id = format!("{}:{instance_id}", client_kind.as_str());
     let payload = ClientRegistrationPayload {
@@ -217,6 +228,7 @@ pub(crate) fn register_client(
         "bindingsTruncated":bindings_truncated,
         "writeCapable":write_capable,
         "compatibilityState":compatibility_state,
+        "compatibility":compatibility,
         "productionClaimAllowed":false,
     }))
 }
@@ -342,21 +354,6 @@ pub(crate) fn unbind_client_workspace(state: &StateStore, binding_id: Uuid) -> R
         "tombstone":tombstone,
         "productionClaimAllowed":false,
     }))
-}
-
-fn compatibility_state(
-    client_kind: ClientKind,
-    client_version: &str,
-    protocol_version: &str,
-) -> ClientCompatibilityState {
-    if client_kind == ClientKind::Cli
-        && client_version == env!("CARGO_PKG_VERSION")
-        && protocol_version == CLIENT_PROTOCOL_VERSION
-    {
-        ClientCompatibilityState::Verified
-    } else {
-        ClientCompatibilityState::Unprobed
-    }
 }
 
 fn validate_json_field(value: &Value, label: &str) -> Result<()> {

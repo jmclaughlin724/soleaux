@@ -1,0 +1,32 @@
+name: Capture Claude Code package provenance
+
+on:
+  push:
+    branches:
+      - agent/p5-002-p5-006-client-capability-matrices
+    paths:
+      - .github/workflows/p5-claude-package-integrity.yml
+
+permissions:
+  contents: read
+
+jobs:
+  provenance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Read exact immutable npm package metadata
+        run: |
+          set -euo pipefail
+          npm view @anthropic-ai/claude-code@2.1.223 \
+            name version dist.tarball dist.shasum dist.integrity --json \
+            | tee /tmp/claude-code-2.1.223-provenance.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-code-2.1.223-provenance
+          path: /tmp/claude-code-2.1.223-provenance.json
+          if-no-files-found: error
+          retention-days: 30

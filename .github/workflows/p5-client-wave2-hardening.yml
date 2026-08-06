@@ -1,0 +1,142 @@
+name: Apply P5 client matrix second-wave hardening
+
+on:
+  push:
+    branches:
+      - agent/p5-002-p5-006-client-capability-matrices
+    paths:
+      - .ci/p5-client-wave2-hardening.py
+      - .github/workflows/p5-client-wave2-hardening.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p5-client-wave2-hardening
+  cancel-in-progress: true
+
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.11.28
+          enable-cache: true
+
+      - name: Apply bounded probe, provenance, and workflow fixes
+        run: |
+          set -euo pipefail
+          echo '498cf36768d436a239cb4ab181dc2ca8a5712a795283ce5895fd9ca847c8a71b  .ci/p5-client-wave2-hardening.py' | sha256sum -c -
+          python3 -m py_compile .ci/p5-client-wave2-hardening.py
+          python3 .ci/p5-client-wave2-hardening.py
+          cargo fmt --manifest-path native/Cargo.toml --all --check
+          uvx --from ruff==0.15.22 ruff format --check \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          uvx --from ruff==0.15.22 ruff check \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          python3 native/scripts/validate_client_capability_matrix.py \
+            --output /tmp/p5-client-wave2/matrix-validation.json
+          git diff --check
+
+      - name: Exercise exact-version, output-budget, and admission-size failures
+        run: |
+          set -euo pipefail
+          cat > /tmp/fake-claude <<'PY'
+          #!/usr/bin/env python3
+          print("12.1.2230")
+          PY
+          chmod +x /tmp/fake-claude
+          if python3 native/scripts/probe_client_capabilities.py \
+              --platform claude_code \
+              --binary /tmp/fake-claude \
+              --output /tmp/p5-client-wave2/version-collision.json; then
+            echo "substring version collision was accepted" >&2
+            exit 1
+          fi
+
+          cat > /tmp/flood-codex <<'PY'
+          #!/usr/bin/env python3
+          import sys
+          if "--version" in sys.argv:
+            sys.stdout.write("codex 0.146.1\n")
+          sys.stdout.write("x" * 1_200_000)
+          PY
+          chmod +x /tmp/flood-codex
+          if python3 native/scripts/probe_client_capabilities.py \
+              --platform codex \
+              --binary /tmp/flood-codex \
+              --output /tmp/p5-client-wave2/output-limit.json; then
+            echo "output-limit probe unexpectedly passed" >&2
+            exit 1
+          fi
+
+          python3 native/scripts/probe_client_capabilities.py \
+            --platform cursor \
+            --documentation-only \
+            --output /tmp/p5-client-wave2/cursor-documentation.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          flood = json.loads(Path('/tmp/p5-client-wave2/output-limit.json').read_text())
+          commands = flood['probe']['commands']
+          assert any(command['outputLimitExceeded'] for command in commands.values())
+          assert flood['status'] == 'fail'
+          assert flood['registrationCapabilitiesBytes'] <= 2048
+          cursor = json.loads(Path('/tmp/p5-client-wave2/cursor-documentation.json').read_text())
+          assert cursor['writeCapable'] is False
+          assert cursor['registrationCapabilitiesBytes'] <= 2048
+          assert set(cursor['registration']['capabilities']) == {'soleauxProbe'}
+          assert 'commands' not in cursor['idmissionProbe']
+          PY
+
+      - name: Verify the compiled matrix owner
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo check -p soleaux-ipc --all-targets --locked
+          cargo clippy -p soleaux-ipc --all-targets --locked -- -D warnings
+          cargo test -p soleaux-ipc --locked
+
+      - name: Commit only normal non-workflow source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            docs/testing/CLIENT-CAPABILITY-MATRIX.md \
+            native/contracts/client-capability-matrix-v1.json \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only -- .ci .github/workflows)"
+          git commit -m 'fix: bound client probes and pin capability evidence'
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${GITHUB_REF_NAME}"
+
+      - name: Upload desired workflow and second-wave evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: p5-client-wave2-${{ github.run_id }}
+          path: /tmp/p5-client-wave2
+          if-no-files-found: error
+          retention-days: 30

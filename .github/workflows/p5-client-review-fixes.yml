@@ -1,0 +1,92 @@
+name: Apply P5 client matrix review fixes
+
+on:
+  push:
+    branches:
+      - agent/p5-002-p5-006-client-capability-matrices
+    paths:
+      - .ci/p5-client-review-fixes.py
+      - .github/workflows/p5-client-review-fixes.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p5-client-review-fixes
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.11.28
+          enable-cache: true
+
+      - name: Apply the fail-closed review fixes
+        run: |
+          set -euo pipefail
+          echo 'cd4282150980e21405cc3461410960d9969a769afe052d76ea44523500b40009  .ci/p5-client-review-fixes.py' \
+            | sha256sum -c -
+          python3 -m py_compile .ci/p5-client-review-fixes.py
+          python3 .ci/p5-client-review-fixes.py
+          cargo fmt --manifest-path native/Cargo.toml --all
+          uvx --from ruff==0.15.22 ruff format \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          uvx --from ruff==0.15.22 ruff check \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          python3 native/scripts/validate_client_capability_matrix.py \
+            --output /tmp/p5-client-review-validation.json
+          git diff --check
+
+      - name: Verify the exact Rust admission owner
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo check -p soleaux-ipc --all-targets --locked
+          cargo clippy -p soleaux-ipc --all-targets --locked -- -D warnings
+          cargo test -p soleaux-ipc --locked
+
+      - name: Commit only reviewed non-workflow product source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            docs/testing/CLIENT-CAPABILITY-MATRIX.md \
+            native/contracts/client-capability-matrix-v1.json \
+            native/daemon/ipc/src/compatibility.rs \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only -- .ci .github/workflows)"
+          git commit -m 'fix: harden client probe admission and evidence provenance'
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${GITHUB_REF_NAME}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p5-client-review-fixes-${{ github.run_id }}
+          path: /tmp/p5-client-review-validation.json
+          if-no-files-found: error
+          retention-days: 30
