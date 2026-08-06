@@ -87,7 +87,8 @@ def observed_version(
     if version_policy == "exact":
         if matrix_version not in combined:
             fail(
-                f"binary version did not match exact matrix entry {matrix_version}: {combined[:500]}"
+                "binary version did not match exact matrix entry "
+                f"{matrix_version}: {combined[:500]}"
             )
         return matrix_version
     if version_policy == "runtime_observed_read_only":
@@ -148,7 +149,7 @@ def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
         "productionClaimAllowed": False,
     }
     probe["evidenceSha256"] = canonical_sha256(probe)
-    report = {
+    return {
         "schemaVersion": "soleaux.client-capability-probe-report/v1",
         "task": platform["task"],
         "platform": platform["id"],
@@ -166,7 +167,6 @@ def build_report(arguments: argparse.Namespace) -> dict[str, Any]:
         "productionClaimAllowed": False,
         "status": status,
     }
-    return report
 
 
 def main() -> int:
