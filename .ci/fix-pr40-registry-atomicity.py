@@ -299,3 +299,5 @@ fn registry_client_revalidation_returns_owned_bindings_without_global_paging() {
 if "registry_client_revalidation_rejects_stale_revision" in text:
     raise SystemExit("state revalidation regressions already exist")
 tests.write_text(text + regression, encoding="utf-8")
+
+__import__("subprocess").run(["git", "add", compatibility], check=True)
