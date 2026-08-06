@@ -34,15 +34,13 @@ replace_once(
             --platform claude_code --binary claude \\
             --output /tmp/claude-code.json
 ''',
-    '''          npm install --global "$CLAUDE_ARCHIVE" --ignore-scripts
-          CLAUDE_ENTRY="$(readlink -f "$(command -v claude)")"
-          test -f "$CLAUDE_ENTRY"
-          printf '#!/usr/bin/env bash\\nexec node %q "$@"\\n' "$CLAUDE_ENTRY" \\
-            > /tmp/claude-node-wrapper
-          chmod +x /tmp/claude-node-wrapper
+    '''          # The archive digest and NPM integrity were verified immediately above.
+          # Run its isolated postinstall to materialize the pinned native Linux binary.
+          npm install --global "$CLAUDE_ARCHIVE"
+          claude --version | tee /tmp/claude-installed-version.txt
           python3 native/scripts/probe_client_capabilities.py \\
-            --platform claude_code --binary /tmp/claude-node-wrapper \\
+            --platform claude_code --binary claude \\
             --output /tmp/claude-code.json
 ''',
-    "run Claude package through Node wrapper",
+    "install verified Claude native binary",
 )
