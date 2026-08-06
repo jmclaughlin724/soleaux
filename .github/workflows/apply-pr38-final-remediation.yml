@@ -1,4 +1,4 @@
-# Retry after transient GitHub Actions action-resolution outage.
+# Isolated retry after a stale GitHub Actions setup failure.
 name: Apply final PR38 fail-closed remediation
 
 on:
@@ -23,7 +23,7 @@ env:
   SCRIPT_SHA256: e7e6b6bcef55fcb8cf671be48835b004cdfb8267319a18c99f9c0c3e2c2a89cb
 
 concurrency:
-  group: apply-pr38-final-remediation
+  group: apply-pr38-final-remediation-v2
   cancel-in-progress: true
 
 jobs:
