@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Binary-level smoke for the Phase 5 client capability matrix and write gate."""
+"""Binary-level smoke for the Phase 5 client capability matrix and safe-mode gate."""
 
 from __future__ import annotations
 
@@ -39,7 +39,10 @@ def run(
 
 
 def run_json(command: list[str], env: dict[str, str]) -> dict[str, Any]:
-    return json.loads(run(command, env).stdout)
+    value = json.loads(run(command, env).stdout)
+    if not isinstance(value, dict):
+        raise AssertionError(f"expected JSON object from {' '.join(command)}")
+    return value
 
 
 def start_daemon(
@@ -84,13 +87,6 @@ def stop_daemon(cli: Path, process: subprocess.Popen[str], env: dict[str, str]) 
         raise
 
 
-def canonical_sha256(value: Any) -> str:
-    encoded = json.dumps(value, separators=(",", ":"), sort_keys=True, ensure_ascii=False).encode(
-        "utf-8"
-    )
-    return hashlib.sha256(encoded).hexdigest()
-
-
 def main() -> int:
     if len(sys.argv) != 5:
         raise SystemExit(
@@ -104,12 +100,12 @@ def main() -> int:
     matrix_bytes = matrix_path.read_bytes()
     matrix = json.loads(matrix_bytes)
     matrix_sha256 = hashlib.sha256(matrix_bytes).hexdigest()
-    required_signals = next(
-        platform["versions"][0]["requiredBinarySignals"]
-        for platform in matrix["platforms"]
-        if platform["id"] == "generic_mcp_host"
+    generic = next(
+        platform for platform in matrix["platforms"] if platform["id"] == "generic_mcp_host"
     )
-    probe = {
+    required_signals = generic["versions"][0]["requiredBinarySignals"]
+    assert generic["versions"][0]["mutationEligible"] is False
+    forged_probe = {
         "schemaVersion": "soleaux.client-capability-probe/v1",
         "platform": "generic_mcp_host",
         "clientVersion": "mcp-2025-11-25",
@@ -117,8 +113,8 @@ def main() -> int:
         "status": "pass",
         "mutationEligible": True,
         "passedSignals": required_signals,
+        "evidenceSha256": "a" * 64,
     }
-    probe["evidenceSha256"] = canonical_sha256(probe)
 
     with tempfile.TemporaryDirectory(prefix="soleaux-p5-client-matrix-") as temporary:
         root = Path(temporary)
@@ -135,182 +131,197 @@ def main() -> int:
         env["XDG_CONFIG_HOME"] = str(root / "config")
 
         process = start_daemon(daemon, endpoint, state_db, env)
-        workspace = run_json(
-            [
-                str(cli),
-                "registry",
-                "workspace",
-                "register",
-                str(workspace_path),
-                "--display-name",
-                "P5 capability matrix fixture",
-                "--trust-state",
-                "trusted",
-                "--metadata",
-                '{"p5ClientMatrix":true}',
-            ],
-            env,
-        )
-        workspace_id = workspace["workspace"]["id"]
+        try:
+            workspace = run_json(
+                [
+                    str(cli),
+                    "registry",
+                    "workspace",
+                    "register",
+                    str(workspace_path),
+                    "--display-name",
+                    "P5 capability matrix fixture",
+                    "--trust-state",
+                    "trusted",
+                    "--metadata",
+                    '{"p5ClientMatrix":true}',
+                ],
+                env,
+            )
+            workspace_id = workspace["workspace"]["id"]
 
-        generic = run_json(
-            [
-                str(cli),
-                "registry",
-                "client",
-                "register",
-                "--kind",
-                "adapter",
-                "--instance-id",
-                "generic-mcp-host-smoke",
-                "--display-name",
-                "Generic MCP host smoke",
-                "--client-version",
-                "mcp-2025-11-25",
-                "--capabilities",
-                json.dumps({"soleauxProbe": probe}, separators=(",", ":")),
-                "--metadata",
-                '{"platform":"generic_mcp_host"}',
-            ],
-            env,
-        )
-        assert generic["compatibilityState"] == "verified"
-        assert generic["writeCapable"] is True
-        assert generic["compatibility"]["matrixSha256"] == matrix_sha256
-        assert generic["compatibility"]["platform"] == "generic_mcp_host"
-        generic_id = generic["client"]["id"]
-        generic_binding = run_json(
-            [
-                str(cli),
-                "registry",
-                "bind",
-                generic_id,
-                workspace_id,
-                "--access-mode",
-                "read_write",
-                "--capabilities",
-                '{"context":true,"matrixBound":true}',
-            ],
-            env,
-        )
-        assert generic_binding["binding"]["payload"]["accessMode"] == "read_write"
+            external = run_json(
+                [
+                    str(cli),
+                    "registry",
+                    "client",
+                    "register",
+                    "--kind",
+                    "adapter",
+                    "--instance-id",
+                    "generic-mcp-host-smoke",
+                    "--display-name",
+                    "Generic MCP host smoke",
+                    "--client-version",
+                    "mcp-2025-11-25",
+                    "--capabilities",
+                    json.dumps({"soleauxProbe": forged_probe}, separators=(",", ":")),
+                    "--metadata",
+                    '{"platform":"generic_mcp_host"}',
+                ],
+                env,
+            )
+            assert external["compatibilityState"] == "unprobed"
+            assert external["writeCapable"] is False
+            assert "daemon-trusted" in external["compatibility"]["reason"]
+            external_id = external["client"]["id"]
 
-        forged_vendor_probe = {
-            **probe,
-            "platform": "claude_code",
-            "clientVersion": "2.1.223",
-            "passedSignals": ["version", "help", "mcp"],
-        }
-        vendor = run_json(
-            [
-                str(cli),
-                "registry",
-                "client",
-                "register",
-                "--kind",
-                "adapter",
-                "--instance-id",
-                "claude-code-smoke",
-                "--display-name",
-                "Claude Code smoke",
-                "--client-version",
-                "2.1.223",
-                "--capabilities",
-                json.dumps({"soleauxProbe": forged_vendor_probe}, separators=(",", ":")),
-                "--metadata",
-                '{"platform":"claude_code"}',
-            ],
-            env,
-        )
-        assert vendor["compatibilityState"] == "unprobed"
-        assert vendor["writeCapable"] is False
-        assert vendor["compatibility"]["reason"] == "matrix entry is intentionally read-only"
-        vendor_id = vendor["client"]["id"]
-        rejected = run(
-            [
-                str(cli),
-                "registry",
-                "bind",
-                vendor_id,
-                workspace_id,
-                "--access-mode",
-                "read_write",
-                "--capabilities",
-                '{"context":true}',
-            ],
-            env,
-            expect_success=False,
-        )
-        rejection_text = f"{rejected.stdout}\n{rejected.stderr}".lower()
-        assert "read" in rejection_text and (
-            "verified" in rejection_text or "write" in rejection_text
-        )
-        vendor_binding = run_json(
-            [
-                str(cli),
-                "registry",
-                "bind",
-                vendor_id,
-                workspace_id,
-                "--access-mode",
-                "read_only",
-                "--capabilities",
-                '{"context":true}',
-            ],
-            env,
-        )
-        assert vendor_binding["binding"]["payload"]["accessMode"] == "read_only"
+            rejected = run(
+                [
+                    str(cli),
+                    "registry",
+                    "bind",
+                    external_id,
+                    workspace_id,
+                    "--access-mode",
+                    "read_write",
+                    "--capabilities",
+                    '{"context":true,"forgedProbe":true}',
+                ],
+                env,
+                expect_success=False,
+            )
+            rejection_text = f"{rejected.stdout}\n{rejected.stderr}".lower()
+            assert "daemon-trusted" in rejection_text or "read-write" in rejection_text
 
-        unknown = run_json(
-            [
-                str(cli),
-                "registry",
-                "client",
-                "register",
-                "--kind",
-                "adapter",
-                "--instance-id",
-                "unknown-generic-smoke",
-                "--display-name",
-                "Unknown generic host smoke",
-                "--client-version",
-                "mcp-unknown",
-                "--capabilities",
-                "{}",
-                "--metadata",
-                '{"platform":"generic_mcp_host"}',
-            ],
-            env,
-        )
-        assert unknown["compatibilityState"] == "unprobed"
-        assert unknown["writeCapable"] is False
+            external_binding = run_json(
+                [
+                    str(cli),
+                    "registry",
+                    "bind",
+                    external_id,
+                    workspace_id,
+                    "--access-mode",
+                    "read_only",
+                    "--capabilities",
+                    '{"context":true}',
+                ],
+                env,
+            )
+            assert external_binding["binding"]["payload"]["accessMode"] == "read_only"
 
-        status = run_json([str(cli), "registry", "status"], env)
-        matrix_status = status["clientCapabilityMatrix"]
-        assert matrix_status["schemaVersion"] == "soleaux.client-capability-matrix/v1"
-        assert matrix_status["sha256"] == matrix_sha256
-        assert len(matrix_status["platforms"]) == 6
-        assert matrix_status["publicToolCeiling"] == 12
-        assert matrix_status["productionClaimAllowed"] is False
-        assert status["productionClaimAllowed"] is False
-        stop_daemon(cli, process, env)
+            heartbeat_probe = {**forged_probe, "evidenceSha256": "b" * 64}
+            heartbeat = run_json(
+                [
+                    str(cli),
+                    "registry",
+                    "client",
+                    "heartbeat",
+                    external_id,
+                    "--ttl-ms",
+                    "300000",
+                    "--capabilities",
+                    json.dumps({"soleauxProbe": heartbeat_probe}, separators=(",", ":")),
+                ],
+                env,
+            )
+            assert heartbeat["compatibilityState"] == "unprobed"
+            assert heartbeat["writeCapable"] is False
+            assert heartbeat["bindings"][0]["payload"]["accessMode"] == "read_only"
+
+            internal = run_json(
+                [
+                    str(cli),
+                    "registry",
+                    "client",
+                    "register",
+                    "--kind",
+                    "cli",
+                    "--instance-id",
+                    "soleaux-internal-smoke",
+                    "--display-name",
+                    "Soleaux internal CLI smoke",
+                    "--client-version",
+                    "0.4.0-dev.5",
+                    "--capabilities",
+                    '{"internal":true}',
+                    "--metadata",
+                    '{"platform":"soleaux_cli"}',
+                ],
+                env,
+            )
+            assert internal["compatibilityState"] == "verified"
+            assert internal["writeCapable"] is True
+            internal_id = internal["client"]["id"]
+            internal_binding = run_json(
+                [
+                    str(cli),
+                    "registry",
+                    "bind",
+                    internal_id,
+                    workspace_id,
+                    "--access-mode",
+                    "read_write",
+                    "--capabilities",
+                    '{"context":true,"internal":true}',
+                ],
+                env,
+            )
+            assert internal_binding["binding"]["payload"]["accessMode"] == "read_write"
+
+            unknown = run_json(
+                [
+                    str(cli),
+                    "registry",
+                    "client",
+                    "register",
+                    "--kind",
+                    "adapter",
+                    "--instance-id",
+                    "unknown-generic-smoke",
+                    "--display-name",
+                    "Unknown generic host smoke",
+                    "--client-version",
+                    "mcp-unknown",
+                    "--capabilities",
+                    "{}",
+                    "--metadata",
+                    '{"platform":"generic_mcp_host"}',
+                ],
+                env,
+            )
+            assert unknown["compatibilityState"] == "unprobed"
+            assert unknown["writeCapable"] is False
+
+            status = run_json([str(cli), "registry", "status"], env)
+            matrix_status = status["clientCapabilityMatrix"]
+            assert matrix_status["schemaVersion"] == "soleaux.client-capability-matrix/v1"
+            assert matrix_status["sha256"] == matrix_sha256
+            assert len(matrix_status["platforms"]) == 6
+            assert matrix_status["writeEligible"] == []
+            assert matrix_status["publicToolCeiling"] == 12
+            assert matrix_status["productionClaimAllowed"] is False
+            assert status["productionClaimAllowed"] is False
+        finally:
+            if process.poll() is None:
+                stop_daemon(cli, process, env)
 
         evidence = {
             "schemaVersion": "soleaux.p5-client-capability-matrix-smoke/v1",
             "matrixSha256": matrix_sha256,
             "platformCount": len(matrix["platforms"]),
-            "genericHost": {
-                "compatibilityState": generic["compatibilityState"],
-                "writeCapable": generic["writeCapable"],
-                "readWriteBinding": generic_binding["binding"]["payload"]["accessMode"],
-                "passedSignals": required_signals,
+            "externalGenericHost": {
+                "compatibilityState": external["compatibilityState"],
+                "writeCapable": external["writeCapable"],
+                "forgedReadWriteRejected": True,
+                "readOnlyBinding": external_binding["binding"]["payload"]["accessMode"],
+                "heartbeatRevalidated": heartbeat["compatibilityState"],
+                "requiredSignals": required_signals,
             },
-            "vendorSafeMode": {
-                "platform": "claude_code",
-                "compatibilityState": vendor["compatibilityState"],
-                "writeCapable": vendor["writeCapable"],
-                "readWriteRejected": True,
-                "readOnlyBinding": vendor_binding["binding"]["payload"]["accessMode"],
+            "internalCli": {
+                "compatibilityState": internal["compatibilityState"],
+                "writeCapable": internal["writeCapable"],
+                "readWriteBinding": internal_binding["binding"]["payload"]["accessMode"],
             },
             "unknownVersion": {
                 "compatibilityState": unknown["compatibilityState"],
