@@ -16,7 +16,7 @@ EXPECTED_VERSIONS = {
     "claude_desktop": "supported-current",
     "codex": "0.146.1",
     "opencode": "1.18.14",
-    "cursor": "runtime-observed",
+    "cursor": "supported-current",
     "generic_mcp_host": "mcp-2025-11-25",
 }
 EXPECTED_KINDS = {
@@ -62,7 +62,12 @@ def validate_source(source: dict[str, Any], platform: str) -> None:
         if parsed.scheme != "https" or parsed.hostname not in ALLOWED_OFFICIAL_HOSTS:
             fail(f"{platform} has a non-official source URL: {source['url']}")
     elif "path" in source:
-        path = ROOT / str(source["path"])
+        relative = Path(str(source["path"]))
+        if relative.is_absolute():
+            fail(f"{platform} source path must be repository relative: {source['path']}")
+        path = (ROOT / relative).resolve()
+        if path != ROOT and ROOT not in path.parents:
+            fail(f"{platform} source path escapes the repository: {source['path']}")
         if not path.is_file():
             fail(f"{platform} source path does not exist: {source['path']}")
     else:

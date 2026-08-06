@@ -85,7 +85,9 @@ def stop_daemon(cli: Path, process: subprocess.Popen[str], env: dict[str, str]) 
 
 
 def canonical_sha256(value: Any) -> str:
-    encoded = json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    encoded = json.dumps(value, separators=(",", ":"), sort_keys=True, ensure_ascii=False).encode(
+        "utf-8"
+    )
     return hashlib.sha256(encoded).hexdigest()
 
 
@@ -107,12 +109,6 @@ def main() -> int:
         for platform in matrix["platforms"]
         if platform["id"] == "generic_mcp_host"
     )
-    probe_basis = {
-        "matrixSha256": matrix_sha256,
-        "passedSignals": required_signals,
-        "platform": "generic_mcp_host",
-        "version": "mcp-2025-11-25",
-    }
     probe = {
         "schemaVersion": "soleaux.client-capability-probe/v1",
         "platform": "generic_mcp_host",
@@ -121,8 +117,8 @@ def main() -> int:
         "status": "pass",
         "mutationEligible": True,
         "passedSignals": required_signals,
-        "evidenceSha256": canonical_sha256(probe_basis),
     }
+    probe["evidenceSha256"] = canonical_sha256(probe)
 
     with tempfile.TemporaryDirectory(prefix="soleaux-p5-client-matrix-") as temporary:
         root = Path(temporary)

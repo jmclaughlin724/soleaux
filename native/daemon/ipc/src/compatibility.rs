@@ -82,6 +82,53 @@ pub fn client_capability_matrix_sha256() -> String {
     format!("{digest:x}")
 }
 
+fn canonical_probe_sha256(value: &Value) -> Result<String> {
+    let mut basis = value.clone();
+    let object = basis
+        .as_object_mut()
+        .context("probe evidence must be a JSON object")?;
+    object.remove("evidenceSha256");
+    let mut encoded = Vec::new();
+    write_canonical_json(&basis, &mut encoded)?;
+    let digest = Sha256::digest(&encoded);
+    Ok(format!("{digest:x}"))
+}
+
+fn write_canonical_json(value: &Value, output: &mut Vec<u8>) -> Result<()> {
+    match value {
+        Value::Array(items) => {
+            output.push(b'[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    output.push(b',');
+                }
+                write_canonical_json(item, output)?;
+            }
+            output.push(b']');
+        }
+        Value::Object(object) => {
+            output.push(b'{');
+            let mut keys = object.keys().collect::<Vec<_>>();
+            keys.sort_unstable();
+            for (index, key) in keys.into_iter().enumerate() {
+                if index > 0 {
+                    output.push(b',');
+                }
+                serde_json::to_writer(&mut *output, key)
+                    .context("serializing a canonical probe key")?;
+                output.push(b':');
+                write_canonical_json(&object[key], output)?;
+            }
+            output.push(b'}');
+        }
+        _ => {
+            serde_json::to_writer(&mut *output, value)
+                .context("serializing a canonical probe value")?;
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_client_capability_matrix() -> Result<()> {
     let matrix = load_matrix()?;
     validate_matrix(&matrix)
@@ -268,6 +315,7 @@ pub(crate) fn evaluate_client_compatibility(
         .filter(|signal| !passed.contains(signal.as_str()))
         .cloned()
         .collect::<Vec<_>>();
+    let expected_evidence_sha256 = canonical_probe_sha256(probe_value)?;
     let valid = probe.schema_version == CLIENT_CAPABILITY_PROBE_SCHEMA_VERSION
         && probe.platform == platform.id
         && probe.client_version == client_version
@@ -275,6 +323,7 @@ pub(crate) fn evaluate_client_compatibility(
         && probe.status == "pass"
         && probe.mutation_eligible
         && is_lower_hex_digest(&probe.evidence_sha256)
+        && probe.evidence_sha256 == expected_evidence_sha256
         && missing.is_empty();
     if !valid {
         return Ok(read_only_decision(
@@ -434,6 +483,12 @@ mod tests {
 
     const PROTOCOL: &str = "soleaux.client/v1";
 
+    fn with_evidence_sha256(mut probe: Value) -> Value {
+        let digest = canonical_probe_sha256(&probe).expect("canonical probe digest");
+        probe["evidenceSha256"] = Value::String(digest);
+        probe
+    }
+
     fn valid_generic_probe() -> (Value, Value) {
         let required = vec![
             "initialize",
@@ -443,19 +498,17 @@ mod tests {
             "read_write_binding",
             "tool_ceiling",
         ];
+        let probe = with_evidence_sha256(json!({
+            "schemaVersion":CLIENT_CAPABILITY_PROBE_SCHEMA_VERSION,
+            "platform":"generic_mcp_host",
+            "clientVersion":"mcp-2025-11-25",
+            "matrixSha256":client_capability_matrix_sha256(),
+            "status":"pass",
+            "mutationEligible":true,
+            "passedSignals":required,
+        }));
         (
-            json!({
-                "soleauxProbe":{
-                    "schemaVersion":CLIENT_CAPABILITY_PROBE_SCHEMA_VERSION,
-                    "platform":"generic_mcp_host",
-                    "clientVersion":"mcp-2025-11-25",
-                    "matrixSha256":client_capability_matrix_sha256(),
-                    "status":"pass",
-                    "mutationEligible":true,
-                    "passedSignals":required,
-                    "evidenceSha256":"a".repeat(64),
-                }
-            }),
+            json!({"soleauxProbe":probe}),
             json!({"platform":"generic_mcp_host"}),
         )
     }
@@ -486,7 +539,7 @@ mod tests {
         assert!(decision.write_capable);
 
         let mut invalid = capabilities;
-        invalid["soleauxProbe"]["matrixSha256"] = Value::String("b".repeat(64));
+        invalid["soleauxProbe"]["evidenceSha256"] = Value::String("b".repeat(64));
         let decision = evaluate_client_compatibility(
             ClientKind::Adapter,
             "mcp-2025-11-25",

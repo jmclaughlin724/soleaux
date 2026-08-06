@@ -24,7 +24,9 @@ def fail(message: str) -> None:
 
 
 def canonical_sha256(value: Any) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
     return hashlib.sha256(encoded).hexdigest()
 
 
@@ -85,10 +87,10 @@ def observed_version(
     match = VERSION_PATTERN.search(combined)
     observed = match.group(1) if match else ""
     if version_policy == "exact":
-        if matrix_version not in combined:
+        if observed != matrix_version:
             fail(
                 "binary version did not match exact matrix entry "
-                f"{matrix_version}: {combined[:500]}"
+                f"{matrix_version}; observed={observed or '<missing>'}: {combined[:500]}"
             )
         return matrix_version
     if version_policy == "runtime_observed_read_only":

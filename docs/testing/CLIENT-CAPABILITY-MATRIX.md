@@ -12,7 +12,7 @@ The machine-readable authority is [`native/contracts/client-capability-matrix-v1
 | Claude Desktop | supported current surface | P5-003 | Official remote-connector and account-data export/import documentation | Denied; documentation-contract surface only |
 | Codex CLI / app-server | `0.146.1` | P5-004 | Pinned CLI version/help/app-server commands plus official app-server protocol documentation | Denied pending authenticated app-server lifecycle probe |
 | OpenCode | `1.18.14` | P5-005 | SHA-256-pinned Linux release binary plus HTTP/OpenAPI/SSE/plugin/rule/agent documentation | Denied pending authenticated HTTP/SSE lifecycle probe |
-| Cursor CLI / editor | runtime-observed current | P5-006 | Official installer, version/help binary probe, shared MCP configuration, rules, and hook documentation | Denied until an exact version is frozen and authenticated |
+| Cursor CLI / editor | supported current surface | P5-006 | Official rules, MCP, hooks, CLI, and session documentation; no moving installer is executed in evidence CI | Denied; documentation-contract surface only |
 | Generic MCP host fixture | `mcp-2025-11-25` | P5-006 | Native initialize, tools/list, context.compile, registry registration, read-write binding, and twelve-tool-ceiling smokes | Allowed only with exact matrix-bound probe evidence |
 
 The table is not a production-readiness claim. `productionClaimAllowed` remains `false`, and the public MCP ceiling remains twelve.
@@ -63,7 +63,7 @@ The Linux x64 `1.18.14` release archive is pinned by SHA-256 before its version/
 
 ### Cursor and generic MCP hosts
 
-Cursor uses its official install channel, reports the observed CLI version, and is probed for version/help while its rules, MCP, and hooks surfaces are recorded from official documentation.  Since the installer tracks the current channel rather than a frozen artifact in this contract, Cursor remains read-only.
+Cursor is represented by a documentation-only supported-surface contract for rules, MCP configuration, hooks, CLI behavior, and native session history.  The evidence workflow does not execute Cursor's moving remote installer, and the entry remains read-only until a checksum-pinned version and authenticated lifecycle oracle are approved.
 
 The generic MCP fixture is the only mutation-eligible entry.  It must prove all of the following against the compiled Soleaux binaries:
 
@@ -74,7 +74,7 @@ The generic MCP fixture is the only mutation-eligible entry.  It must prove all 
 5. A read-write binding to a trusted workspace.
 6. The locked public tool ceiling of twelve.
 
-Its registration includes a `soleaux.client-capability-probe/v1` object.  The daemon independently recomputes the embedded matrix SHA-256 and refuses write access if any field or signal is absent or mismatched.
+Its registration includes a `soleaux.client-capability-probe/v1` object.  The daemon independently recomputes both the embedded matrix SHA-256 and the canonical probe evidence SHA-256, then refuses write access if any field, digest, or required signal is absent or mismatched.
 
 ## Probe and evidence files
 

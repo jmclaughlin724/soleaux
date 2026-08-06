@@ -328,12 +328,12 @@
         "sessions": [
           "native_cli_history"
         ],
-        "writePolicy": "read_only_until_exact_version_authenticated_probe"
+        "writePolicy": "read_only_documented_surface"
       },
       "clientKind": "editor",
       "displayName": "Cursor CLI and editor",
       "id": "cursor",
-      "probeMode": "runtime_observed_binary_and_documentation",
+      "probeMode": "documentation_contract",
       "sources": [
         {
           "type": "official_docs",
@@ -349,24 +349,14 @@
         }
       ],
       "task": "P5-006",
-      "versionPolicy": "runtime_observed_read_only",
+      "versionPolicy": "supported_current",
       "versions": [
         {
-          "binaryCommands": {
-            "help": [
-              "--help"
-            ],
-            "version": [
-              "--version"
-            ]
-          },
+          "binaryCommands": {},
           "mutationEligible": false,
-          "releaseChannel": "official_install_script_current",
-          "requiredBinarySignals": [
-            "version",
-            "help"
-          ],
-          "version": "runtime-observed"
+          "releaseChannel": "cursor-supported-current",
+          "requiredBinarySignals": [],
+          "version": "supported-current"
         }
       ]
     },
