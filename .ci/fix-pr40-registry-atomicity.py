@@ -21,6 +21,12 @@ replace_once(
 )
 replace_once(
     registry,
+    "    CanonicalEntityInput, CanonicalRecord, ClientAccessMode, ClientCompatibilityState,\n",
+    "    CanonicalEntityInput, ClientAccessMode,\n",
+    "remove obsolete registry imports",
+)
+replace_once(
+    registry,
     '''    let (client, compatibility) =
         revalidate_client(state, client_id, capabilities, Some(ttl_ms), true)?;
     let bindings = state.registry_bindings(false, None, REGISTRY_PAGE_LIMIT_DEFAULT, unix_ms())?;
@@ -91,6 +97,14 @@ replace_once(
     "    Ok((result.client, compatibility))\n",
     "    Ok((result, compatibility))\n",
     "return complete writer result",
+)
+
+compatibility = "native/daemon/ipc/src/compatibility.rs"
+replace_once(
+    compatibility,
+    "fn is_lower_hex_digest(value: &str) -> bool {\n",
+    "#[cfg(test)]\nfn is_lower_hex_digest(value: &str) -> bool {\n",
+    "scope digest helper to tests",
 )
 
 database = "native/daemon/state/src/database.rs"
