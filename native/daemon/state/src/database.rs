@@ -728,28 +728,25 @@ pub(crate) fn registry_workspace_page(
     cursor: Option<Uuid>,
     limit: usize,
 ) -> Result<SerializedRegistryPage> {
-    let mut statement = connection.prepare(
-        "SELECT id FROM canonical_entities
+    let sql = format!(
+        "{ENTITY_SELECT}
          WHERE kind = ?1
            AND state = 'registered'
            AND tombstoned_at_unix_ms IS NULL
            AND (?2 IS NULL OR id > ?2)
          ORDER BY id
-         LIMIT ?3",
-    )?;
+         LIMIT ?3"
+    );
+    let mut statement = connection.prepare(&sql)?;
     let rows = statement.query_map(
         params![
             EntityKind::Workspace.as_str(),
             cursor.map(|value| value.to_string()),
             page_query_limit(limit)?,
         ],
-        |row| row.get::<_, String>(0),
+        entity_from_row,
     )?;
-    registry_page_from_ids(
-        connection,
-        rows.collect::<rusqlite::Result<Vec<_>>>()?,
-        limit,
-    )
+    registry_page_from_records(rows.collect::<rusqlite::Result<Vec<_>>>()?, limit)
 }
 
 pub(crate) fn registry_client_page(
@@ -759,8 +756,8 @@ pub(crate) fn registry_client_page(
     limit: usize,
     now_unix_ms: i64,
 ) -> Result<SerializedRegistryPage> {
-    let mut statement = connection.prepare(
-        "SELECT id FROM canonical_entities
+    let sql = format!(
+        "{ENTITY_SELECT}
          WHERE kind = ?1
            AND tombstoned_at_unix_ms IS NULL
            AND (?2 = 1 OR (
@@ -769,8 +766,9 @@ pub(crate) fn registry_client_page(
            ))
            AND (?4 IS NULL OR id > ?4)
          ORDER BY id
-         LIMIT ?5",
-    )?;
+         LIMIT ?5"
+    );
+    let mut statement = connection.prepare(&sql)?;
     let rows = statement.query_map(
         params![
             EntityKind::ClientRegistration.as_str(),
@@ -779,13 +777,9 @@ pub(crate) fn registry_client_page(
             cursor.map(|value| value.to_string()),
             page_query_limit(limit)?,
         ],
-        |row| row.get::<_, String>(0),
+        entity_from_row,
     )?;
-    registry_page_from_ids(
-        connection,
-        rows.collect::<rusqlite::Result<Vec<_>>>()?,
-        limit,
-    )
+    registry_page_from_records(rows.collect::<rusqlite::Result<Vec<_>>>()?, limit)
 }
 
 pub(crate) fn registry_binding_page(
@@ -796,7 +790,12 @@ pub(crate) fn registry_binding_page(
     now_unix_ms: i64,
 ) -> Result<SerializedRegistryPage> {
     let mut statement = connection.prepare(
-        "SELECT binding.id
+        "SELECT binding.id, binding.kind, binding.workspace_id, binding.parent_id,
+                binding.origin_platform, binding.native_id, binding.state, binding.sensitivity,
+                binding.revision, binding.payload_json, binding.payload_hash,
+                binding.idempotency_key, binding.expires_at_unix_ms,
+                binding.created_at_unix_ms, binding.updated_at_unix_ms,
+                binding.tombstoned_at_unix_ms
          FROM canonical_entities binding
          JOIN canonical_entities client
            ON client.id = binding.parent_id
@@ -829,38 +828,28 @@ pub(crate) fn registry_binding_page(
             cursor.map(|value| value.to_string()),
             page_query_limit(limit)?,
         ],
-        |row| row.get::<_, String>(0),
+        entity_from_row,
     )?;
-    registry_page_from_ids(
-        connection,
-        rows.collect::<rusqlite::Result<Vec<_>>>()?,
-        limit,
-    )
+    registry_page_from_records(rows.collect::<rusqlite::Result<Vec<_>>>()?, limit)
 }
 
 fn page_query_limit(limit: usize) -> Result<i64> {
     i64::try_from(limit.saturating_add(1)).context("registry page limit exceeds SQLite range")
 }
 
-fn registry_page_from_ids(
-    connection: &Connection,
-    mut ids: Vec<String>,
+fn registry_page_from_records(
+    mut items: Vec<SerializedEntityRecord>,
     limit: usize,
 ) -> Result<SerializedRegistryPage> {
-    let truncated = ids.len() > limit;
+    let truncated = items.len() > limit;
     if truncated {
-        ids.truncate(limit);
+        items.truncate(limit);
     }
-    let mut items = Vec::with_capacity(ids.len());
-    for id in ids {
-        let id = Uuid::parse_str(&id).context("registry query returned an invalid UUID")?;
-        let record = get_entity(connection, id)?
-            .with_context(|| format!("registry entity disappeared during read: {id}"))?;
-        items.push(record);
-    }
-    let next_cursor = truncated
-        .then(|| items.last().map(|record| record.id))
-        .flatten();
+    let next_cursor = if truncated {
+        items.last().map(|record| record.id)
+    } else {
+        None
+    };
     Ok(SerializedRegistryPage {
         items,
         next_cursor,
@@ -928,13 +917,8 @@ pub(crate) fn registry_heartbeat_client(
     }
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let existing = read_entity_tx(&transaction, client_id)?;
-    if existing.kind != EntityKind::ClientRegistration
-        || existing.tombstoned_at_unix_ms.is_some()
-        || existing.state != "connected"
-    {
-        bail!("client registration is not active");
-    }
     let now = unix_ms();
+    ensure_active_client(&existing, now)?;
     let expires = now
         .checked_add(i64_from_u64(ttl_ms, "client ttl")?)
         .context("client expiration overflow")?;
@@ -1672,43 +1656,82 @@ pub(crate) fn apply_retention(
             }
         }
     }
+
     let mut tombstones = Vec::new();
-    for id in candidates.into_iter().take(limit) {
+    let mut emitted = BTreeSet::new();
+    for id in candidates {
+        if tombstones.len() >= limit {
+            break;
+        }
+        if emitted.contains(&id) {
+            continue;
+        }
         let entity = read_entity_tx(&transaction, id)?;
         match entity.kind {
             EntityKind::Workspace | EntityKind::ClientRegistration => {
-                let cascade = registry_tombstone_parent_tx(
+                let binding_ids = match entity.kind {
+                    EntityKind::Workspace => binding_ids_tx(&transaction, None, Some(id))?,
+                    EntityKind::ClientRegistration => binding_ids_tx(&transaction, Some(id), None)?,
+                    _ => unreachable!(),
+                };
+                let remaining = limit.saturating_sub(tombstones.len());
+                if binding_ids.len().saturating_add(1) <= remaining {
+                    let cascade = registry_tombstone_parent_tx(
+                        &transaction,
+                        id,
+                        entity.kind,
+                        "retention_policy",
+                        "soleaux-retention",
+                        now,
+                    )?;
+                    for binding_id in cascade.binding_ids {
+                        if emitted.insert(binding_id) {
+                            tombstones.push(
+                                transaction
+                                    .query_row(
+                                        "SELECT entity_id, entity_kind, workspace_id, payload_hash, reason, actor,
+                                                tombstoned_at_unix_ms, purged_at_unix_ms
+                                         FROM tombstones WHERE entity_id = ?1",
+                                        [binding_id.to_string()],
+                                        tombstone_from_row,
+                                    )
+                                    .context("reading cascaded retention tombstone")?,
+                            );
+                        }
+                    }
+                    if emitted.insert(id) {
+                        tombstones.push(cascade.tombstone);
+                    }
+                } else {
+                    for binding_id in binding_ids.into_iter().take(remaining) {
+                        let tombstone = tombstone_entity_tx(
+                            &transaction,
+                            binding_id,
+                            "retention_policy",
+                            "soleaux-retention",
+                            now,
+                        )?;
+                        if emitted.insert(binding_id) {
+                            tombstones.push(tombstone);
+                        }
+                    }
+                }
+            }
+            _ => {
+                let tombstone = tombstone_entity_tx(
                     &transaction,
                     id,
-                    entity.kind,
                     "retention_policy",
                     "soleaux-retention",
                     now,
                 )?;
-                for binding_id in &cascade.binding_ids {
-                    tombstones.push(
-                        transaction
-                            .query_row(
-                                "SELECT entity_id, entity_kind, workspace_id, payload_hash, reason, actor,
-                                        tombstoned_at_unix_ms, purged_at_unix_ms
-                                 FROM tombstones WHERE entity_id = ?1",
-                                [binding_id.to_string()],
-                                tombstone_from_row,
-                            )
-                            .context("reading cascaded retention tombstone")?,
-                    );
+                if emitted.insert(id) {
+                    tombstones.push(tombstone);
                 }
-                tombstones.push(cascade.tombstone);
             }
-            _ => tombstones.push(tombstone_entity_tx(
-                &transaction,
-                id,
-                "retention_policy",
-                "soleaux-retention",
-                now,
-            )?),
         }
     }
+    debug_assert!(tombstones.len() <= limit);
     transaction.commit()?;
     Ok(tombstones)
 }

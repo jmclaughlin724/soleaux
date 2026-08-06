@@ -1,7 +1,10 @@
 use super::*;
 use serde_json::json;
 use std::{
-    sync::{Arc, Barrier, Mutex},
+    sync::{
+        Arc, Barrier, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -671,6 +674,69 @@ fn registry_pages_filter_before_limiting_and_use_stable_cursors() {
 }
 
 #[test]
+fn registry_pages_remain_readable_during_concurrent_purge() {
+    let directory = tempdir().expect("tempdir");
+    let store = Arc::new(
+        StateStore::open(directory.path().join("registry-snapshot.sqlite3")).expect("store"),
+    );
+    let now = now_ms();
+    let mut client_ids = Vec::new();
+    for ordinal in 0..96 {
+        client_ids.push(
+            store
+                .registry_register_client(registry_client_input(
+                    ClientKind::Adapter,
+                    &format!("snapshot-{ordinal:03}"),
+                    "Snapshot adapter",
+                    ClientCompatibilityState::Unprobed,
+                    now + 60_000,
+                    json!({"ordinal":ordinal}),
+                ))
+                .expect("register client")
+                .client
+                .id,
+        );
+    }
+
+    let barrier = Arc::new(Barrier::new(2));
+    let done = Arc::new(AtomicBool::new(false));
+    let reader_store = Arc::clone(&store);
+    let reader_barrier = Arc::clone(&barrier);
+    let reader_done = Arc::clone(&done);
+    let reader = thread::spawn(move || {
+        reader_barrier.wait();
+        let mut reads = 0usize;
+        while !reader_done.load(Ordering::Acquire) || reads < 64 {
+            let page = reader_store
+                .registry_clients(false, None, REGISTRY_PAGE_LIMIT_MAX, now)
+                .expect("snapshot-consistent registry page");
+            assert!(page.items.iter().all(|record| {
+                record.state == "connected"
+                    && record.tombstoned_at_unix_ms.is_none()
+                    && record
+                        .expires_at_unix_ms
+                        .is_none_or(|expires| expires > now)
+            }));
+            reads = reads.saturating_add(1);
+            thread::yield_now();
+        }
+    });
+
+    barrier.wait();
+    for client_id in client_ids {
+        store
+            .registry_disconnect_client(client_id, "snapshot-race", "test")
+            .expect("disconnect client");
+        store
+            .purge_tombstones(now_ms().saturating_add(1_000), REGISTRY_PAGE_LIMIT_MAX)
+            .expect("purge client");
+        thread::yield_now();
+    }
+    done.store(true, Ordering::Release);
+    reader.join().expect("reader");
+}
+
+#[test]
 fn registry_cascades_are_atomic_against_concurrent_binding_creation() {
     let directory = tempdir().expect("tempdir");
     let store =
@@ -786,6 +852,109 @@ fn registry_heartbeat_never_reverts_a_concurrent_registration_refresh() {
 }
 
 #[test]
+fn expired_clients_must_register_again_before_heartbeat() {
+    let directory = tempdir().expect("tempdir");
+    let store =
+        StateStore::open(directory.path().join("expired-heartbeat.sqlite3")).expect("store");
+    let client = store
+        .registry_register_client(registry_client_input(
+            ClientKind::Desktop,
+            "expired-heartbeat",
+            "Expired desktop",
+            ClientCompatibilityState::Verified,
+            now_ms() - 1,
+            json!({}),
+        ))
+        .expect("register expired fixture")
+        .client;
+    let error = store
+        .registry_heartbeat_client(client.id, 60_000, None)
+        .expect_err("expired client must not revive by heartbeat");
+    assert!(format!("{error:#}").contains("not active"));
+
+    let registered = store
+        .registry_register_client(registry_client_input(
+            ClientKind::Desktop,
+            "expired-heartbeat",
+            "Re-registered desktop",
+            ClientCompatibilityState::Verified,
+            now_ms() + 60_000,
+            json!({"reregistered":true}),
+        ))
+        .expect("re-register client")
+        .client;
+    assert_eq!(registered.id, client.id);
+    store
+        .registry_heartbeat_client(client.id, 60_000, None)
+        .expect("heartbeat after registration");
+}
+
+#[test]
+fn retention_batches_are_unique_and_respect_the_requested_limit() {
+    let directory = tempdir().expect("tempdir");
+    let store =
+        StateStore::open(directory.path().join("bounded-retention.sqlite3")).expect("store");
+    let client = store
+        .registry_register_client(registry_client_input(
+            ClientKind::Cli,
+            "bounded-retention",
+            "Bounded retention CLI",
+            ClientCompatibilityState::Verified,
+            now_ms() + 60_000,
+            json!({}),
+        ))
+        .expect("client")
+        .client;
+    let mut expected = std::collections::BTreeSet::from([client.id]);
+    for ordinal in 0..2 {
+        let workspace = store
+            .registry_register_workspace(registry_workspace_input(
+                &format!("/fixture/bounded-retention-{ordinal}"),
+                WorkspaceTrustState::Trusted,
+                None,
+            ))
+            .expect("workspace")
+            .workspace;
+        let binding = store
+            .registry_bind_client_workspace(registry_binding_input(
+                client.id,
+                workspace.id,
+                ClientAccessMode::ReadWrite,
+            ))
+            .expect("binding");
+        expected.insert(binding.id);
+    }
+    store
+        .registry_register_client(registry_client_input(
+            ClientKind::Cli,
+            "bounded-retention",
+            "Bounded retention CLI",
+            ClientCompatibilityState::Verified,
+            now_ms() - 1,
+            json!({}),
+        ))
+        .expect("expire client and bindings");
+
+    let mut observed = std::collections::BTreeSet::new();
+    for _ in 0..4 {
+        let batch = store.apply_retention(now_ms(), 2).expect("retention batch");
+        assert!(batch.len() <= 2);
+        let batch_ids = batch
+            .iter()
+            .map(|record| record.entity_id)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(batch_ids.len(), batch.len());
+        for id in batch_ids {
+            assert!(observed.insert(id), "retention emitted a duplicate id");
+        }
+        if observed == expected {
+            break;
+        }
+    }
+    assert_eq!(observed, expected);
+}
+
+#[test]
 fn retention_cascades_and_purges_registry_children_before_parents() {
     let directory = tempdir().expect("tempdir");
     let store =
@@ -841,6 +1010,7 @@ fn retention_cascades_and_purges_registry_children_before_parents() {
         .iter()
         .map(|record| record.entity_id)
         .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(ids.len(), tombstones.len());
     assert!(ids.contains(&workspace.id));
     assert!(ids.contains(&client.id));
     assert!(ids.contains(&binding.id));

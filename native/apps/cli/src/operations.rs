@@ -7,6 +7,7 @@ use soleaux_ipc::{
 use soleaux_state::{CanonicalEntityInput, HandoffPayload, StateStore, WorkspaceTrustState};
 use std::{
     fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 use uuid::Uuid;
@@ -105,30 +106,66 @@ pub async fn registry_call(method: IpcMethod) -> Result<Value> {
 }
 
 pub async fn apply_and_register_attach(root: &Path) -> Result<Value> {
-    let receipt = soleaux_mcp::provisioning::apply_attach(root)?;
-    let canonical = fs::canonicalize(root)
-        .with_context(|| format!("resolving workspace path {}", root.display()))?;
-    let path = canonical
-        .to_str()
-        .context("workspace path is not valid UTF-8")?
-        .to_owned();
+    let (canonical, path, display_name) = canonical_workspace_registration(root)?;
+    let manifest_path = canonical.join(".soleaux/backups/latest.json");
+    let manifest_preimage = capture_file_preimage(&manifest_path)?;
+    let receipt = soleaux_mcp::provisioning::apply_attach(&canonical)?;
     let registration = registry_call(IpcMethod::WorkspaceRegister {
         path,
-        display_name: canonical
-            .file_name()
-            .and_then(|value| value.to_str())
-            .map(ToOwned::to_owned),
+        display_name,
         trust_state: WorkspaceTrustState::ReadOnly,
         metadata: json!({"attachedBy":"soleaux attach","canonicalRegistry":true}),
     })
     .await;
-    finish_attachment(root, receipt, registration)
+    finish_attachment(&canonical, receipt, registration, manifest_preimage)
+}
+
+fn canonical_workspace_registration(root: &Path) -> Result<(PathBuf, String, Option<String>)> {
+    let canonical = fs::canonicalize(root)
+        .with_context(|| format!("resolving workspace path {}", root.display()))?;
+    workspace_registration_from_canonical(canonical)
+}
+
+fn workspace_registration_from_canonical(
+    canonical: PathBuf,
+) -> Result<(PathBuf, String, Option<String>)> {
+    let path = canonical
+        .to_str()
+        .context("workspace path is not valid UTF-8")?
+        .to_owned();
+    let display_name = canonical
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(ToOwned::to_owned);
+    Ok((canonical, path, display_name))
+}
+
+fn capture_file_preimage(path: &Path) -> Result<Option<Vec<u8>>> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error)
+            .with_context(|| format!("reading prior provisioning manifest {}", path.display())),
+    }
+}
+
+fn restore_file_preimage(path: &Path, preimage: Option<&[u8]>) -> Result<()> {
+    match preimage {
+        Some(bytes) => atomic_write(path, bytes),
+        None => match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error)
+                .with_context(|| format!("removing replacement manifest {}", path.display())),
+        },
+    }
 }
 
 fn finish_attachment(
     root: &Path,
     receipt: soleaux_mcp::provisioning::ProvisionReceipt,
     registration: Result<Value>,
+    manifest_preimage: Option<Vec<u8>>,
 ) -> Result<Value> {
     match registration {
         Ok(registry) => Ok(json!({
@@ -137,14 +174,26 @@ fn finish_attachment(
             "registry":registry,
             "productionClaimAllowed":false,
         })),
-        Err(failure) => match soleaux_mcp::provisioning::revert_last(root) {
-            Ok(restored) => bail!(
-                "canonical workspace registration failed and attachment files were restored ({restored:?}): {failure:#}"
-            ),
-            Err(rollback) => bail!(
-                "canonical workspace registration failed: {failure:#}; attachment rollback also failed: {rollback:#}"
-            ),
-        },
+        Err(failure) => {
+            let rollback = soleaux_mcp::provisioning::revert_last(root);
+            let manifest_path = root.join(".soleaux/backups/latest.json");
+            let manifest_restore =
+                restore_file_preimage(&manifest_path, manifest_preimage.as_deref());
+            match (rollback, manifest_restore) {
+                (Ok(restored), Ok(())) => bail!(
+                    "canonical workspace registration failed and attachment files were restored ({restored:?}); the prior provisioning manifest was also restored: {failure:#}"
+                ),
+                (Ok(restored), Err(manifest_failure)) => bail!(
+                    "canonical workspace registration failed and attachment files were restored ({restored:?}), but the prior provisioning manifest could not be restored: {manifest_failure:#}; original failure: {failure:#}"
+                ),
+                (Err(rollback), Ok(())) => bail!(
+                    "canonical workspace registration failed: {failure:#}; attachment rollback also failed: {rollback:#}; the prior provisioning manifest was restored"
+                ),
+                (Err(rollback), Err(manifest_failure)) => bail!(
+                    "canonical workspace registration failed: {failure:#}; attachment rollback also failed: {rollback:#}; prior provisioning manifest restoration also failed: {manifest_failure:#}"
+                ),
+            }
+        }
     }
 }
 
@@ -333,11 +382,50 @@ mod tests {
     fn failed_canonical_registration_rolls_back_workspace_attachment() {
         let directory = tempdir().expect("tempdir");
         let root = fs::canonicalize(directory.path()).expect("root");
+        let manifest_path = root.join(".soleaux/backups/latest.json");
+        let manifest_preimage = capture_file_preimage(&manifest_path).expect("manifest preimage");
         let receipt = soleaux_mcp::provisioning::apply_attach(&root).expect("apply attach");
         assert!(root.join(".soleaux/attachment.json").is_file());
-        let error = finish_attachment(&root, receipt, Err(anyhow!("registry unavailable")))
-            .expect_err("registration failure must roll back attachment");
+        let error = finish_attachment(
+            &root,
+            receipt,
+            Err(anyhow!("registry unavailable")),
+            manifest_preimage,
+        )
+        .expect_err("registration failure must roll back attachment");
         assert!(error.to_string().contains("attachment files were restored"));
         assert!(!root.join(".soleaux/attachment.json").exists());
+        assert!(!manifest_path.exists());
+    }
+
+    #[test]
+    fn failed_registration_restores_the_prior_provisioning_manifest() {
+        let directory = tempdir().expect("tempdir");
+        let root = fs::canonicalize(directory.path()).expect("root");
+        soleaux_mcp::provisioning::apply_adopt(&root).expect("prior adopt");
+        let manifest_path = root.join(".soleaux/backups/latest.json");
+        let prior = fs::read(&manifest_path).expect("prior manifest");
+        let manifest_preimage = capture_file_preimage(&manifest_path).expect("manifest preimage");
+        let receipt = soleaux_mcp::provisioning::apply_attach(&root).expect("apply attach");
+        finish_attachment(
+            &root,
+            receipt,
+            Err(anyhow!("registry unavailable")),
+            manifest_preimage,
+        )
+        .expect_err("registration failure must roll back attachment");
+        assert_eq!(fs::read(&manifest_path).expect("restored manifest"), prior);
+        assert!(!root.join(".soleaux/attachment.json").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_workspace_registration_is_rejected_before_provisioning() {
+        use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
+        let invalid = PathBuf::from(OsString::from_vec(vec![b'w', 0xff]));
+        let error = workspace_registration_from_canonical(invalid)
+            .expect_err("non-UTF8 workspace must fail closed");
+        assert!(error.to_string().contains("valid UTF-8"));
     }
 }
