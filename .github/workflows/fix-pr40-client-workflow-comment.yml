@@ -16,7 +16,7 @@ jobs:
     env:
       TARGET_BRANCH: fix/p5-client-matrix-post-merge-remediation
       EXPECTED_HEAD: 33a3801174ece7ff8384aae9a51414fa19e02ff7
-      CODEMOD_COMMIT: 19a04c7a5510a9dee213ed0fb6595b4f7529c89e
+      CODEMOD_COMMIT: 509dd2410dbe4d8bd47c0c107a5f0ec03b5dd953
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,21 +54,20 @@ jobs:
             | tee /tmp/client-tests.txt
           git diff --check
 
-      - name: Verify the pinned Claude package through its Node entrypoint
+      - name: Verify the pinned Claude package and native binary
         run: |
           set -euo pipefail
           python3 native/scripts/verify_pinned_client_artifact.py \
             --platform claude_code --download-dir /tmp/claude-pack \
             --output /tmp/claude-artifact.json
           CLAUDE_ARCHIVE="$(python3 -c 'import json; print(json.load(open("/tmp/claude-artifact.json"))["artifactPath"])')"
-          npm install --global "$CLAUDE_ARCHIVE" --ignore-scripts
-          CLAUDE_ENTRY="$(readlink -f "$(command -v claude)")"
-          test -f "$CLAUDE_ENTRY"
-          printf '#!/usr/bin/env bash\nexec node %q "$@"\n' "$CLAUDE_ENTRY" \
-            > /tmp/claude-node-wrapper
-          chmod +x /tmp/claude-node-wrapper
+          npm install --global "$CLAUDE_ARCHIVE"
+          CLAUDE_BINARY="$(readlink -f "$(command -v claude)")"
+          test -f "$CLAUDE_BINARY"
+          file "$CLAUDE_BINARY" | tee /tmp/claude-file.txt
+          claude --version | tee /tmp/claude-installed-version.txt
           python3 native/scripts/probe_client_capabilities.py \
-            --platform claude_code --binary /tmp/claude-node-wrapper \
+            --platform claude_code --binary claude \
             --output /tmp/claude-code.json
 
       - name: Commit the exact validated client closure source
@@ -87,7 +86,7 @@ jobs:
           git write-tree > /tmp/TESTED-TREE
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'fix(matrix): execute pinned Claude package through Node'
+          git commit -m 'fix(matrix): execute verified Claude native package'
           test "$(git rev-parse HEAD^{tree})" = "$(cat /tmp/TESTED-TREE)"
           git rev-parse HEAD | tee /tmp/SOURCE-COMMIT
           git push origin "HEAD:refs/heads/$TARGET_BRANCH"
@@ -102,6 +101,8 @@ jobs:
             /tmp/self-test.json
             /tmp/client-tests.txt
             /tmp/claude-artifact.json
+            /tmp/claude-file.txt
+            /tmp/claude-installed-version.txt
             /tmp/claude-code.json
           if-no-files-found: error
           retention-days: 30
