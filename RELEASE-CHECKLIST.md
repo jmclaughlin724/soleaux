@@ -61,7 +61,7 @@ Evidence:
 
 ## Phase 5 beta gate — open
 
-- [ ] Installed service/workspace registry converges across concurrent client classes.
+- [x] Installed service/workspace registry converges across concurrent client classes. Evidence: `P5-001-CLOSURE-RECEIPT.json`.
 - [ ] Claude Code matrix green.
 - [ ] Claude Desktop supported boundary matrix green.
 - [ ] Codex CLI/Desktop app-server matrix green.

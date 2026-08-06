@@ -21,6 +21,14 @@ The project is licensed under MIT.
 - Pruned fully merged short-lived branches and retained unique-commit branches only as documented non-authoritative archival lineage.
 - Kept the exact twelve-tool surface, locked contract digests, version `0.4.0-dev.5`, and `productionClaimAllowed=false`.
 
+### Phase 5 — P5-001 registry convergence closed — 2026-08-05
+
+- Merged PR #36 with one daemon-owned canonical workspace/client registry across CLI, desktop, editor, and adapter clients.
+- Added atomic lease, heartbeat, binding, disconnect, forget, revival, trust-downgrade, compatibility-safe-mode, pagination, and mutation-response bounds.
+- Unified public `attach` and `adopt --revert` with the canonical registry, canonical UUID markers, rollback recovery, and legacy manifest-scope compatibility.
+- Passed the complete Python conformance suite, full native Rust gates, Linux/macOS lifecycle smokes, and Cargo audit while retaining ceiling 12 and `productionClaimAllowed=false`.
+- Persisted [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json).
+
 ### Phase 5 — activated
 
 - Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.
