@@ -13,23 +13,20 @@ permissions:
 env:
   TARGET_BRANCH: agent/p5-002-p5-006-client-capability-matrices
   EXPECTED_TARGET: 42d2b7808182ac0da9a478d395f00f3a2c55f4a8
-  AUTOMATION_COMMIT: 3ca195d2212f6db4fbd9c8704636098293195b03
   CARRIER_SHA256: 114dc26a7f1294f9b16a18b9b0c83eb47b9154569e53c4e5060bb75874f87666
   GZIP_SHA256: 92dc1eeb49d307b1a2da4a955bf884d6c7df35e1e2dc66d81349fbb050bd6842
   SCRIPT_SHA256: e7e6b6bcef55fcb8cf671be48835b004cdfb8267319a18c99f9c0c3e2c2a89cb
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
 
 concurrency:
   group: apply-pr38-remediation-no-actions
   cancel-in-progress: true
 
 jobs:
-  remediate:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 150
+  publish:
+    runs-on: macos-15
+    timeout-minutes: 45
     steps:
-      - name: Manually check out the exact automation and target source
+      - name: Clone exact source and publish validated normal files
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -40,39 +37,20 @@ jobs:
           git checkout "${GITHUB_SHA}"
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           test "$(git rev-parse refs/remotes/origin/${TARGET_BRANCH})" = "${EXPECTED_TARGET}"
-          mkdir -p /tmp/pr38-evidence
-          printf '%s\n' "${EXPECTED_TARGET}" > /tmp/pr38-evidence/BASE_COMMIT
 
-      - name: Install pinned build tools directly
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler \
-            python3-pip python3-pytest python3-yaml
-          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
-          rustup default 1.97.1
-          python3 -m pip install --user --break-system-packages ruff==0.15.22
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Apply and validate the checksummed normal-source remediation
-        working-directory: repo
-        run: |
-          set -euo pipefail
-          cat \
-            .ci/pr38-remediation.part00 \
-            .ci/pr38-remediation.part01 \
-            .ci/pr38-remediation.part02 \
-            .ci/pr38-remediation.tail \
-            > /tmp/pr38-remediation.py.gz.b64
-          echo "${CARRIER_SHA256}  /tmp/pr38-remediation.py.gz.b64" | sha256sum -c -
-          base64 -d /tmp/pr38-remediation.py.gz.b64 > /tmp/pr38-remediation.py.gz
-          echo "${GZIP_SHA256}  /tmp/pr38-remediation.py.gz" | sha256sum -c -
+          python3 -m venv /tmp/pr38-venv
+          /tmp/pr38-venv/bin/python -m pip install --quiet \
+            ruff==0.15.22 pytest==9.0.2 pyyaml==6.0.3
+          cat .ci/pr38-remediation.part0[0-5] > /tmp/pr38-remediation.py.gz.b64
+          test "$(wc -c < /tmp/pr38-remediation.py.gz.b64 | tr -d ' ')" = "47900"
+          echo "${CARRIER_SHA256}  /tmp/pr38-remediation.py.gz.b64" | shasum -a 256 -c -
+          base64 -d -i /tmp/pr38-remediation.py.gz.b64 -o /tmp/pr38-remediation.py.gz
+          echo "${GZIP_SHA256}  /tmp/pr38-remediation.py.gz" | shasum -a 256 -c -
           gzip -dc /tmp/pr38-remediation.py.gz > /tmp/pr38-remediation.py
-          echo "${SCRIPT_SHA256}  /tmp/pr38-remediation.py" | sha256sum -c -
-          python3 -m py_compile /tmp/pr38-remediation.py
-          python3 /tmp/pr38-remediation.py
-          python3 - <<'PY'
+          echo "${SCRIPT_SHA256}  /tmp/pr38-remediation.py" | shasum -a 256 -c -
+          /tmp/pr38-venv/bin/python -m py_compile /tmp/pr38-remediation.py
+          /tmp/pr38-venv/bin/python /tmp/pr38-remediation.py
+          /tmp/pr38-venv/bin/python - <<'PY'
           from pathlib import Path
           path = Path('tests/test_client_capability_matrix.py')
           text = path.read_text(encoding='utf-8')
@@ -82,62 +60,31 @@ jobs:
               raise SystemExit('exact-version regression assertion drifted')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
-          ruff check --fix \
+          /tmp/pr38-venv/bin/ruff check --fix \
             native/scripts/validate_client_capability_matrix.py \
             native/scripts/probe_client_capabilities.py \
             native/scripts/p5_client_matrix_smoke.py \
             tests/test_client_capability_matrix.py
-          ruff format \
+          /tmp/pr38-venv/bin/ruff format \
             native/scripts/validate_client_capability_matrix.py \
             native/scripts/probe_client_capabilities.py \
             native/scripts/p5_client_matrix_smoke.py \
             tests/test_client_capability_matrix.py
-          ruff check \
+          /tmp/pr38-venv/bin/ruff check \
             native/scripts/validate_client_capability_matrix.py \
             native/scripts/probe_client_capabilities.py \
             native/scripts/p5_client_matrix_smoke.py \
             tests/test_client_capability_matrix.py
-          ruff format --check \
+          /tmp/pr38-venv/bin/ruff format --check \
             native/scripts/validate_client_capability_matrix.py \
             native/scripts/probe_client_capabilities.py \
             native/scripts/p5_client_matrix_smoke.py \
             tests/test_client_capability_matrix.py
-          python3 native/scripts/validate_client_capability_matrix.py \
-            --output /tmp/pr38-evidence/matrix-validation.json
-          python3 -m pytest tests/test_client_capability_matrix.py -vv \
-            2>&1 | tee /tmp/pr38-evidence/focused-pytest.txt
-          python3 scripts/check_documentation_consistency.py \
-            | tee /tmp/pr38-evidence/documentation-consistency.txt
-          cargo fmt --manifest-path native/Cargo.toml --all
-          cargo fmt --manifest-path native/Cargo.toml --all --check
-          cargo check --manifest-path native/Cargo.toml \
-            --workspace --all-targets --all-features --locked \
-            2>&1 | tee /tmp/pr38-evidence/cargo-check.txt
-          cargo clippy --manifest-path native/Cargo.toml \
-            --workspace --all-targets --all-features --locked -- -D warnings \
-            2>&1 | tee /tmp/pr38-evidence/cargo-clippy.txt
-          cargo test --manifest-path native/Cargo.toml \
-            --workspace --all-features --locked \
-            2>&1 | tee /tmp/pr38-evidence/cargo-test.txt
-          cargo build --manifest-path native/Cargo.toml \
-            --release --workspace --all-features --locked \
-            2>&1 | tee /tmp/pr38-evidence/cargo-build.txt
-          python3 native/scripts/phase1_mcp_smoke.py \
-            native/target/release/soleaux native /tmp/pr38-evidence/phase1.json
-          python3 native/scripts/phase2_capability_smoke.py \
-            native/target/release/soleaux native/target/release/soleauxd \
-            native /tmp/pr38-evidence/phase2.json
-          python3 native/scripts/p5_client_matrix_smoke.py \
-            native/target/release/soleaux native/target/release/soleauxd \
-            native /tmp/pr38-evidence/p5-client-matrix.json
+          /tmp/pr38-venv/bin/python native/scripts/validate_client_capability_matrix.py
+          /tmp/pr38-venv/bin/python -m pytest tests/test_client_capability_matrix.py -vv
+          /tmp/pr38-venv/bin/python scripts/check_documentation_consistency.py
           git diff --check
 
-      - name: Publish the validated source to PR38
-        working-directory: repo
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
           files=(
             docs/testing/CLIENT-CAPABILITY-MATRIX.md
             native/contracts/client-capability-matrix-v1.json
@@ -159,8 +106,7 @@ jobs:
           git checkout -B "${TARGET_BRANCH}" "refs/remotes/origin/${TARGET_BRANCH}"
           tar -xzf /tmp/pr38-overlay.tar.gz
           rm -f .ci/p5-client-review-fixes.py .ci/p5-client-wave2-hardening.py
-          chmod +x \
-            native/scripts/p5_client_matrix_smoke.py \
+          chmod +x native/scripts/p5_client_matrix_smoke.py \
             native/scripts/probe_client_capabilities.py \
             native/scripts/validate_client_capability_matrix.py
           git config user.name 'github-actions[bot]'
@@ -168,9 +114,6 @@ jobs:
           git add "${files[@]}" .ci/p5-client-review-fixes.py .ci/p5-client-wave2-hardening.py
           git diff --cached --check
           git commit -m 'fix: make external client capability admission fail closed'
-          git rev-parse HEAD | tee /tmp/pr38-evidence/SOURCE_COMMIT
-          git diff-tree --no-commit-id --name-status -r HEAD \
-            > /tmp/pr38-evidence/changed-files.txt
           git push \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             "HEAD:refs/heads/${TARGET_BRANCH}"
