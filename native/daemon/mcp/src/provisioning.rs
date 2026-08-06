@@ -8,11 +8,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
+    ffi::OsString,
     fs,
     io::Write,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+use uuid::Uuid;
 
 const MANAGED_BEGIN: &str = "<!-- soleaux:managed:begin -->";
 const MANAGED_END: &str = "<!-- soleaux:managed:end -->";
@@ -64,9 +66,19 @@ struct BackupManifest {
     records: Vec<BackupRecord>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+enum BackupScope {
+    #[default]
+    Workspace,
+    SoleauxHome,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct BackupRecord {
+    #[serde(default)]
+    scope: BackupScope,
     path: String,
     backup_path: Option<String>,
     created: bool,
@@ -155,6 +167,71 @@ pub fn apply_attach(root: &Path) -> Result<ProvisionReceipt> {
     apply_plan(&root, &plan)
 }
 
+pub fn attachment_workspace_id(root: &Path) -> Result<Option<Uuid>> {
+    let root = canonical_root(root)?;
+    let path = root.join(".soleaux/attachment.json");
+    let Some(bytes) = read_optional(&path)? else {
+        return Ok(None);
+    };
+    let value: serde_json::Value = serde_json::from_slice(&bytes)
+        .with_context(|| format!("reading attachment marker {}", path.display()))?;
+    let Some(value) = value
+        .get("workspace_id")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return Ok(None);
+    };
+    match Uuid::parse_str(value) {
+        Ok(workspace_id) => Ok(Some(workspace_id)),
+        Err(_)
+            if value.len() == 32
+                && value.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+        {
+            Ok(None)
+        }
+        Err(error) => Err(error).context("attachment marker contains an invalid workspace_id"),
+    }
+}
+
+pub fn bind_attachment_workspace_id(root: &Path, workspace_id: Uuid) -> Result<()> {
+    let root = canonical_root(root)?;
+    let marker_path = root.join(".soleaux/attachment.json");
+    let marker_preimage = fs::read(&marker_path)
+        .with_context(|| format!("reading attachment marker {}", marker_path.display()))?;
+    let mut marker: serde_json::Value = serde_json::from_slice(&marker_preimage)?;
+    marker
+        .as_object_mut()
+        .context("attachment marker root must be an object")?
+        .insert("workspace_id".to_string(), json!(workspace_id));
+    let marker_bytes = serde_json::to_vec_pretty(&marker)?;
+
+    let manifest_path = root.join(".soleaux/backups/latest.json");
+    let manifest_preimage = fs::read(&manifest_path)
+        .with_context(|| format!("reading backup manifest {}", manifest_path.display()))?;
+    let mut manifest: BackupManifest = serde_json::from_slice(&manifest_preimage)?;
+    let record = manifest
+        .records
+        .iter_mut()
+        .find(|record| {
+            record.scope == BackupScope::Workspace
+                && record.path == ".soleaux/attachment.json"
+        })
+        .context("attachment manifest omitted its workspace marker record")?;
+    record.applied_sha256 = sha256_hex(&marker_bytes);
+    let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
+
+    atomic_write(&marker_path, &marker_bytes)?;
+    if let Err(failure) = atomic_write(&manifest_path, &manifest_bytes) {
+        let rollback = atomic_write(&marker_path, &marker_preimage);
+        return Err(transaction_error(
+            "binding the canonical workspace id to the attachment marker",
+            failure,
+            rollback,
+        ));
+    }
+    Ok(())
+}
+
 pub fn revert_last(root: &Path) -> Result<Vec<String>> {
     let root = canonical_root(root)?;
     let mut writer = |path: &Path, bytes: &[u8]| atomic_write(path, bytes);
@@ -177,7 +254,7 @@ where
     // Validate every target and load every backup before changing any path.
     let mut prepared = Vec::new();
     for record in manifest.records.iter().rev() {
-        let target = admit(root, &record.path)?;
+        let target = admit_scoped(root, record.scope, &record.path)?;
         let current = read_optional(&target)?
             .with_context(|| format!("provisioned target {} is missing", target.display()))?;
         let current_hash = sha256_hex(&current);
@@ -295,6 +372,7 @@ where
         records: writes
             .iter()
             .map(|write| BackupRecord {
+                scope: BackupScope::Workspace,
                 path: write.path.clone(),
                 backup_path: write.backup_path.clone(),
                 created: write.existing.is_none(),
@@ -621,6 +699,46 @@ fn admit(root: &Path, relative: &str) -> Result<PathBuf> {
     Ok(target)
 }
 
+fn admit_scoped(root: &Path, scope: BackupScope, relative: &str) -> Result<PathBuf> {
+    match scope {
+        BackupScope::Workspace => admit(root, relative),
+        BackupScope::SoleauxHome => {
+            validate_relative_path(relative)?;
+            let home = normalized_base(&crate::gateway::soleaux_home()?)?;
+            if home.exists() {
+                admit(&home, relative)
+            } else {
+                Ok(home.join(relative))
+            }
+        }
+    }
+}
+
+fn normalized_base(base: &Path) -> Result<PathBuf> {
+    if base.exists() {
+        return fs::canonicalize(base)
+            .with_context(|| format!("resolving provisioning base {}", base.display()));
+    }
+    let mut ancestor = base;
+    let mut suffix: Vec<OsString> = Vec::new();
+    while !ancestor.exists() {
+        suffix.push(
+            ancestor
+                .file_name()
+                .context("provisioning base has no existing ancestor")?
+                .to_os_string(),
+        );
+        ancestor = ancestor
+            .parent()
+            .context("provisioning base has no existing ancestor")?;
+    }
+    let mut normalized = fs::canonicalize(ancestor)?;
+    for component in suffix.iter().rev() {
+        normalized.push(component);
+    }
+    Ok(normalized)
+}
+
 fn validate_relative_path(relative: &str) -> Result<()> {
     let relative = Path::new(relative);
     if relative.is_absolute()
@@ -809,6 +927,50 @@ mod tests {
         let receipt = apply_attach(&root).expect("attach");
         assert_eq!(receipt.written, vec![".soleaux/attachment.json"]);
         assert!(root.join(".soleaux/attachment.json").is_file());
+    }
+
+    #[test]
+    fn canonical_workspace_id_updates_marker_and_manifest_together() {
+        let directory = tempdir().expect("tempdir");
+        let root = canonical_root(directory.path()).expect("root");
+        apply_attach(&root).expect("attach");
+        let workspace_id = Uuid::now_v7();
+        bind_attachment_workspace_id(&root, workspace_id).expect("bind canonical id");
+        assert_eq!(
+            attachment_workspace_id(&root).expect("marker id"),
+            Some(workspace_id)
+        );
+        revert_last(&root).expect("revert canonical marker");
+        assert!(!root.join(".soleaux/attachment.json").exists());
+    }
+
+    #[test]
+    fn legacy_soleaux_home_manifest_scope_remains_revertible() {
+        let directory = tempdir().expect("tempdir");
+        let root = canonical_root(directory.path()).expect("root");
+        let home = directory.path().join("soleaux-home");
+        let _home_guard = crate::test_environment::SoleauxHomeGuard::set(&home);
+        let legacy_path = home.join("workspaces/legacy.json");
+        atomic_write(&legacy_path, b"legacy registry entry").expect("legacy entry");
+        let manifest_path = root.join(".soleaux/backups/latest.json");
+        let manifest = json!({
+            "schema_version":"soleaux.provisioning-backup/v2",
+            "workspace":root,
+            "created_unix_ms":unix_ms(),
+            "records":[{
+                "scope":"soleaux_home",
+                "path":"workspaces/legacy.json",
+                "backup_path":null,
+                "created":true,
+                "preimage_sha256":null,
+                "applied_sha256":sha256_hex(b"legacy registry entry")
+            }]
+        });
+        atomic_write(&manifest_path, &serde_json::to_vec_pretty(&manifest).expect("manifest"))
+            .expect("write manifest");
+        let restored = revert_last(&root).expect("legacy revert");
+        assert_eq!(restored, vec!["workspaces/legacy.json"]);
+        assert!(!legacy_path.exists());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use soleaux_state::{
     ClientAccessMode, ClientKind, REGISTRY_PAGE_LIMIT_DEFAULT, WorkspaceTrustState,
 };
@@ -60,7 +60,7 @@ pub enum IpcMethod {
         #[serde(default)]
         display_name: Option<String>,
         trust_state: WorkspaceTrustState,
-        #[serde(default)]
+        #[serde(default = "default_object")]
         metadata: Value,
     },
     WorkspaceList {
@@ -79,9 +79,9 @@ pub enum IpcMethod {
         client_version: String,
         protocol_version: String,
         ttl_ms: u64,
-        #[serde(default)]
+        #[serde(default = "default_object")]
         capabilities: Value,
-        #[serde(default)]
+        #[serde(default = "default_object")]
         metadata: Value,
     },
     ClientHeartbeat {
@@ -113,15 +113,19 @@ pub enum IpcMethod {
         client_id: Uuid,
         workspace_id: Uuid,
         access_mode: ClientAccessMode,
-        #[serde(default)]
+        #[serde(default = "default_object")]
         capabilities: Value,
-        #[serde(default)]
+        #[serde(default = "default_object")]
         metadata: Value,
     },
     ClientUnbindWorkspace {
         binding_id: Uuid,
     },
     Shutdown,
+}
+
+fn default_object() -> Value {
+    Value::Object(Map::new())
 }
 
 fn default_registry_limit() -> usize {
@@ -177,6 +181,49 @@ pub enum IpcStatus {
 pub struct IpcError {
     pub code: String,
     pub message: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn omitted_registry_objects_default_to_empty_objects() {
+        let workspace: IpcMethod = serde_json::from_value(serde_json::json!({
+            "name":"workspace_register",
+            "arguments":{
+                "path":"/tmp/workspace",
+                "trust_state":"read_only"
+            }
+        }))
+        .expect("workspace request");
+        assert!(matches!(workspace, IpcMethod::WorkspaceRegister { metadata, .. } if metadata == serde_json::json!({})));
+
+        let client: IpcMethod = serde_json::from_value(serde_json::json!({
+            "name":"client_register",
+            "arguments":{
+                "client_kind":"desktop",
+                "instance_id":"desktop-1",
+                "display_name":"Desktop",
+                "client_version":"unprobed",
+                "protocol_version":"soleaux.client/v1",
+                "ttl_ms":5000
+            }
+        }))
+        .expect("client request");
+        assert!(matches!(client, IpcMethod::ClientRegister { capabilities, metadata, .. } if capabilities == serde_json::json!({}) && metadata == serde_json::json!({})));
+
+        let binding: IpcMethod = serde_json::from_value(serde_json::json!({
+            "name":"client_bind_workspace",
+            "arguments":{
+                "client_id":"018f0000-0000-7000-8000-000000000001",
+                "workspace_id":"018f0000-0000-7000-8000-000000000002",
+                "access_mode":"read_only"
+            }
+        }))
+        .expect("binding request");
+        assert!(matches!(binding, IpcMethod::ClientBindWorkspace { capabilities, metadata, .. } if capabilities == serde_json::json!({}) && metadata == serde_json::json!({})));
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -7,7 +7,7 @@ use soleaux_ipc::IpcMethod;
 use soleaux_mcp::{
     PublicMcpServer,
     gateway::{backend_status, clear_credential, invoke, store_credential},
-    provisioning::{adopt_plan, apply_adopt, attach_plan, revert_last},
+    provisioning::{adopt_plan, apply_adopt, attach_plan},
 };
 use soleaux_state::{
     ClientAccessMode, ClientKind, REGISTRY_PAGE_LIMIT_DEFAULT, WorkspaceTrustState,
@@ -586,7 +586,7 @@ async fn main() -> Result<()> {
             revert,
         } => {
             if revert {
-                return print_json(json!({"restored":revert_last(&repo)?}));
+                return print_json(operations::revert_adoption(&repo).await?);
             }
             let plan = adopt_plan(&repo)?;
             if dry_run || !yes {
@@ -629,7 +629,7 @@ async fn main() -> Result<()> {
                 revert,
             } => {
                 if revert {
-                    print_json(json!({"restored":revert_last(&repo)?}))
+                    print_json(operations::revert_adoption(&repo).await?)
                 } else {
                     let plan = adopt_plan(&repo)?;
                     if dry_run || !yes {

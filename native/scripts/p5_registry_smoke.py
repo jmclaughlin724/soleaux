@@ -278,6 +278,31 @@ def main() -> int:
         assert len(revived_status["workspaces"]) == 1
         assert len(revived_status["clients"]) == 4
         assert len(revived_status["bindings"]) == 1
+
+        attached_workspace = root / "attached-workspace"
+        attached_workspace.mkdir()
+        attached = run_json([str(cli), "attach", str(attached_workspace), "--yes"], env)
+        attached_id = attached["canonicalWorkspaceId"]
+        marker = json.loads(
+            (attached_workspace / ".soleaux" / "attachment.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert marker["workspace_id"] == attached_id
+        listed = run_json([str(cli), "registry", "workspace", "list"], env)
+        assert any(item["id"] == attached_id for item in listed["workspaces"])
+        reverted = run_json(
+            [str(cli), "adopt", str(attached_workspace), "--revert"], env
+        )
+        assert reverted["canonicalWorkspaceId"] == attached_id
+        assert reverted["canonicalWorkspaceRemoved"] is True
+        assert not (attached_workspace / ".soleaux" / "attachment.json").exists()
+        listed_after_revert = run_json(
+            [str(cli), "registry", "workspace", "list"], env
+        )
+        assert not any(
+            item["id"] == attached_id for item in listed_after_revert["workspaces"]
+        )
         stop_daemon(cli, process, env)
 
         evidence = {
@@ -298,6 +323,8 @@ def main() -> int:
             "heartbeatRevision": heartbeat["client"]["revision"],
             "compatibility": compatibility,
             "trustDowngradedBindings": len(downgraded["downgradedBindings"]),
+            "attachmentCanonicalId": attached_id,
+            "attachmentRevertConverged": True,
             "workspaceRevived": revived_workspace["workspace"]["id"] == workspace_id,
             "clientRevived": revived_client["client"]["id"] == client_ids[0],
             "finalBindings": len(revived_status["bindings"]),

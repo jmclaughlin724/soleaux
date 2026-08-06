@@ -24,6 +24,7 @@ const BINDING_ORIGIN: &str = "soleaux.client-workspace";
 const MIN_CLIENT_TTL_MS: u64 = 5_000;
 const MAX_CLIENT_TTL_MS: u64 = 86_400_000;
 const REGISTRY_RESPONSE_RESERVE_BYTES: usize = 64 * 1024;
+const REGISTRY_MUTATION_CHILDREN_MAX_BYTES: usize = IPC_MAX_FRAME_BYTES / 2;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn status(
@@ -118,10 +119,14 @@ pub(crate) fn register_workspace(
     input.native_id = Some(path_hash.clone());
     input.idempotency_key = Some(format!("workspace:{path_hash}"));
     let result = state.registry_register_workspace(input)?;
+    let (downgraded_bindings, downgraded_binding_count, downgraded_bindings_truncated) =
+        bounded_children(result.downgraded_bindings)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.workspace-registration/v1",
         "workspace":result.workspace,
-        "downgradedBindings":result.downgraded_bindings,
+        "downgradedBindings":downgraded_bindings,
+        "downgradedBindingCount":downgraded_binding_count,
+        "downgradedBindingsTruncated":downgraded_bindings_truncated,
         "productionClaimAllowed":false,
     }))
 }
@@ -145,10 +150,14 @@ pub(crate) fn list_workspaces(
 pub(crate) fn forget_workspace(state: &StateStore, workspace_id: Uuid) -> Result<Value> {
     let result =
         state.registry_forget_workspace(workspace_id, "workspace forgotten", "soleaux-registry")?;
+    let (binding_ids, binding_count, bindings_truncated) =
+        bounded_children(result.binding_ids)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.workspace-forget/v1",
         "workspaceId":workspace_id,
-        "unboundClientBindings":result.binding_ids,
+        "unboundClientBindings":binding_ids,
+        "unboundClientBindingCount":binding_count,
+        "unboundClientBindingsTruncated":bindings_truncated,
         "tombstone":result.tombstone,
         "productionClaimAllowed":false,
     }))
@@ -200,10 +209,13 @@ pub(crate) fn register_client(
     input.idempotency_key = Some(format!("client:{native_id}"));
     input.expires_at_unix_ms = Some(expiration(now, ttl_ms)?);
     let result = state.registry_register_client(input)?;
+    let (bindings, binding_count, bindings_truncated) = bounded_children(result.bindings)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.client-registration/v1",
         "client":result.client,
-        "bindings":result.bindings,
+        "bindings":bindings,
+        "bindingCount":binding_count,
+        "bindingsTruncated":bindings_truncated,
         "writeCapable":write_capable,
         "compatibilityState":compatibility_state,
         "productionClaimAllowed":false,
@@ -221,10 +233,13 @@ pub(crate) fn heartbeat_client(
         validate_json_field(capabilities, "client capabilities")?;
     }
     let result = state.registry_heartbeat_client(client_id, ttl_ms, capabilities)?;
+    let (bindings, binding_count, bindings_truncated) = bounded_children(result.bindings)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.client-heartbeat/v1",
         "client":result.client,
-        "bindings":result.bindings,
+        "bindings":bindings,
+        "bindingCount":binding_count,
+        "bindingsTruncated":bindings_truncated,
         "productionClaimAllowed":false,
     }))
 }
@@ -267,10 +282,14 @@ pub(crate) fn list_bindings(
 pub(crate) fn disconnect_client(state: &StateStore, client_id: Uuid) -> Result<Value> {
     let result =
         state.registry_disconnect_client(client_id, "client disconnected", "soleaux-registry")?;
+    let (binding_ids, binding_count, bindings_truncated) =
+        bounded_children(result.binding_ids)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.client-disconnect/v1",
         "clientId":client_id,
-        "unboundWorkspaceBindings":result.binding_ids,
+        "unboundWorkspaceBindings":binding_ids,
+        "unboundWorkspaceBindingCount":binding_count,
+        "unboundWorkspaceBindingsTruncated":bindings_truncated,
         "tombstone":result.tombstone,
         "productionClaimAllowed":false,
     }))
@@ -369,6 +388,29 @@ fn validate_text(value: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
+fn bounded_children<T: Serialize>(items: Vec<T>) -> Result<(Vec<T>, usize, bool)> {
+    let total = items.len();
+    let mut bounded = Vec::new();
+    let mut encoded_bytes = 2usize;
+    for item in items {
+        if bounded.len() >= REGISTRY_PAGE_LIMIT_DEFAULT {
+            break;
+        }
+        let item_bytes = serde_json::to_vec(&item)?.len();
+        let separator_bytes = usize::from(!bounded.is_empty());
+        let next_bytes = encoded_bytes
+            .saturating_add(separator_bytes)
+            .saturating_add(item_bytes);
+        if next_bytes > REGISTRY_MUTATION_CHILDREN_MAX_BYTES {
+            break;
+        }
+        encoded_bytes = next_bytes;
+        bounded.push(item);
+    }
+    let truncated = bounded.len() < total;
+    Ok((bounded, total, truncated))
+}
+
 fn bounded_response<T: Serialize>(value: T) -> Result<Value> {
     let value = serde_json::to_value(value)?;
     let encoded = serde_json::to_vec(&value)?;
@@ -403,4 +445,25 @@ fn unix_ms() -> i64 {
         .as_millis()
         .try_into()
         .unwrap_or(i64::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mutation_children_are_bounded_by_serialized_size() {
+        let payload = json!({
+            "capabilities":{"blob":"x".repeat(REGISTRY_JSON_FIELD_MAX_BYTES / 2)},
+            "metadata":{"blob":"y".repeat(REGISTRY_JSON_FIELD_MAX_BYTES / 2)}
+        });
+        let items = vec![payload; REGISTRY_PAGE_LIMIT_DEFAULT + 1];
+        let (bounded, total, truncated) = bounded_children(items).expect("bounded children");
+        assert_eq!(total, REGISTRY_PAGE_LIMIT_DEFAULT + 1);
+        assert!(truncated);
+        assert!(
+            serde_json::to_vec(&bounded).expect("serialize bounded children").len()
+                <= REGISTRY_MUTATION_CHILDREN_MAX_BYTES
+        );
+    }
 }
