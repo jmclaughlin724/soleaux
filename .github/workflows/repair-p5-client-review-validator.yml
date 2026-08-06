@@ -1,0 +1,61 @@
+name: Repair P5 client review validator
+
+on:
+  push:
+    branches:
+      - automation/p5-client-review-closure
+    paths:
+      - .github/workflows/repair-p5-client-review-validator.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Wire deterministic normalization into the parallel validator
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/validate-p5-client-review-closure.yml')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '    paths:\n      - .github/workflows/validate-p5-client-review-closure.yml\n',
+              '    paths:\n'
+              '      - .github/workflows/validate-p5-client-review-closure.yml\n'
+              '      - .ci/p5-client-review-normalize.py\n',
+              1,
+          )
+          old = (
+              '          python3 .ci/apply-p5-client-review-closure.py \\\n'
+              '              | tee /tmp/package-provenance.json\n'
+              '          uv sync --locked\n'
+          )
+          new = (
+              '          python3 .ci/apply-p5-client-review-closure.py \\\n'
+              '              | tee /tmp/package-provenance.json\n'
+              '          python3 -m py_compile .ci/p5-client-review-normalize.py\n'
+              '          python3 .ci/p5-client-review-normalize.py\n'
+              '          uv sync --locked\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('parallel validator insertion point drifted')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/repair-p5-client-review-validator.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .ci/p5-client-review-normalize.py \
+            .github/workflows/validate-p5-client-review-closure.yml \
+            .github/workflows/repair-p5-client-review-validator.yml
+          git diff --cached --check
+          git commit -m 'ci: normalize P5 client review source before validation'
+          git push origin HEAD:${{ github.ref_name }}
