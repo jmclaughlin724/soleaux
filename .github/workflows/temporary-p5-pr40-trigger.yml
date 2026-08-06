@@ -1,0 +1,547 @@
+name: Temporary exact P5 remediation for PR 40
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - reopened
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  BASE_COMMIT: c51265a3927f3b163b9cac686e0572b47da48b8c
+  TARGET_BRANCH: fix/p5-client-matrix-post-merge-remediation
+  TARGET_EXPECTED_HEAD: 89449be776c96a36a3ef52d6f262493bbdf7d692
+  REVIEW_SOURCE_BRANCH: automation/p5-client-review-closure
+  CARRIER_B64_SHA256: fcd9a9f59d4fe8885591a207962f42cc20611de60c783292564da7bc452d4f37
+  CARRIER_GZIP_SHA256: 0a8b4e4a6738d9307c63fe7baa6de9d926d1a3cd7d23ad68e558839f2f8ffe27
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+concurrency:
+  group: exact-p5-remediation-pr40
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.event.pull_request.number == 40 &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_COMMIT }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: astral-sh/setup-uv@v7
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+
+      - name: Reconstruct and normalize the reviewed remediation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE_COMMIT"
+          git fetch origin "$REVIEW_SOURCE_BRANCH:refs/remotes/origin/$REVIEW_SOURCE_BRANCH"
+          for part in 00 01 02 03; do
+            git show "origin/$REVIEW_SOURCE_BRANCH:.ci/p5-client-review-overlay.part$part" \
+              > "/tmp/original-part$part"
+          done
+          cat /tmp/original-part00 /tmp/original-part01 \
+              /tmp/original-part02 /tmp/original-part03 > /tmp/original.b64
+          echo "$CARRIER_B64_SHA256  /tmp/original.b64" | sha256sum -c -
+          base64 -d /tmp/original.b64 > /tmp/original.tar.gz
+          echo "$CARRIER_GZIP_SHA256  /tmp/original.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/original.tar.gz
+          git show "origin/$REVIEW_SOURCE_BRANCH:.ci/p5-client-overlay-hotfix.py" \
+            > /tmp/final-hotfix.py
+          python3 -m py_compile \
+            .ci/apply-p5-client-review-closure.py \
+            /tmp/final-hotfix.py
+          python3 .ci/apply-p5-client-review-closure.py \
+            | tee /tmp/package-provenance.json
+          python3 /tmp/final-hotfix.py | tee /tmp/final-overlay-provenance.txt
+          rm -f \
+            .ci/apply-p5-client-review-closure.py \
+            .ci/p5-client-review-fixes.py \
+            .ci/p5-client-wave2-hardening.py \
+            .github/workflows/p5-client-review-fixes.yml \
+            .github/workflows/p5-client-wave2-hardening.yml \
+            .github/workflows/p5-claude-package-integrity.yml
+          uv sync --locked
+          uv run --locked ruff format \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/verify_pinned_client_artifact.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          uv run --locked ruff check --fix \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/verify_pinned_client_artifact.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          uv run --locked ruff check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/verify_pinned_client_artifact.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          uv run --locked ruff format --check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/verify_pinned_client_artifact.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          (cd native && cargo fmt --all)
+          python3 native/scripts/validate_client_capability_matrix.py --self-test
+          python3 native/scripts/validate_client_capability_matrix.py
+          python3 -m py_compile \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/verify_pinned_client_artifact.py \
+            native/scripts/p5_client_matrix_smoke.py \
+            tests/test_client_capability_matrix.py
+          git diff --check
+
+      - name: Package exact normal-source overlay
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/p5-remediation
+          git diff --name-only --diff-filter=ACMRTUXB "$BASE_COMMIT" \
+            | grep -v '^\.ci/' \
+            | grep -v '^\.github/workflows/temporary-' \
+            > /tmp/p5-remediation/changed-files.txt
+          git diff --name-only --diff-filter=D "$BASE_COMMIT" \
+            | grep -v '^\.github/workflows/temporary-' \
+            > /tmp/p5-remediation/deleted-files.txt || true
+          test -s /tmp/p5-remediation/changed-files.txt
+          tar -czf /tmp/p5-remediation/source-overlay.tar.gz \
+            -T /tmp/p5-remediation/changed-files.txt
+          sha256sum /tmp/p5-remediation/source-overlay.tar.gz \
+            > /tmp/p5-remediation/SHA256SUMS
+          cp /tmp/package-provenance.json /tmp/p5-remediation/
+          cp /tmp/final-overlay-provenance.txt /tmp/p5-remediation/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p5-remediation-prepared-${{ github.run_id }}
+          path: /tmp/p5-remediation
+          if-no-files-found: error
+          retention-days: 30
+
+  validate:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - python
+          - rust
+          - lifecycle
+          - evidence
+    name: Pre-commit ${{ matrix.lane }} lane
+    runs-on: ubuntu-24.04
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_COMMIT }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: p5-remediation-prepared-${{ github.run_id }}
+          path: /tmp/overlay
+
+      - name: Apply the exact prepared source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE_COMMIT"
+          tar -xzf /tmp/overlay/source-overlay.tar.gz
+          while IFS= read -r path; do
+            test -z "$path" || rm -f "$path"
+          done < /tmp/overlay/deleted-files.txt
+          git diff --check
+
+      - uses: actions/setup-node@v4
+        if: matrix.lane == 'python' || matrix.lane == 'evidence'
+        with:
+          node-version: '24'
+
+      - uses: pnpm/action-setup@v4
+        if: matrix.lane == 'python'
+        with:
+          version: 11.4.0
+
+      - uses: astral-sh/setup-uv@v7
+        if: matrix.lane == 'python' || matrix.lane == 'evidence'
+
+      - name: Install native build prerequisites
+        if: matrix.lane == 'rust' || matrix.lane == 'lifecycle'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config \
+            protobuf-compiler python3-jsonschema
+
+      - uses: dtolnay/rust-toolchain@master
+        if: matrix.lane == 'rust' || matrix.lane == 'lifecycle'
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - uses: taiki-e/install-action@cargo-audit
+        if: matrix.lane == 'lifecycle'
+
+      - name: Run the complete Python and documentation lane
+        if: matrix.lane == 'python'
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          uv sync --locked
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+          uv run --locked pyright
+          python3 native/scripts/validate_client_capability_matrix.py --self-test
+          python3 native/scripts/validate_client_capability_matrix.py
+          python3 scripts/check_documentation_consistency.py
+          uv run --locked pytest -q | tee /tmp/lane.txt
+
+      - name: Run the complete Rust state lane
+        if: matrix.lane == 'rust'
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked | tee /tmp/lane.txt
+
+      - name: Run the release lifecycle and audit lane
+        if: matrix.lane == 'lifecycle'
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace --all-features --locked
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . /tmp/phase1.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/phase2.json
+          python3 scripts/p5_registry_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/p5-registry.json
+          python3 scripts/p5_client_matrix_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/p5-client-matrix.json
+          cargo audit --deny warnings | tee /tmp/lane.txt
+
+      - name: Run immutable artifact and workflow evidence
+        if: matrix.lane == 'evidence'
+        run: |
+          set -euo pipefail
+          uv sync --locked
+          python3 native/scripts/validate_client_capability_matrix.py --self-test
+          python3 native/scripts/validate_client_capability_matrix.py \
+            | tee /tmp/lane.txt
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform claude_code --output /tmp/claude.json
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform codex --output /tmp/codex.json
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform opencode --output /tmp/opencode.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+          path = Path('.github/workflows/client-capability-matrix.yml')
+          data = yaml.safe_load(path.read_text(encoding='utf-8'))
+          assert data['name'] == 'Client capability matrix'
+          text = path.read_text(encoding='utf-8')
+          assert 'ref: ${{ env.SOURCE_COMMIT }}' in text
+          assert 'curl https://cursor.com/install | bash' not in text
+          assert "native/**" in text
+          PY
+
+      - name: Normalize lane evidence
+        if: always()
+        run: |
+          touch /tmp/lane.txt
+          printf '%s\n' '${{ matrix.lane }}' > /tmp/lane-name.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-remediation-precommit-${{ matrix.lane }}-${{ github.run_id }}
+          path: |
+            /tmp/lane.txt
+            /tmp/lane-name.txt
+            /tmp/phase1.json
+            /tmp/phase2.json
+            /tmp/p5-registry.json
+            /tmp/p5-client-matrix.json
+            /tmp/claude.json
+            /tmp/codex.json
+            /tmp/opencode.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  publish:
+    needs:
+      - prepare
+      - validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      source_commit: ${{ steps.commit.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: p5-remediation-prepared-${{ github.run_id }}
+          path: /tmp/overlay
+
+      - name: Commit only validated normal source to PR 40
+        id: commit
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_EXPECTED_HEAD"
+          tar -xzf /tmp/overlay/source-overlay.tar.gz
+          while IFS= read -r path; do
+            test -z "$path" || rm -f "$path"
+          done < /tmp/overlay/deleted-files.txt
+          rm -f .github/workflows/materialize-p5-client-remediation.yml
+          chmod +x \
+            native/scripts/p5_client_matrix_smoke.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/verify_pinned_client_artifact.py
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: close P5 client capability security and provenance gaps'
+          source_commit="$(git rev-parse HEAD)"
+          echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
+          git push origin "HEAD:$TARGET_BRANCH"
+
+  exact_verify:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - python
+          - rust
+          - lifecycle
+          - evidence
+    name: Exact-commit ${{ matrix.lane }} lane
+    runs-on: ubuntu-24.04
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.source_commit }}
+          fetch-depth: 0
+
+      - name: Assert the exact published source
+        run: test "$(git rev-parse HEAD)" = '${{ needs.publish.outputs.source_commit }}'
+
+      - uses: actions/setup-node@v4
+        if: matrix.lane == 'python' || matrix.lane == 'evidence'
+        with:
+          node-version: '24'
+
+      - uses: pnpm/action-setup@v4
+        if: matrix.lane == 'python'
+        with:
+          version: 11.4.0
+
+      - uses: astral-sh/setup-uv@v7
+        if: matrix.lane == 'python' || matrix.lane == 'evidence'
+
+      - name: Install native build prerequisites
+        if: matrix.lane == 'rust' || matrix.lane == 'lifecycle'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config \
+            protobuf-compiler python3-jsonschema
+
+      - uses: dtolnay/rust-toolchain@master
+        if: matrix.lane == 'rust' || matrix.lane == 'lifecycle'
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - uses: taiki-e/install-action@cargo-audit
+        if: matrix.lane == 'lifecycle'
+
+      - name: Re-run complete Python and documentation gates
+        if: matrix.lane == 'python'
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          uv sync --locked
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+          uv run --locked pyright
+          python3 native/scripts/validate_client_capability_matrix.py --self-test
+          python3 native/scripts/validate_client_capability_matrix.py
+          python3 scripts/check_documentation_consistency.py
+          uv run --locked pytest -q | tee /tmp/lane.txt
+
+      - name: Re-run complete Rust state gates
+        if: matrix.lane == 'rust'
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked | tee /tmp/lane.txt
+
+      - name: Re-run release lifecycle and audit gates
+        if: matrix.lane == 'lifecycle'
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo build --release --workspace --all-features --locked
+          python3 scripts/phase1_mcp_smoke.py \
+            target/release/soleaux . /tmp/phase1.json
+          python3 scripts/phase2_capability_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/phase2.json
+          python3 scripts/p5_registry_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/p5-registry.json
+          python3 scripts/p5_client_matrix_smoke.py \
+            target/release/soleaux target/release/soleauxd . /tmp/p5-client-matrix.json
+          cargo audit --deny warnings | tee /tmp/lane.txt
+
+      - name: Re-run immutable artifact evidence
+        if: matrix.lane == 'evidence'
+        run: |
+          set -euo pipefail
+          uv sync --locked
+          python3 native/scripts/validate_client_capability_matrix.py --self-test
+          python3 native/scripts/validate_client_capability_matrix.py \
+            | tee /tmp/lane.txt
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform claude_code --output /tmp/claude.json
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform codex --output /tmp/codex.json
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform opencode --output /tmp/opencode.json
+
+      - name: Normalize exact evidence
+        if: always()
+        run: |
+          touch /tmp/lane.txt
+          printf '%s\n' '${{ matrix.lane }}' > /tmp/lane-name.txt
+          printf '%s\n' '${{ needs.publish.outputs.source_commit }}' > /tmp/source-commit.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-remediation-exact-${{ matrix.lane }}-${{ github.run_id }}
+          path: |
+            /tmp/lane.txt
+            /tmp/lane-name.txt
+            /tmp/source-commit.txt
+            /tmp/phase1.json
+            /tmp/phase2.json
+            /tmp/p5-registry.json
+            /tmp/p5-client-matrix.json
+            /tmp/claude.json
+            /tmp/codex.json
+            /tmp/opencode.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    needs:
+      - publish
+      - exact_verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: p5-remediation-exact-*
+          path: /tmp/evidence
+
+      - name: Bind exact parallel-lane evidence
+        run: |
+          set -euo pipefail
+          find /tmp/evidence -type f -print0 | sort -z | xargs -0 sha256sum \
+            > /tmp/SHA256SUMS
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = {
+              'schemaVersion': 'soleaux.p5-client-remediation/v1',
+              'sourceCommit': '${{ needs.publish.outputs.source_commit }}',
+              'baseCommit': '${{ env.BASE_COMMIT }}',
+              'workstreams': ['python', 'rust', 'lifecycle', 'evidence'],
+              'externalMutationAdmission': 'denied_pending_daemon_authenticated_receipt',
+              'publicToolCeiling': 12,
+              'productionClaimAllowed': False,
+              'status': 'pass',
+          }
+          Path('/tmp/RECEIPT.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-p5-client-remediation-${{ github.run_id }}
+          path: |
+            /tmp/evidence
+            /tmp/SHA256SUMS
+            /tmp/RECEIPT.json
+          if-no-files-found: error
+          retention-days: 30
+
+  cleanup:
+    needs: aggregate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove temporary base-branch orchestration
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f \
+            .github/workflows/temporary-p5-pr40-trigger.yml \
+            .github/workflows/temporary-p5-remediation-orchestrator.yml
+          git commit -m 'chore: remove completed P5 remediation orchestration'
+          git push origin HEAD:main
+
+      - name: Record completion on PR 40
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment 40 --repo "$GITHUB_REPOSITORY" --body \
+            "Exact remediation source ${{ needs.aggregate.result }} passed the Python, Rust, lifecycle, and immutable-evidence lanes. The source commit is ${{ needs.publish.outputs.source_commit }}."
