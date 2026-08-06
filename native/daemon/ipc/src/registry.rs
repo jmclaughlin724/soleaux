@@ -5,12 +5,14 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::{Value, json};
+#[cfg(test)]
+use soleaux_state::ClientCompatibilityState;
 use soleaux_state::{
-    CanonicalEntityInput, CanonicalRecord, ClientAccessMode, ClientCompatibilityState,
-    ClientKind, ClientRegistrationPayload, ClientWorkspaceBindingPayload,
-    LOCKED_CONTEXT_PACKET_SHA256, LOCKED_PROFILE_SHA256,
-    PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES, REGISTRY_PAGE_LIMIT_DEFAULT,
-    REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload, WorkspaceTrustState,
+    CanonicalEntityInput, ClientAccessMode, ClientKind, ClientRegistrationPayload,
+    ClientRegistrationResult, ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256,
+    LOCKED_PROFILE_SHA256, PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES,
+    REGISTRY_PAGE_LIMIT_DEFAULT, REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload,
+    WorkspaceTrustState,
 };
 use std::{
     fs,
@@ -244,18 +246,12 @@ pub(crate) fn heartbeat_client(
     if let Some(capabilities) = &capabilities {
         validate_json_field(capabilities, "client capabilities")?;
     }
-    let (client, compatibility) =
+    let (result, compatibility) =
         revalidate_client(state, client_id, capabilities, Some(ttl_ms), true)?;
-    let bindings = state.registry_bindings(false, None, REGISTRY_PAGE_LIMIT_DEFAULT, unix_ms())?;
-    let client_bindings = bindings
-        .items
-        .into_iter()
-        .filter(|binding| binding.payload.client_id == client_id)
-        .collect::<Vec<_>>();
-    let (bindings, binding_count, bindings_truncated) = bounded_children(client_bindings)?;
+    let (bindings, binding_count, bindings_truncated) = bounded_children(result.bindings)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.client-heartbeat/v1",
-        "client":client,
+        "client":result.client,
         "bindings":bindings,
         "bindingCount":binding_count,
         "bindingsTruncated":bindings_truncated,
@@ -326,7 +322,7 @@ pub(crate) fn bind_client_workspace(
 ) -> Result<Value> {
     validate_json_field(&capabilities, "binding capabilities")?;
     validate_json_field(&metadata, "binding metadata")?;
-    let (_client, compatibility) = revalidate_client(state, client_id, None, None, false)?;
+    let (_result, compatibility) = revalidate_client(state, client_id, None, None, false)?;
     if access_mode == ClientAccessMode::ReadWrite && !compatibility.write_capable {
         bail!(
             "read-write binding requires a currently verified daemon-trusted client compatibility decision"
@@ -380,7 +376,7 @@ fn revalidate_client(
     ttl_ms: Option<u64>,
     touch_last_seen: bool,
 ) -> Result<(
-    CanonicalRecord<ClientRegistrationPayload>,
+    ClientRegistrationResult,
     crate::compatibility::CompatibilityDecision,
 )> {
     let existing = state
@@ -427,7 +423,13 @@ fn revalidate_client(
         || previous_state != payload.compatibility_state
         || previous_write_capable != payload.write_capable;
     if !changed {
-        return Ok((existing, compatibility));
+        return Ok((
+            ClientRegistrationResult {
+                client: existing,
+                bindings: Vec::new(),
+            },
+            compatibility,
+        ));
     }
 
     let origin_platform = existing
@@ -447,12 +449,12 @@ fn revalidate_client(
         state: "connected".to_string(),
         sensitivity: existing.sensitivity,
         idempotency_key: existing.idempotency_key.clone(),
-        expected_revision: None,
+        expected_revision: Some(existing.revision),
         expires_at_unix_ms,
         payload,
     };
     let result = state.registry_register_client(input)?;
-    Ok((result.client, compatibility))
+    Ok((result, compatibility))
 }
 
 fn validate_json_field(value: &Value, label: &str) -> Result<()> {
@@ -583,12 +585,9 @@ mod compatibility_regression_tests {
             json!({}),
         )
         .expect("workspace registration");
-        let workspace_id = Uuid::parse_str(
-            workspace["workspace"]["id"]
-                .as_str()
-                .expect("workspace id"),
-        )
-        .expect("workspace uuid");
+        let workspace_id =
+            Uuid::parse_str(workspace["workspace"]["id"].as_str().expect("workspace id"))
+                .expect("workspace uuid");
 
         let now = unix_ms();
         let payload = ClientRegistrationPayload {

@@ -413,7 +413,7 @@ async fn registry_rejects_oversized_inputs_and_unverified_write_elevation() {
         }))
         .await
         .expect_err("unverified desktop must remain read-only");
-    assert!(format!("{error:#}").contains("verified client compatibility matrix"));
+    assert!(format!("{error:#}").contains("verified daemon-trusted client compatibility decision"));
 
     client
         .call(IpcRequest::new(IpcMethod::Shutdown))

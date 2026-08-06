@@ -347,6 +347,7 @@ fn unique_sorted(values: &[String]) -> Vec<String> {
         .collect()
 }
 
+#[cfg(test)]
 fn is_lower_hex_digest(value: &str) -> bool {
     value.len() == 64
         && value.bytes().all(|byte| byte.is_ascii_hexdigit())
