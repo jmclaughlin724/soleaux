@@ -1,26 +1,18 @@
-name: Client capability matrix
+name: Phase 5 client capability matrix
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - native/contracts/client-capability-matrix-v1.json
-      - native/daemon/ipc/**
-      - native/scripts/probe_client_capabilities.py
-      - native/scripts/validate_client_capability_matrix.py
-      - native/scripts/p5_client_matrix_smoke.py
+      - native/**
       - docs/testing/CLIENT-CAPABILITY-MATRIX.md
       - .github/workflows/client-capability-matrix.yml
   push:
     branches:
       - main
     paths:
-      - native/contracts/client-capability-matrix-v1.json
-      - native/daemon/ipc/**
-      - native/scripts/probe_client_capabilities.py
-      - native/scripts/validate_client_capability_matrix.py
-      - native/scripts/p5_client_matrix_smoke.py
+      - native/**
       - docs/testing/CLIENT-CAPABILITY-MATRIX.md
       - .github/workflows/client-capability-matrix.yml
   workflow_dispatch:
@@ -28,219 +20,307 @@ on:
 permissions:
   contents: read
 
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  MATRIX: native/contracts/client-capability-matrix-v1.json
+
 concurrency:
-  group: client-capability-matrix-${{ github.event.pull_request.head.sha || github.sha }}
+  group: p5-client-capability-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   contract:
-    name: Matrix contract and Rust admission
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.97.1
-          components: rustfmt, clippy
-
-      - name: Validate the machine-readable matrix
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - name: Verify exact source and fail-closed contract
         run: |
           set -euo pipefail
-          mkdir -p /tmp/p5-capability-contract
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          uv sync --locked
+          uv run --locked ruff check \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          uv run --locked ruff format --check \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
+          python3 -m py_compile \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/p5_client_matrix_smoke.py
           python3 native/scripts/validate_client_capability_matrix.py \
-            --output /tmp/p5-capability-contract/matrix-validation.json
-
-      - name: Verify exact runtime admission
-        working-directory: native
-        run: |
-          set -euo pipefail
-          cargo fmt --all --check
-          cargo check -p soleaux-ipc --all-targets --locked
-          cargo clippy -p soleaux-ipc --all-targets --locked -- -D warnings
-          cargo test -p soleaux-ipc --locked
-
+            --output /tmp/client-matrix-validation.json
+          python3 native/scripts/validate_client_capability_matrix.py --self-test \
+            --output /tmp/client-matrix-validator-self-test.json
+          python3 native/scripts/probe_client_capabilities.py --self-test \
+            > /tmp/client-probe-self-test.json
       - uses: actions/upload-artifact@v4
         with:
-          name: p5-capability-contract
-          path: /tmp/p5-capability-contract
+          name: p5-client-contract-${{ env.SOURCE_COMMIT }}
+          path: |
+            /tmp/client-matrix-validation.json
+            /tmp/client-matrix-validator-self-test.json
+            /tmp/client-probe-self-test.json
           if-no-files-found: error
           retention-days: 30
 
   claude-code:
-    name: Claude Code 2.1.223 probe
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Install and probe the pinned Claude Code package
+      - name: Verify exact immutable package and probe Claude Code
         run: |
           set -euo pipefail
-          npm install --global @anthropic-ai/claude-code@2.1.223
-          mkdir -p /tmp/p5-capability-claude-code
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           python3 native/scripts/validate_client_capability_matrix.py \
-            --platform claude_code \
-            --output /tmp/p5-capability-claude-code/matrix-validation.json
+            --platform claude_code --output /tmp/claude-validation.json
+          npm view @anthropic-ai/claude-code@2.1.223 \
+            name version dist.tarball dist.shasum dist.integrity --json \
+            > /tmp/claude-registry.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          matrix = json.loads(Path("native/contracts/client-capability-matrix-v1.json").read_text())
+          version = next(
+              item["versions"][0]
+              for item in matrix["platforms"]
+              if item["id"] == "claude_code"
+          )
+          registry = json.loads(Path("/tmp/claude-registry.json").read_text())
+          artifact = version["npmArtifact"]
+          assert registry["name"] == "@anthropic-ai/claude-code"
+          assert registry["version"] == "2.1.223"
+          assert registry["dist.tarball"] == artifact["tarball"]
+          assert registry["dist.shasum"] == artifact["shasum"]
+          assert registry["dist.integrity"] == artifact["integrity"]
+          PY
+          mkdir -p /tmp/claude-pack
+          npm pack @anthropic-ai/claude-code@2.1.223 \
+            --pack-destination /tmp/claude-pack --json > /tmp/claude-pack.json
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          from pathlib import Path
+
+          matrix = json.loads(Path("native/contracts/client-capability-matrix-v1.json").read_text())
+          artifact = next(
+              item["versions"][0]["npmArtifact"]
+              for item in matrix["platforms"]
+              if item["id"] == "claude_code"
+          )
+          packed = json.loads(Path("/tmp/claude-pack.json").read_text())
+          archive = Path("/tmp/claude-pack") / packed[0]["filename"]
+          data = archive.read_bytes()
+          assert hashlib.sha1(data).hexdigest() == artifact["shasum"]
+          sri = "sha512-" + base64.b64encode(hashlib.sha512(data).digest()).decode()
+          assert sri == artifact["integrity"]
+          Path("/tmp/claude-archive-path").write_text(str(archive))
+          PY
+          npm install --global "$(cat /tmp/claude-archive-path)" --ignore-scripts
           python3 native/scripts/probe_client_capabilities.py \
-            --platform claude_code \
-            --binary claude \
-            --output /tmp/p5-capability-claude-code/probe.json
+            --platform claude_code --binary claude \
+            --output /tmp/claude-code.json
       - uses: actions/upload-artifact@v4
         with:
-          name: p5-capability-claude-code
-          path: /tmp/p5-capability-claude-code
+          name: p5-client-claude-code-${{ env.SOURCE_COMMIT }}
+          path: |
+            /tmp/claude-validation.json
+            /tmp/claude-registry.json
+            /tmp/claude-pack.json
+            /tmp/claude-code.json
           if-no-files-found: error
           retention-days: 30
 
   claude-desktop:
-    name: Claude Desktop supported-surface contract
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Validate the documented connector and export surface
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+      - name: Validate documentation-only Claude Desktop surface
         run: |
           set -euo pipefail
-          mkdir -p /tmp/p5-capability-claude-desktop
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           python3 native/scripts/validate_client_capability_matrix.py \
-            --platform claude_desktop \
-            --output /tmp/p5-capability-claude-desktop/matrix-validation.json
+            --platform claude_desktop --output /tmp/claude-desktop-validation.json
           python3 native/scripts/probe_client_capabilities.py \
-            --platform claude_desktop \
-            --documentation-only \
-            --output /tmp/p5-capability-claude-desktop/probe.json
+            --platform claude_desktop --documentation-only \
+            --output /tmp/claude-desktop.json
       - uses: actions/upload-artifact@v4
         with:
-          name: p5-capability-claude-desktop
-          path: /tmp/p5-capability-claude-desktop
+          name: p5-client-claude-desktop-${{ env.SOURCE_COMMIT }}
+          path: |
+            /tmp/claude-desktop-validation.json
+            /tmp/claude-desktop.json
           if-no-files-found: error
           retention-days: 30
 
   codex:
-    name: Codex 0.146.1 app-server probe
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Install and probe the pinned official Codex package
+      - name: Install exact Codex package and probe its app-server surface
         run: |
           set -euo pipefail
-          npm install --global @openai/codex@0.146.1
-          mkdir -p /tmp/p5-capability-codex
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           python3 native/scripts/validate_client_capability_matrix.py \
-            --platform codex \
-            --output /tmp/p5-capability-codex/matrix-validation.json
+            --platform codex --output /tmp/codex-validation.json
+          npm install --global @openai/codex@0.146.1 --ignore-scripts
           python3 native/scripts/probe_client_capabilities.py \
-            --platform codex \
-            --binary codex \
-            --output /tmp/p5-capability-codex/probe.json
+            --platform codex --binary codex --output /tmp/codex.json
       - uses: actions/upload-artifact@v4
         with:
-          name: p5-capability-codex
-          path: /tmp/p5-capability-codex
+          name: p5-client-codex-${{ env.SOURCE_COMMIT }}
+          path: |
+            /tmp/codex-validation.json
+            /tmp/codex.json
           if-no-files-found: error
           retention-days: 30
 
   opencode:
-    name: OpenCode 1.18.14 HTTP surface probe
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Download, verify, and probe the pinned OpenCode release
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+      - name: Download the matrix-pinned OpenCode artifact and probe it
         run: |
           set -euo pipefail
-          mkdir -p /tmp/opencode-bin /tmp/p5-capability-opencode
-          curl -fsSL \
-            https://github.com/anomalyco/opencode/releases/download/v1.18.14/opencode-linux-x64.tar.gz \
-            -o /tmp/opencode.tar.gz
-          echo 'f23980ba2aebfbfa53948e55e213d3f2a53740fd7326553828e89ad27e970572  /tmp/opencode.tar.gz' \
-            | sha256sum -c -
-          tar -xzf /tmp/opencode.tar.gz -C /tmp/opencode-bin
-          chmod +x /tmp/opencode-bin/opencode
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           python3 native/scripts/validate_client_capability_matrix.py \
-            --platform opencode \
-            --output /tmp/p5-capability-opencode/matrix-validation.json
+            --platform opencode --output /tmp/opencode-validation.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          matrix = json.loads(Path("native/contracts/client-capability-matrix-v1.json").read_text())
+          asset = next(
+              item["versions"][0]["linuxX64Asset"]
+              for item in matrix["platforms"]
+              if item["id"] == "opencode"
+          )
+          Path("/tmp/opencode-url").write_text(asset["url"])
+          Path("/tmp/opencode-sha256").write_text(asset["sha256"])
+          PY
+          curl --fail --location --silent --show-error \
+            "$(cat /tmp/opencode-url)" --output /tmp/opencode.tar.gz
+          echo "$(cat /tmp/opencode-sha256)  /tmp/opencode.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/opencode-extract
+          tar -xzf /tmp/opencode.tar.gz -C /tmp/opencode-extract
+          OPENCODE="$(find /tmp/opencode-extract -type f -name opencode -print -quit)"
+          test -n "$OPENCODE"
+          chmod +x "$OPENCODE"
           python3 native/scripts/probe_client_capabilities.py \
-            --platform opencode \
-            --binary /tmp/opencode-bin/opencode \
-            --output /tmp/p5-capability-opencode/probe.json
+            --platform opencode --binary "$OPENCODE" --output /tmp/opencode.json
       - uses: actions/upload-artifact@v4
         with:
-          name: p5-capability-opencode
-          path: /tmp/p5-capability-opencode
+          name: p5-client-opencode-${{ env.SOURCE_COMMIT }}
+          path: |
+            /tmp/opencode-validation.json
+            /tmp/opencode.json
           if-no-files-found: error
           retention-days: 30
 
   cursor:
-    name: Cursor runtime-observed read-only probe
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Install the official current Cursor CLI and record its version
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
+      - name: Validate Cursor as documentation-only until an immutable artifact is pinned
         run: |
           set -euo pipefail
-          curl https://cursor.com/install -fsS | bash
-          export PATH="$HOME/.cursor/bin:$HOME/.local/bin:$PATH"
-          mkdir -p /tmp/p5-capability-cursor
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           python3 native/scripts/validate_client_capability_matrix.py \
-            --platform cursor \
-            --output /tmp/p5-capability-cursor/matrix-validation.json
+            --platform cursor --output /tmp/cursor-validation.json
           python3 native/scripts/probe_client_capabilities.py \
-            --platform cursor \
-            --binary cursor-agent \
-            --output /tmp/p5-capability-cursor/probe.json
+            --platform cursor --documentation-only --output /tmp/cursor.json
       - uses: actions/upload-artifact@v4
         with:
-          name: p5-capability-cursor
-          path: /tmp/p5-capability-cursor
+          name: p5-client-cursor-${{ env.SOURCE_COMMIT }}
+          path: |
+            /tmp/cursor-validation.json
+            /tmp/cursor.json
           if-no-files-found: error
           retention-days: 30
 
   generic-mcp:
-    name: Generic MCP host and registry write gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
       - name: Install native build prerequisites
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema sqlite3
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler \
+            python3-jsonschema
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.97.1
-      - name: Build and run the exact generic-host probes
+          components: rustfmt, clippy
+      - uses: taiki-e/install-action@cargo-audit
+      - name: Build exact source and prove fail-closed registry admission
         working-directory: native
         run: |
           set -euo pipefail
-          mkdir -p /tmp/p5-capability-generic-mcp
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          python3 scripts/validate_client_capability_matrix.py \
+            --platform generic_mcp_host --output /tmp/generic-validation.json
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-ipc --all-features --locked
           cargo build --release --workspace --all-features --locked
           python3 scripts/phase1_mcp_smoke.py \
-            target/release/soleaux . \
-            /tmp/p5-capability-generic-mcp/phase1-mcp.json
+            target/release/soleaux . /tmp/phase1.json
           python3 scripts/p5_client_matrix_smoke.py \
-            target/release/soleaux target/release/soleauxd . \
-            /tmp/p5-capability-generic-mcp/client-matrix.json
+            target/release/soleaux target/release/soleauxd . /tmp/generic-mcp.json
+          cargo audit --deny warnings
       - uses: actions/upload-artifact@v4
         with:
-          name: p5-capability-generic-mcp
-          path: /tmp/p5-capability-generic-mcp
+          name: p5-client-generic-mcp-${{ env.SOURCE_COMMIT }}
+          path: |
+            /tmp/generic-validation.json
+            /tmp/phase1.json
+            /tmp/generic-mcp.json
           if-no-files-found: error
           retention-days: 30
 
   aggregate:
-    name: Aggregate P5-002 through P5-006 evidence
     needs:
       - contract
       - claude-code
@@ -253,83 +333,74 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
-          pattern: p5-capability-*
-          path: /tmp/p5-capability-evidence
-          merge-multiple: false
-      - name: Validate and aggregate every independent workstream
+          pattern: p5-client-*-${{ env.SOURCE_COMMIT }}
+          path: /tmp/client-evidence
+          merge-multiple: true
+      - name: Aggregate exact evidence for the tested source
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           python3 - <<'PY'
-          import hashlib
           import json
+          import os
           from pathlib import Path
 
-          root = Path('/tmp/p5-capability-evidence')
-          expected = {
-              'claude_code': root / 'p5-capability-claude-code' / 'probe.json',
-              'claude_desktop': root / 'p5-capability-claude-desktop' / 'probe.json',
-              'codex': root / 'p5-capability-codex' / 'probe.json',
-              'opencode': root / 'p5-capability-opencode' / 'probe.json',
-              'cursor': root / 'p5-capability-cursor' / 'probe.json',
-          }
+          root = Path("/tmp/client-evidence")
+          validation = json.loads((root / "client-matrix-validation.json").read_text())
           reports = {}
-          for platform, path in expected.items():
-              report = json.loads(path.read_text())
-              assert report['status'] == 'pass', (platform, report)
-              assert report['writeCapable'] is False, platform
-              reports[platform] = {
-                  'clientVersion': report['clientVersion'],
-                  'matrixVersion': report['matrixVersion'],
-                  'writeCapable': report['writeCapable'],
-                  'probeEvidenceSha256': report['probe']['evidenceSha256'],
-              }
+          for platform, filename in {
+              "claude_code": "claude-code.json",
+              "claude_desktop": "claude-desktop.json",
+              "codex": "codex.json",
+              "opencode": "opencode.json",
+              "cursor": "cursor.json",
+          }.items():
+              report = json.loads((root / filename).read_text())
+              assert report["status"] == "pass"
+              assert report["writeCapable"] is False
+              assert report["productionClaimAllowed"] is False
+              assert report["registrationCapabilitiesBytes"] <= 2048
+              reports[platform] = report
 
-          contract = json.loads(
-              (root / 'p5-capability-contract' / 'matrix-validation.json').read_text()
-          )
-          generic = json.loads(
-              (root / 'p5-capability-generic-mcp' / 'client-matrix.json').read_text()
-          )
-          phase1 = json.loads(
-              (root / 'p5-capability-generic-mcp' / 'phase1-mcp.json').read_text()
-          )
-          assert contract['status'] == 'pass'
-          assert generic['status'] == 'pass'
-          assert generic['genericHost']['compatibilityState'] == 'verified'
-          assert generic['productionClaimAllowed'] is False
-          assert generic['publicToolCeiling'] == 12
-          assert phase1['status'] == 'pass'
+          generic = json.loads((root / "generic-mcp.json").read_text())
+          assert generic["status"] == "pass"
+          assert generic["externalGenericHost"]["writeCapable"] is False
+          assert generic["externalGenericHost"]["forgedReadWriteRejected"] is True
+          assert generic["internalCli"]["writeCapable"] is True
+          assert generic["publicToolCeiling"] == 12
+          assert generic["productionClaimAllowed"] is False
 
-          matrix_path = Path('native/contracts/client-capability-matrix-v1.json')
-          matrix_sha = hashlib.sha256(matrix_path.read_bytes()).hexdigest()
-          assert matrix_sha == contract['matrixSha256']
-          assert matrix_sha == generic['matrixSha256']
           result = {
-              'schemaVersion': 'soleaux.p5-client-capability-evidence/v1',
-              'sourceCommit': '${{ github.event.pull_request.head.sha || github.sha }}',
-              'tasks': ['P5-002', 'P5-003', 'P5-004', 'P5-005', 'P5-006'],
-              'matrixSha256': matrix_sha,
-              'platforms': reports,
-              'genericMcpHost': {
-                  'clientVersion': 'mcp-2025-11-25',
-                  'compatibilityState': generic['genericHost']['compatibilityState'],
-                  'writeCapable': True,
-                  'phase1Mcp': 'pass',
-                  'registry': 'pass',
-              },
-              'publicToolCeiling': 12,
-              'productionClaimAllowed': False,
-              'status': 'pass',
+              "schemaVersion": "soleaux.p5-client-capability-evidence/v1",
+              "sourceCommit": os.environ["SOURCE_COMMIT"],
+              "matrixSha256": validation["matrixSha256"],
+              "platforms": reports,
+              "genericMcp": generic,
+              "tasks": validation["tasks"],
+              "externalRuntimeWriteAdmission": validation[
+                  "externalRuntimeWriteAdmission"
+              ],
+              "publicToolCeiling": 12,
+              "productionClaimAllowed": False,
+              "status": "pass",
           }
-          output = root / 'P5-002-P5-006-CAPABILITY-MATRIX-EVIDENCE.json'
-          output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          output = Path("/tmp/p5-client-capability-evidence.json")
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
           print(json.dumps(result, sort_keys=True))
           PY
+          sha256sum /tmp/p5-client-capability-evidence.json \
+            > /tmp/p5-client-capability-evidence.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: soleaux-p5-client-capability-matrix-${{ github.run_id }}
-          path: /tmp/p5-capability-evidence
+          name: soleaux-p5-client-capability-evidence-${{ github.run_id }}
+          path: |
+            /tmp/p5-client-capability-evidence.json
+            /tmp/p5-client-capability-evidence.sha256
+            /tmp/client-evidence
           if-no-files-found: error
           retention-days: 30
