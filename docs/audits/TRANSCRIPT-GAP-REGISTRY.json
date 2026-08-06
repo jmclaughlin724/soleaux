@@ -87,11 +87,12 @@
       "closedTasks": [
         "P4-010",
         "P4-011",
-        "P4-012"
+        "P4-012",
+        "P5-001"
       ],
       "id": "GAP-004",
-      "status": "phase4_foundation_closed_phase5_lifecycle_open",
-      "summary": "Phase 4 implemented canonical entity ownership, persistence, migrations, leases, audit, retention, backup, restore, and repair. Phase 5 still owns full cross-client session/history/memory/handoff/run lifecycle and materialization.",
+      "status": "phase5_registry_closed_lifecycle_open",
+      "summary": "Phase 4 implemented canonical ownership, persistence, migrations, leases, audit, retention, backup, restore, and repair. P5-001 closed the daemon-owned concurrent workspace/client registry and transactional attachment convergence. Phase 5 still owns full cross-client session/history/memory/handoff/run lifecycle and materialization.",
       "tasks": [
         "P5-001",
         "P5-007",
@@ -308,7 +309,8 @@
     "main through Phase 4 merge f450c1a9cd2cd74d366324b5e2031e4751fb5942",
     "Phase 0-2 receipts and independent verification",
     "Phase 4 alpha receipt and independent verification",
-    "merged PRs #4 through #34, including Phase 4 PR #32"
+    "merged PRs #4 through #34, including Phase 4 PR #32",
+    "merged PR #36 closing P5-001"
   ],
   "schemaVersion": "soleaux.transcript-gap-registry/v5"
 }

@@ -58,6 +58,12 @@ The closed implementation includes:
 - reproducible unsigned development-alpha packaging with deterministic Cargo SBOM;
 - clean install, daemon restart, doctor, backup, export, repair, offline restore, and state-preserving uninstall.
 
+## Phase 5 progress
+
+P5-001 is closed on product source `1744424444d08d6ee380dc40c948db86a626ee04` and merge `f231b86f581b7f3d5d081ed4b8d235a72758342a`. The daemon-owned registry now converges canonical workspace identity, CLI/desktop/editor/adapter registrations, leases, trust and compatibility restrictions, restart persistence, bounded IPC pages and mutation summaries, and transactional attach/revert behavior across Linux and macOS.
+
+Evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json). The next open implementation task is **P5-002**.
+
 ## Locked invariants
 
 ```text

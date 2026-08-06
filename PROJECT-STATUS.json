@@ -2,7 +2,7 @@
   "asOfDate": "2026-08-05",
   "branches": {
     "canonical": "main",
-    "consolidation": "Receipt-bearing implementation is consolidated on main through the Phase 4 merge f450c1a9cd2cd74d366324b5e2031e4751fb5942. Fully merged short-lived branches were pruned; branches with unique commits were retained as non-authoritative archival lineage and are listed in the branch consolidation report.",
+    "consolidation": "Receipt-bearing implementation is consolidated on main through the Phase 4 merge f450c1a9cd2cd74d366324b5e2031e4751fb5942. Fully merged short-lived branches were pruned; branches with unique commits were retained as non-authoritative archival lineage and are listed in the branch consolidation report. P5-001 workspace/client registry convergence was merged through PR #36 at f231b86f581b7f3d5d081ed4b8d235a72758342a.",
     "consolidationReport": "docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json",
     "mergePolicy": "No force-push or squash of receipt-bearing history. New implementation uses short-lived reviewed branches into main.",
     "receiptTags": [
@@ -40,7 +40,7 @@
     "name": "Adapters, lifecycle, intelligence depth, and extensibility",
     "number": 5,
     "plan": "ROADMAP.md",
-    "primaryBlocker": "Execute P5-001 through P5-029: live client adapters and capability matrices, canonical lifecycle and materialization, intelligence depth, SDK/provider interfaces, design-partner validation, and an exact Phase 5 receipt.",
+    "primaryBlocker": "Execute P5-002 through P5-029: live client capability matrices, canonical lifecycle and materialization, intelligence depth, SDK/provider interfaces, design-partner validation, and an exact Phase 5 receipt.",
     "status": "in_progress",
     "tasks": "TASKS.md"
   },
@@ -62,8 +62,8 @@
     }
   },
   "nextActions": [
-    "Execute P5-001: converge the installed service and workspace registry across concurrent CLI, desktop, editor, and adapter clients.",
     "Execute P5-002 through P5-006: live Claude Code, Claude Desktop, Codex, OpenCode, Cursor, and generic MCP-host capability matrices.",
+    "Execute P5-001: converge the installed service and workspace registry across concurrent CLI, desktop, editor, and adapter clients.",
     "Execute P5-007 through P5-020: canonical sessions/history/memory, materializers, signed handoffs, and durable run/subagent orchestration.",
     "Execute P5-021 through P5-029: intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.",
     "Validate anilize plus two approved design partners and close Phase 5 with exact evidence and independent verification.",
@@ -79,6 +79,24 @@
     "mergeCommit": "f450c1a9cd2cd74d366324b5e2031e4751fb5942",
     "status": "closed",
     "workflowRunId": 31026328918
+  },
+  "phase5Evidence": {
+    "artifactId": 8955671128,
+    "artifactSha256": "7cee5ddd84571718119447322fcf88a9ca2161c556b9af1a93ea4794ebd39dc8",
+    "completedTask": "P5-001",
+    "currentTask": "P5-002",
+    "exactServiceWorkflowRunId": 31071496501,
+    "finalValidationWorkflowRunId": 31070227364,
+    "mergeCommit": "f231b86f581b7f3d5d081ed4b8d235a72758342a",
+    "parallelWorkflowRunId": 31068987326,
+    "postMergeCiWorkflowRunId": 31072279038,
+    "postMergeDocumentationWorkflowRunId": 31072279070,
+    "productSourceCommit": "1744424444d08d6ee380dc40c948db86a626ee04",
+    "publicationWorkflowRunId": 31071131814,
+    "pullRequest": 36,
+    "pullRequestHeadCommit": "6ffd0f8af9ff44b0dcb5392f3e52963e309c1cc5",
+    "receipt": "P5-001-CLOSURE-RECEIPT.json",
+    "status": "in_progress"
   },
   "phases": [
     {
@@ -125,8 +143,15 @@
       "workflowRunId": 31026328918
     },
     {
+      "completedTasks": [
+        "P5-001"
+      ],
+      "currentTask": "P5-002",
       "name": "Adapters, lifecycle, intelligence depth, and extensibility",
       "number": 5,
+      "receipts": [
+        "P5-001-CLOSURE-RECEIPT.json"
+      ],
       "status": "in_progress"
     },
     {

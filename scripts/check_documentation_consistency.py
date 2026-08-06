@@ -89,12 +89,17 @@ if sha256("native/contracts/context-packet-v2.schema.json") != CONTEXT_SHA:
 phase4 = load_json("PHASE4-CLOSURE-RECEIPT.json")
 alpha = load_json("PHASE4-ALPHA-CLOSURE-RECEIPT.json")
 independent = load_json("PHASE4-INDEPENDENT-VERIFICATION.json")
+p5_001 = load_json("P5-001-CLOSURE-RECEIPT.json")
 if phase4.get("status") != "closed":
     fail("Phase 4 closure receipt is not closed")
 if alpha.get("conclusion") != "success":
     fail("Phase 4 alpha receipt is not successful")
 if independent.get("status") != "pass":
     fail("Phase 4 independent verification did not pass")
+if p5_001.get("status") != "closed" or p5_001.get("task") != "P5-001":
+    fail("P5-001 receipt is not closed")
+if p5_001.get("productionClaimAllowed") is not False or p5_001.get("publicToolCeiling") != 12:
+    fail("P5-001 receipt changed a locked invariant")
 for value in (phase4, alpha, independent):
     if value.get("productionClaimAllowed") is not False:
         fail("Phase 4 evidence changed the production claim")
@@ -149,8 +154,10 @@ if len(task_ids) != len(set(task_ids)):
 for task in sorted(expected_p4):
     if f"- [x] **{task}**" not in tasks_text:
         fail(f"closed Phase 4 task is unchecked: {task}")
-if "- [ ] **P5-001**" not in tasks_text:
-    fail("P5-001 must be the first open implementation task")
+if "- [x] **P5-001**" not in tasks_text:
+    fail("P5-001 must be closed")
+if "- [ ] **P5-002**" not in tasks_text:
+    fail("P5-002 must be the first open implementation task")
 
 required_markers = {
     "README.md": ["Phase 4", "Phase 5", "productionClaimAllowed"],
@@ -159,8 +166,8 @@ required_markers = {
         "Phase 5:                     IN PROGRESS",
     ],
     "ROADMAP.md": ["current_phase=5", "Phase 4 — closed", "Phase 5 — current"],
-    "TASKS.md": ["current_phase=5", "## Current phase", "P5-001"],
-    "HANDOFF.md": ["Phase 4:                     CLOSED", "P5-001"],
+    "TASKS.md": ["current_phase=5", "## Current phase", "P5-001", "P5-002"],
+    "HANDOFF.md": ["Phase 4:                     CLOSED", "P5-001", "P5-002"],
     "AGENTS.md": [
         "Phase 4 is closed",
         "Phase 5 is the active implementation phase",
@@ -201,7 +208,7 @@ print(
             "schemaVersion": "soleaux.documentation-consistency/v3",
             "version": EXPECTED_VERSION,
             "currentPhase": EXPECTED_PHASE,
-            "nextTask": "P5-001",
+            "nextTask": "P5-002",
             "phase3Status": phase3["status"],
             "phase4Status": phase_by_number[4]["status"],
             "requiredDocuments": len(manifest["required"]),

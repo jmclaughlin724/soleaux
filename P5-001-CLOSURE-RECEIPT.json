@@ -1,0 +1,63 @@
+{
+  "artifactId": 8955671128,
+  "artifactIntegrity": "independently_verified",
+  "artifactSha256": "7cee5ddd84571718119447322fcf88a9ca2161c556b9af1a93ea4794ebd39dc8",
+  "capabilities": [
+    "one daemon-owned canonical workspace registry",
+    "durable client registrations and client/workspace bindings",
+    "lease heartbeat, expiry, disconnect, unbind, forget, and revival",
+    "canonical UTF-8 workspace identity with non-UTF-8 fail-closed rejection",
+    "workspace trust and client compatibility read-only enforcement",
+    "atomic writer-owned registration, binding, heartbeat, disconnect, and forget operations",
+    "bounded read pages and serialized-size-bounded mutation child responses",
+    "canonical attach marker UUID and transactional attach/revert convergence",
+    "legacy provisioning manifest scope compatibility",
+    "state persistence across daemon restart"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-05",
+  "exactServiceWorkflowRunId": 31071496501,
+  "finalValidationWorkflowRunId": 31070227364,
+  "mergeCommit": "f231b86f581b7f3d5d081ed4b8d235a72758342a",
+  "parallelWorkflowRunId": 31068987326,
+  "platforms": [
+    "linux-x86_64",
+    "macos-arm64"
+  ],
+  "postMergeCiWorkflowRunId": 31072279038,
+  "postMergeDocumentationWorkflowRunId": 31072279070,
+  "productSourceCommit": "1744424444d08d6ee380dc40c948db86a626ee04",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "publicationWorkflowRunId": 31071131814,
+  "pullRequest": 36,
+  "pullRequestHeadCommit": "6ffd0f8af9ff44b0dcb5392f3e52963e309c1cc5",
+  "reviewThreadsResolved": 24,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-001",
+  "tests": {
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": "pass",
+    "clippyWarningsDenied": "pass",
+    "p5RegistryLifecycleSmoke": "pass",
+    "phase1Smoke": "pass",
+    "phase2Smoke": "pass",
+    "pyright": "pass",
+    "python": {
+      "failed": 0,
+      "passed": 929,
+      "skipped": 17
+    },
+    "releaseBuild": "pass",
+    "ruff": "pass",
+    "rustfmt": "pass"
+  },
+  "validatedClientKinds": [
+    "cli",
+    "desktop",
+    "editor",
+    "adapter"
+  ]
+}
