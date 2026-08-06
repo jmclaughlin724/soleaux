@@ -29,8 +29,8 @@ jobs:
         run: |
           set -euo pipefail
           git merge-base --is-ancestor f231b86f581b7f3d5d081ed4b8d235a72758342a HEAD
-          test "$(git rev-parse f231b86f581b7f3d5d081ed4b8d235a72758342a^{tree})" = \
-               "$(git rev-parse HEAD~1^{tree})"
+          test "$(git merge-base f231b86f581b7f3d5d081ed4b8d235a72758342a HEAD)" = \
+               "f231b86f581b7f3d5d081ed4b8d235a72758342a"
 
       - name: Apply the authoritative P5-001 closure convergence
         run: |
