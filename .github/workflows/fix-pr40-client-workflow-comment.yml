@@ -1,0 +1,107 @@
+name: Publish PR40 client workflow closure fixes
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: write
+
+jobs:
+  fix-test-publish:
+    if: github.event.issue.pull_request && github.event.issue.number == 40 && github.event.comment.body == '/run-pr40-client-workflow'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TARGET_BRANCH: fix/p5-client-matrix-post-merge-remediation
+      EXPECTED_HEAD: 33a3801174ece7ff8384aae9a51414fa19e02ff7
+      CODEMOD_COMMIT: 19a04c7a5510a9dee213ed0fb6595b4f7529c89e
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Verify exact source and apply immutable codemod
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch origin main
+          git cat-file -e "$CODEMOD_COMMIT^{commit}"
+          git show "$CODEMOD_COMMIT:.ci/fix-pr40-client-workflow.py" > /tmp/fix-client.py
+          python3 -m py_compile /tmp/fix-client.py
+          python3 /tmp/fix-client.py
+          uv sync --locked
+          uv run --locked ruff format \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          uv run --locked ruff check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py \
+            native/scripts/verify_pinned_client_artifact.py \
+            tests/test_client_capability_matrix.py
+          uv run --locked ruff format --check \
+            native/scripts/probe_client_capabilities.py \
+            native/scripts/validate_client_capability_matrix.py
+          python3 native/scripts/validate_client_capability_matrix.py --self-test \
+            --output /tmp/self-test.json
+          uv run --locked pytest tests/test_client_capability_matrix.py -q \
+            | tee /tmp/client-tests.txt
+          git diff --check
+
+      - name: Verify the pinned Claude package through its Node entrypoint
+        run: |
+          set -euo pipefail
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform claude_code --download-dir /tmp/claude-pack \
+            --output /tmp/claude-artifact.json
+          CLAUDE_ARCHIVE="$(python3 -c 'import json; print(json.load(open("/tmp/claude-artifact.json"))["artifactPath"])')"
+          npm install --global "$CLAUDE_ARCHIVE" --ignore-scripts
+          CLAUDE_ENTRY="$(readlink -f "$(command -v claude)")"
+          test -f "$CLAUDE_ENTRY"
+          printf '#!/usr/bin/env bash\nexec node %q "$@"\n' "$CLAUDE_ENTRY" \
+            > /tmp/claude-node-wrapper
+          chmod +x /tmp/claude-node-wrapper
+          python3 native/scripts/probe_client_capabilities.py \
+            --platform claude_code --binary /tmp/claude-node-wrapper \
+            --output /tmp/claude-code.json
+
+      - name: Commit the exact validated client closure source
+        run: |
+          set -euo pipefail
+          files=(
+            .github/workflows/client-capability-matrix.yml
+            native/scripts/probe_client_capabilities.py
+            native/scripts/validate_client_capability_matrix.py
+          )
+          git add "${files[@]}"
+          git diff --cached --check
+          git diff --cached --name-only | sort > /tmp/CHANGED-FILES
+          printf '%s\n' "${files[@]}" | sort > /tmp/EXPECTED-FILES
+          diff -u /tmp/EXPECTED-FILES /tmp/CHANGED-FILES
+          git write-tree > /tmp/TESTED-TREE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(matrix): execute pinned Claude package through Node'
+          test "$(git rev-parse HEAD^{tree})" = "$(cat /tmp/TESTED-TREE)"
+          git rev-parse HEAD | tee /tmp/SOURCE-COMMIT
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-pr40-client-workflow-fix-${{ github.run_id }}
+          path: |
+            /tmp/CHANGED-FILES
+            /tmp/TESTED-TREE
+            /tmp/SOURCE-COMMIT
+            /tmp/self-test.json
+            /tmp/client-tests.txt
+            /tmp/claude-artifact.json
+            /tmp/claude-code.json
+          if-no-files-found: error
+          retention-days: 30
