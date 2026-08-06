@@ -48,8 +48,6 @@ jobs:
         with:
           node-version: '24'
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11.4.0
       - uses: astral-sh/setup-uv@v7
       - name: Run complete repository and documentation gates
         run: |
@@ -212,7 +210,8 @@ jobs:
             --output /tmp/artifact.json
           if [ '${{ matrix.platform }}' = claude_code ]; then
             archive="$(python3 -c 'import json; print(json.load(open("/tmp/artifact.json"))["artifactPath"])')"
-            npm install --global "$archive" --ignore-scripts
+            npm install --global "$archive"
+            claude --version | tee /tmp/installed-version.txt
             python3 native/scripts/probe_client_capabilities.py \
               --platform claude_code --binary claude --output /tmp/probe.json
           elif [ '${{ matrix.platform }}' = codex ]; then
@@ -237,7 +236,8 @@ jobs:
             /tmp/validation.json
             /tmp/artifact.json
             /tmp/probe.json
-          if-no-files-found: error
+            /tmp/installed-version.txt
+          if-no-files-found: warn
 
   macos:
     needs: discover
