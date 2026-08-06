@@ -1,9 +1,13 @@
+use crate::IPC_MAX_FRAME_BYTES;
 use anyhow::{Context, Result, bail};
+use serde::Serialize;
 use serde_json::{Value, json};
 use soleaux_state::{
-    CanonicalEntityInput, CanonicalRecord, ClientAccessMode, ClientKind, ClientRegistrationPayload,
-    ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256, LOCKED_PROFILE_SHA256,
-    PUBLIC_TOOL_CEILING, StateStore, WorkspacePayload, WorkspaceTrustState,
+    CanonicalEntityInput, ClientAccessMode, ClientCompatibilityState, ClientKind,
+    ClientRegistrationPayload, ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256,
+    LOCKED_PROFILE_SHA256, PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES,
+    REGISTRY_PAGE_LIMIT_DEFAULT, REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload,
+    WorkspaceTrustState,
 };
 use std::{
     fs,
@@ -19,45 +23,46 @@ const CLIENT_ORIGIN: &str = "soleaux.client";
 const BINDING_ORIGIN: &str = "soleaux.client-workspace";
 const MIN_CLIENT_TTL_MS: u64 = 5_000;
 const MAX_CLIENT_TTL_MS: u64 = 86_400_000;
-const REGISTRY_LIMIT: usize = 10_000;
+const REGISTRY_RESPONSE_RESERVE_BYTES: usize = 64 * 1024;
 
-pub(crate) fn status(state: &StateStore, include_stale: bool) -> Result<Value> {
-    let now = unix_ms();
-    let workspaces = state.list_all::<WorkspacePayload>(REGISTRY_LIMIT, false)?;
-    let clients = state.list_all::<ClientRegistrationPayload>(REGISTRY_LIMIT, false)?;
-    let bindings = state.list_all::<ClientWorkspaceBindingPayload>(REGISTRY_LIMIT, false)?;
-    let active_client_ids = clients
-        .iter()
-        .filter(|record| include_stale || client_is_active(record, now))
-        .map(|record| record.id)
-        .collect::<std::collections::BTreeSet<_>>();
-    let active_workspace_ids = workspaces
-        .iter()
-        .filter(|record| record.state == "registered")
-        .map(|record| record.id)
-        .collect::<std::collections::BTreeSet<_>>();
-    let clients = clients
-        .into_iter()
-        .filter(|record| include_stale || active_client_ids.contains(&record.id))
-        .collect::<Vec<_>>();
-    let bindings = bindings
-        .into_iter()
-        .filter(|record| {
-            record.state == "bound"
-                && active_client_ids.contains(&record.payload.client_id)
-                && active_workspace_ids.contains(&record.payload.workspace_id)
-                && (include_stale
-                    || record
-                        .expires_at_unix_ms
-                        .is_none_or(|expires| expires > now))
-        })
-        .collect::<Vec<_>>();
-    Ok(json!({
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn status(
+    state: &StateStore,
+    include_stale: bool,
+    limit: usize,
+    workspace_cursor: Option<Uuid>,
+    client_cursor: Option<Uuid>,
+    binding_cursor: Option<Uuid>,
+) -> Result<Value> {
+    let snapshot = state.registry_snapshot(
+        include_stale,
+        limit,
+        workspace_cursor,
+        client_cursor,
+        binding_cursor,
+        unix_ms(),
+    )?;
+    bounded_response(json!({
         "schemaVersion":REGISTRY_SCHEMA_VERSION,
         "clientProtocolVersion":CLIENT_PROTOCOL_VERSION,
-        "workspaces":workspaces,
-        "clients":clients,
-        "bindings":bindings,
+        "workspaces":snapshot.workspaces.items,
+        "clients":snapshot.clients.items,
+        "bindings":snapshot.bindings.items,
+        "pagination":{
+            "limit":limit,
+            "workspaces":{
+                "nextCursor":snapshot.workspaces.next_cursor,
+                "truncated":snapshot.workspaces.truncated,
+            },
+            "clients":{
+                "nextCursor":snapshot.clients.next_cursor,
+                "truncated":snapshot.clients.truncated,
+            },
+            "bindings":{
+                "nextCursor":snapshot.bindings.next_cursor,
+                "truncated":snapshot.bindings.truncated,
+            },
+        },
         "supportedClientKinds":ClientKind::ALL,
         "publicToolCeiling":PUBLIC_TOOL_CEILING,
         "profileDigest":LOCKED_PROFILE_SHA256,
@@ -73,12 +78,18 @@ pub(crate) fn register_workspace(
     trust_state: WorkspaceTrustState,
     metadata: Value,
 ) -> Result<Value> {
+    validate_text(path, "workspace path")?;
+    validate_json_field(&metadata, "workspace metadata")?;
     let canonical = fs::canonicalize(Path::new(path))
         .with_context(|| format!("resolving workspace path {path}"))?;
     if !canonical.is_dir() {
         bail!("workspace path is not a directory");
     }
-    let canonical_path = canonical.to_string_lossy().to_string();
+    let canonical_path = canonical
+        .to_str()
+        .context("workspace path is not valid UTF-8")?
+        .to_owned();
+    validate_text(&canonical_path, "canonical workspace path")?;
     let path_hash = blake3::hash(canonical_path.as_bytes()).to_hex().to_string();
     let display_name = display_name
         .filter(|value| !value.trim().is_empty())
@@ -89,6 +100,7 @@ pub(crate) fn register_workspace(
                 .map(ToOwned::to_owned)
         })
         .unwrap_or_else(|| canonical_path.clone());
+    validate_text(&display_name, "workspace display name")?;
     let payload = WorkspacePayload {
         canonical_path,
         path_hash: path_hash.clone(),
@@ -105,39 +117,39 @@ pub(crate) fn register_workspace(
     input.origin_platform = Some(WORKSPACE_ORIGIN.to_string());
     input.native_id = Some(path_hash.clone());
     input.idempotency_key = Some(format!("workspace:{path_hash}"));
-    let record = state.upsert_native(input)?;
-    Ok(json!({
+    let result = state.registry_register_workspace(input)?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.workspace-registration/v1",
-        "workspace":record,
+        "workspace":result.workspace,
+        "downgradedBindings":result.downgraded_bindings,
         "productionClaimAllowed":false,
     }))
 }
 
-pub(crate) fn list_workspaces(state: &StateStore) -> Result<Value> {
-    Ok(json!({
+pub(crate) fn list_workspaces(
+    state: &StateStore,
+    cursor: Option<Uuid>,
+    limit: usize,
+) -> Result<Value> {
+    let page = state.registry_workspaces(cursor, limit)?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.workspace-list/v1",
-        "workspaces":state.list_all::<WorkspacePayload>(REGISTRY_LIMIT, false)?,
+        "workspaces":page.items,
+        "nextCursor":page.next_cursor,
+        "truncated":page.truncated,
+        "limit":limit,
         "productionClaimAllowed":false,
     }))
 }
 
 pub(crate) fn forget_workspace(state: &StateStore, workspace_id: Uuid) -> Result<Value> {
-    let workspace = state
-        .get::<WorkspacePayload>(workspace_id)?
-        .context("workspace registration does not exist")?;
-    let mut unbound = Vec::new();
-    for binding in state.list_all::<ClientWorkspaceBindingPayload>(REGISTRY_LIMIT, false)? {
-        if binding.payload.workspace_id == workspace_id {
-            state.tombstone(binding.id, "workspace forgotten", "soleaux-registry")?;
-            unbound.push(binding.id);
-        }
-    }
-    let tombstone = state.tombstone(workspace.id, "workspace forgotten", "soleaux-registry")?;
-    Ok(json!({
+    let result =
+        state.registry_forget_workspace(workspace_id, "workspace forgotten", "soleaux-registry")?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.workspace-forget/v1",
         "workspaceId":workspace_id,
-        "unboundClientBindings":unbound,
-        "tombstone":tombstone,
+        "unboundClientBindings":result.binding_ids,
+        "tombstone":result.tombstone,
         "productionClaimAllowed":false,
     }))
 }
@@ -155,9 +167,17 @@ pub(crate) fn register_client(
     metadata: Value,
 ) -> Result<Value> {
     validate_ttl(ttl_ms)?;
+    validate_text(&instance_id, "client instance id")?;
+    validate_text(&display_name, "client display name")?;
+    validate_text(&client_version, "client version")?;
+    validate_text(&protocol_version, "client protocol version")?;
+    validate_json_field(&capabilities, "client capabilities")?;
+    validate_json_field(&metadata, "client metadata")?;
     if protocol_version != CLIENT_PROTOCOL_VERSION {
         bail!("unsupported Soleaux client protocol version: {protocol_version}");
     }
+    let compatibility_state = compatibility_state(client_kind, &client_version, &protocol_version);
+    let write_capable = compatibility_state == ClientCompatibilityState::Verified;
     let now = unix_ms();
     let native_id = format!("{}:{instance_id}", client_kind.as_str());
     let payload = ClientRegistrationPayload {
@@ -167,6 +187,8 @@ pub(crate) fn register_client(
         client_version,
         protocol_version,
         connection_state: "connected".to_string(),
+        compatibility_state,
+        write_capable,
         last_seen_at_unix_ms: now,
         capabilities,
         metadata,
@@ -177,10 +199,13 @@ pub(crate) fn register_client(
     input.native_id = Some(native_id.clone());
     input.idempotency_key = Some(format!("client:{native_id}"));
     input.expires_at_unix_ms = Some(expiration(now, ttl_ms)?);
-    let record = state.upsert_native(input)?;
-    Ok(json!({
+    let result = state.registry_register_client(input)?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.client-registration/v1",
-        "client":record,
+        "client":result.client,
+        "bindings":result.bindings,
+        "writeCapable":write_capable,
+        "compatibilityState":compatibility_state,
         "productionClaimAllowed":false,
     }))
 }
@@ -192,87 +217,61 @@ pub(crate) fn heartbeat_client(
     capabilities: Option<Value>,
 ) -> Result<Value> {
     validate_ttl(ttl_ms)?;
-    let existing = state
-        .get::<ClientRegistrationPayload>(client_id)?
-        .context("client registration does not exist")?;
-    let now = unix_ms();
-    let mut payload = existing.payload;
-    payload.connection_state = "connected".to_string();
-    payload.last_seen_at_unix_ms = now;
-    if let Some(capabilities) = capabilities {
-        payload.capabilities = capabilities;
+    if let Some(capabilities) = &capabilities {
+        validate_json_field(capabilities, "client capabilities")?;
     }
-    let native_id = format!("{}:{}", payload.client_kind.as_str(), payload.instance_id);
-    let mut input = CanonicalEntityInput::active(payload);
-    input.id = Some(existing.id);
-    input.state = "connected".to_string();
-    input.origin_platform = Some(CLIENT_ORIGIN.to_string());
-    input.native_id = Some(native_id.clone());
-    input.idempotency_key = Some(format!("client:{native_id}"));
-    input.expires_at_unix_ms = Some(expiration(now, ttl_ms)?);
-    let record = state.upsert_native(input)?;
-    let mut refreshed_bindings = Vec::new();
-    for binding in state.list_all::<ClientWorkspaceBindingPayload>(REGISTRY_LIMIT, false)? {
-        if binding.payload.client_id != client_id {
-            continue;
-        }
-        let mut payload = binding.payload;
-        payload.last_seen_at_unix_ms = now;
-        let native_id = binding
-            .native_id
-            .clone()
-            .context("client workspace binding omitted its native identity")?;
-        let mut input = CanonicalEntityInput::active(payload);
-        input.id = Some(binding.id);
-        input.workspace_id = binding.workspace_id;
-        input.parent_id = binding.parent_id;
-        input.state = "bound".to_string();
-        input.origin_platform = Some(BINDING_ORIGIN.to_string());
-        input.native_id = Some(native_id.clone());
-        input.idempotency_key = Some(format!("binding:{native_id}"));
-        input.expires_at_unix_ms = record.expires_at_unix_ms;
-        refreshed_bindings.push(state.upsert_native(input)?);
-    }
-    Ok(json!({
+    let result = state.registry_heartbeat_client(client_id, ttl_ms, capabilities)?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.client-heartbeat/v1",
-        "client":record,
-        "bindings":refreshed_bindings,
+        "client":result.client,
+        "bindings":result.bindings,
         "productionClaimAllowed":false,
     }))
 }
 
-pub(crate) fn list_clients(state: &StateStore, include_stale: bool) -> Result<Value> {
-    let now = unix_ms();
-    let clients = state
-        .list_all::<ClientRegistrationPayload>(REGISTRY_LIMIT, false)?
-        .into_iter()
-        .filter(|record| include_stale || client_is_active(record, now))
-        .collect::<Vec<_>>();
-    Ok(json!({
+pub(crate) fn list_clients(
+    state: &StateStore,
+    include_stale: bool,
+    cursor: Option<Uuid>,
+    limit: usize,
+) -> Result<Value> {
+    let page = state.registry_clients(include_stale, cursor, limit, unix_ms())?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.client-list/v1",
-        "clients":clients,
+        "clients":page.items,
+        "nextCursor":page.next_cursor,
+        "truncated":page.truncated,
+        "limit":limit,
         "supportedClientKinds":ClientKind::ALL,
         "productionClaimAllowed":false,
     }))
 }
 
+pub(crate) fn list_bindings(
+    state: &StateStore,
+    include_stale: bool,
+    cursor: Option<Uuid>,
+    limit: usize,
+) -> Result<Value> {
+    let page = state.registry_bindings(include_stale, cursor, limit, unix_ms())?;
+    bounded_response(json!({
+        "schemaVersion":"soleaux.client-workspace-binding-list/v1",
+        "bindings":page.items,
+        "nextCursor":page.next_cursor,
+        "truncated":page.truncated,
+        "limit":limit,
+        "productionClaimAllowed":false,
+    }))
+}
+
 pub(crate) fn disconnect_client(state: &StateStore, client_id: Uuid) -> Result<Value> {
-    let client = state
-        .get::<ClientRegistrationPayload>(client_id)?
-        .context("client registration does not exist")?;
-    let mut unbound = Vec::new();
-    for binding in state.list_all::<ClientWorkspaceBindingPayload>(REGISTRY_LIMIT, false)? {
-        if binding.payload.client_id == client_id {
-            state.tombstone(binding.id, "client disconnected", "soleaux-registry")?;
-            unbound.push(binding.id);
-        }
-    }
-    let tombstone = state.tombstone(client.id, "client disconnected", "soleaux-registry")?;
-    Ok(json!({
+    let result =
+        state.registry_disconnect_client(client_id, "client disconnected", "soleaux-registry")?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.client-disconnect/v1",
         "clientId":client_id,
-        "unboundWorkspaceBindings":unbound,
-        "tombstone":tombstone,
+        "unboundWorkspaceBindings":result.binding_ids,
+        "tombstone":result.tombstone,
         "productionClaimAllowed":false,
     }))
 }
@@ -285,18 +284,8 @@ pub(crate) fn bind_client_workspace(
     capabilities: Value,
     metadata: Value,
 ) -> Result<Value> {
-    let client = state
-        .get::<ClientRegistrationPayload>(client_id)?
-        .context("client registration does not exist")?;
-    if !client_is_active(&client, unix_ms()) {
-        bail!("client registration is stale; heartbeat or register before binding");
-    }
-    let workspace = state
-        .get::<WorkspacePayload>(workspace_id)?
-        .context("workspace registration does not exist")?;
-    if workspace.state != "registered" {
-        bail!("workspace registration is not active");
-    }
+    validate_json_field(&capabilities, "binding capabilities")?;
+    validate_json_field(&metadata, "binding metadata")?;
     let now = unix_ms();
     let native_id = format!("{client_id}:{workspace_id}");
     let payload = ClientWorkspaceBindingPayload {
@@ -316,9 +305,9 @@ pub(crate) fn bind_client_workspace(
     input.origin_platform = Some(BINDING_ORIGIN.to_string());
     input.native_id = Some(native_id.clone());
     input.idempotency_key = Some(format!("binding:{native_id}"));
-    input.expires_at_unix_ms = client.expires_at_unix_ms;
-    let record = state.upsert_native(input)?;
-    Ok(json!({
+    input.expires_at_unix_ms = None;
+    let record = state.registry_bind_client_workspace(input)?;
+    bounded_response(json!({
         "schemaVersion":"soleaux.client-workspace-binding/v1",
         "binding":record,
         "productionClaimAllowed":false,
@@ -330,7 +319,7 @@ pub(crate) fn unbind_client_workspace(state: &StateStore, binding_id: Uuid) -> R
         .get::<ClientWorkspaceBindingPayload>(binding_id)?
         .context("client workspace binding does not exist")?;
     let tombstone = state.tombstone(binding.id, "client unbound", "soleaux-registry")?;
-    Ok(json!({
+    bounded_response(json!({
         "schemaVersion":"soleaux.client-workspace-unbind/v1",
         "bindingId":binding_id,
         "tombstone":tombstone,
@@ -338,12 +327,59 @@ pub(crate) fn unbind_client_workspace(state: &StateStore, binding_id: Uuid) -> R
     }))
 }
 
-fn client_is_active(record: &CanonicalRecord<ClientRegistrationPayload>, now: i64) -> bool {
-    record.state == "connected"
-        && record.payload.connection_state == "connected"
-        && record
-            .expires_at_unix_ms
-            .is_none_or(|expires| expires > now)
+fn compatibility_state(
+    client_kind: ClientKind,
+    client_version: &str,
+    protocol_version: &str,
+) -> ClientCompatibilityState {
+    if client_kind == ClientKind::Cli
+        && client_version == env!("CARGO_PKG_VERSION")
+        && protocol_version == CLIENT_PROTOCOL_VERSION
+    {
+        ClientCompatibilityState::Verified
+    } else {
+        ClientCompatibilityState::Unprobed
+    }
+}
+
+fn validate_json_field(value: &Value, label: &str) -> Result<()> {
+    if !value.is_object() {
+        bail!("{label} must be a JSON object");
+    }
+    let bytes = serde_json::to_vec(value)?;
+    if bytes.len() > REGISTRY_JSON_FIELD_MAX_BYTES {
+        bail!(
+            "{label} exceeds the {} byte registry limit",
+            REGISTRY_JSON_FIELD_MAX_BYTES
+        );
+    }
+    Ok(())
+}
+
+fn validate_text(value: &str, label: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        bail!("{label} must be non-empty");
+    }
+    if value.len() > REGISTRY_TEXT_FIELD_MAX_BYTES {
+        bail!(
+            "{label} exceeds the {} byte registry limit",
+            REGISTRY_TEXT_FIELD_MAX_BYTES
+        );
+    }
+    Ok(())
+}
+
+fn bounded_response<T: Serialize>(value: T) -> Result<Value> {
+    let value = serde_json::to_value(value)?;
+    let encoded = serde_json::to_vec(&value)?;
+    let maximum = IPC_MAX_FRAME_BYTES.saturating_sub(REGISTRY_RESPONSE_RESERVE_BYTES);
+    if encoded.len() > maximum {
+        bail!(
+            "registry response exceeds the IPC frame budget; request a page of at most {} records",
+            REGISTRY_PAGE_LIMIT_DEFAULT
+        );
+    }
+    Ok(value)
 }
 
 fn validate_ttl(ttl_ms: u64) -> Result<()> {

@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
-    ffi::OsString,
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -65,19 +64,9 @@ struct BackupManifest {
     records: Vec<BackupRecord>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-enum BackupScope {
-    #[default]
-    Workspace,
-    SoleauxHome,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct BackupRecord {
-    #[serde(default)]
-    scope: BackupScope,
     path: String,
     backup_path: Option<String>,
     created: bool,
@@ -86,15 +75,7 @@ struct BackupRecord {
 }
 
 #[derive(Debug, Clone)]
-struct AdditionalWrite {
-    scope: BackupScope,
-    path: String,
-    rendered: Vec<u8>,
-}
-
-#[derive(Debug, Clone)]
 struct PreparedWrite {
-    scope: BackupScope,
     path: String,
     target: PathBuf,
     existing: Option<Vec<u8>>,
@@ -171,26 +152,7 @@ pub fn attach_plan(root: &Path) -> Result<ProvisionPlan> {
 pub fn apply_attach(root: &Path) -> Result<ProvisionReceipt> {
     let root = canonical_root(root)?;
     let plan = attach_plan(&root)?;
-    let id = workspace_id(&root);
-    let registry_relative = format!("workspaces/{id}.json");
-    let value = json!({
-        "schema_version":"soleaux.workspace-attachment/v1",
-        "workspace_id":id,
-        "workspace":root,
-        "profile_digest":"89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc",
-        "context_digest":"3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
-        "public_tool_ceiling":12,
-        "production_claim_allowed":false,
-    });
-    apply_plan_with_additional(
-        &root,
-        &plan,
-        vec![AdditionalWrite {
-            scope: BackupScope::SoleauxHome,
-            path: registry_relative,
-            rendered: serde_json::to_vec_pretty(&value)?,
-        }],
-    )
+    apply_plan(&root, &plan)
 }
 
 pub fn revert_last(root: &Path) -> Result<Vec<String>> {
@@ -215,7 +177,7 @@ where
     // Validate every target and load every backup before changing any path.
     let mut prepared = Vec::new();
     for record in manifest.records.iter().rev() {
-        let target = admit_scoped(root, record.scope, &record.path)?;
+        let target = admit(root, &record.path)?;
         let current = read_optional(&target)?
             .with_context(|| format!("provisioned target {} is missing", target.display()))?;
         let current_hash = sha256_hex(&current);
@@ -279,22 +241,13 @@ where
 }
 
 fn apply_plan(root: &Path, plan: &ProvisionPlan) -> Result<ProvisionReceipt> {
-    apply_plan_with_additional(root, plan, Vec::new())
-}
-
-fn apply_plan_with_additional(
-    root: &Path,
-    plan: &ProvisionPlan,
-    additional: Vec<AdditionalWrite>,
-) -> Result<ProvisionReceipt> {
     let mut writer = |path: &Path, bytes: &[u8]| atomic_write(path, bytes);
-    apply_plan_with_writer(root, plan, additional, &mut writer)
+    apply_plan_with_writer(root, plan, &mut writer)
 }
 
 fn apply_plan_with_writer<F>(
     root: &Path,
     plan: &ProvisionPlan,
-    additional: Vec<AdditionalWrite>,
     writer: &mut F,
 ) -> Result<ProvisionReceipt>
 where
@@ -309,7 +262,7 @@ where
 
     let timestamp = unix_ms();
     let backup_root = root.join(".soleaux/backups").join(timestamp.to_string());
-    let writes = prepare_writes(root, plan, additional, timestamp)?;
+    let writes = prepare_writes(root, plan, timestamp)?;
 
     // Persist every preimage before the first configured path is changed.
     let mut backups = Vec::new();
@@ -342,7 +295,6 @@ where
         records: writes
             .iter()
             .map(|write| BackupRecord {
-                scope: write.scope,
                 path: write.path.clone(),
                 backup_path: write.backup_path.clone(),
                 created: write.existing.is_none(),
@@ -373,12 +325,7 @@ where
     })
 }
 
-fn prepare_writes(
-    root: &Path,
-    plan: &ProvisionPlan,
-    additional: Vec<AdditionalWrite>,
-    timestamp: u64,
-) -> Result<Vec<PreparedWrite>> {
+fn prepare_writes(root: &Path, plan: &ProvisionPlan, timestamp: u64) -> Result<Vec<PreparedWrite>> {
     let mut writes = Vec::new();
     for action in &plan.actions {
         let target = admit(root, &action.path)?;
@@ -394,24 +341,10 @@ fn prepare_writes(
         writes.push(prepared_write(
             root,
             timestamp,
-            BackupScope::Workspace,
             action.path.clone(),
             target,
             existing,
             rendered,
-        )?);
-    }
-    for write in additional {
-        let target = admit_scoped(root, write.scope, &write.path)?;
-        let existing = read_optional(&target)?;
-        writes.push(prepared_write(
-            root,
-            timestamp,
-            write.scope,
-            write.path,
-            target,
-            existing,
-            write.rendered,
         )?);
     }
     Ok(writes)
@@ -420,28 +353,19 @@ fn prepare_writes(
 fn prepared_write(
     root: &Path,
     timestamp: u64,
-    scope: BackupScope,
     path: String,
     target: PathBuf,
     existing: Option<Vec<u8>>,
     rendered: Vec<u8>,
 ) -> Result<PreparedWrite> {
-    let backup_path = existing.as_ref().map(|_| {
-        let storage_path = match scope {
-            BackupScope::Workspace => path.clone(),
-            BackupScope::SoleauxHome => format!("external/soleaux_home/{path}"),
-        };
-        format!(".soleaux/backups/{timestamp}/{storage_path}")
-    });
+    let backup_path = existing
+        .as_ref()
+        .map(|_| format!(".soleaux/backups/{timestamp}/{path}"));
     if let Some(path) = &backup_path {
         let _ = admit(root, path)?;
     }
-    let receipt_path = match scope {
-        BackupScope::Workspace => path.clone(),
-        BackupScope::SoleauxHome => target.to_string_lossy().to_string(),
-    };
+    let receipt_path = path.clone();
     Ok(PreparedWrite {
-        scope,
         path,
         target,
         existing,
@@ -697,21 +621,6 @@ fn admit(root: &Path, relative: &str) -> Result<PathBuf> {
     Ok(target)
 }
 
-fn admit_scoped(root: &Path, scope: BackupScope, relative: &str) -> Result<PathBuf> {
-    match scope {
-        BackupScope::Workspace => admit(root, relative),
-        BackupScope::SoleauxHome => {
-            validate_relative_path(relative)?;
-            let home = normalized_base(&crate::gateway::soleaux_home()?)?;
-            if home.exists() {
-                admit(&home, relative)
-            } else {
-                Ok(home.join(relative))
-            }
-        }
-    }
-}
-
 fn validate_relative_path(relative: &str) -> Result<()> {
     let relative = Path::new(relative);
     if relative.is_absolute()
@@ -727,31 +636,6 @@ fn validate_relative_path(relative: &str) -> Result<()> {
         bail!("provisioning paths must remain repository-relative");
     }
     Ok(())
-}
-
-fn normalized_base(base: &Path) -> Result<PathBuf> {
-    if base.exists() {
-        return fs::canonicalize(base)
-            .with_context(|| format!("resolving provisioning base {}", base.display()));
-    }
-    let mut ancestor = base;
-    let mut suffix: Vec<OsString> = Vec::new();
-    while !ancestor.exists() {
-        suffix.push(
-            ancestor
-                .file_name()
-                .context("provisioning base has no existing ancestor")?
-                .to_os_string(),
-        );
-        ancestor = ancestor
-            .parent()
-            .context("provisioning base has no existing ancestor")?;
-    }
-    let mut normalized = fs::canonicalize(ancestor)?;
-    for component in suffix.iter().rev() {
-        normalized.push(component);
-    }
-    Ok(normalized)
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
@@ -837,8 +721,8 @@ mod tests {
             }
             atomic_write(path, bytes)
         };
-        let error = apply_plan_with_writer(&root, &plan, Vec::new(), &mut writer)
-            .expect_err("transaction must fail");
+        let error =
+            apply_plan_with_writer(&root, &plan, &mut writer).expect_err("transaction must fail");
         assert!(
             error
                 .to_string()
@@ -913,6 +797,18 @@ mod tests {
             before_provider
         );
         assert!(root.join(".mcp.json").exists());
+    }
+
+    #[test]
+    fn attach_writes_only_the_workspace_local_receipt() {
+        let directory = tempdir().expect("tempdir");
+        let root = canonical_root(directory.path()).expect("root");
+        let plan = attach_plan(&root).expect("plan");
+        assert_eq!(plan.actions.len(), 1);
+        assert_eq!(plan.actions[0].path, ".soleaux/attachment.json");
+        let receipt = apply_attach(&root).expect("attach");
+        assert_eq!(receipt.written, vec![".soleaux/attachment.json"]);
+        assert!(root.join(".soleaux/attachment.json").is_file());
     }
 
     #[test]

@@ -4,6 +4,7 @@ use rusqlite::{
     Connection, OpenFlags, OptionalExtension, Row, Transaction, TransactionBehavior, params,
     types::Type,
 };
+use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
@@ -13,7 +14,7 @@ use std::{
 };
 use uuid::Uuid;
 
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 const ENTITY_SELECT: &str =
     "SELECT id, kind, workspace_id, parent_id, origin_platform, native_id, state, sensitivity,
@@ -41,6 +42,39 @@ pub(crate) struct SerializedEntityInput {
     pub expires_at_unix_ms: Option<i64>,
     pub payload: Value,
     pub payload_hash: String,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SerializedRegistryPage {
+    pub items: Vec<SerializedEntityRecord>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SerializedRegistrySnapshot {
+    pub workspaces: SerializedRegistryPage,
+    pub clients: SerializedRegistryPage,
+    pub bindings: SerializedRegistryPage,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SerializedWorkspaceRegistrationResult {
+    pub workspace: SerializedEntityRecord,
+    pub downgraded_bindings: Vec<SerializedEntityRecord>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SerializedClientRegistrationResult {
+    pub client: SerializedEntityRecord,
+    pub bindings: Vec<SerializedEntityRecord>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SerializedRegistryCascadeResult {
+    pub entity_id: Uuid,
+    pub binding_ids: Vec<Uuid>,
+    pub tombstone: TombstoneRecord,
 }
 
 pub(crate) fn open_writer(path: &Path) -> Result<Connection> {
@@ -209,7 +243,15 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
             CREATE INDEX state_audit_entity
                 ON state_audit(entity_id, sequence);
 
-            PRAGMA user_version = 1;
+            PRAGMA user_version = 2;
+            COMMIT;
+            "#,
+        )?;
+    } else if version == 1 {
+        connection.execute_batch(
+            r#"
+            BEGIN IMMEDIATE;
+            PRAGMA user_version = 2;
             COMMIT;
             "#,
         )?;
@@ -368,6 +410,20 @@ pub(crate) fn upsert_native_entity(
     connection: &mut Connection,
     input: &SerializedEntityInput,
 ) -> Result<SerializedEntityRecord> {
+    if input.expected_revision.is_some() {
+        bail!("native upsert does not accept expected_revision");
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let record = upsert_native_entity_tx(&transaction, input, false)?;
+    transaction.commit()?;
+    Ok(record)
+}
+
+fn upsert_native_entity_tx(
+    transaction: &Transaction<'_>,
+    input: &SerializedEntityInput,
+    allow_revive: bool,
+) -> Result<SerializedEntityRecord> {
     let origin_platform = input
         .origin_platform
         .as_deref()
@@ -379,7 +435,6 @@ pub(crate) fn upsert_native_entity(
     if input.expected_revision.is_some() {
         bail!("native upsert does not accept expected_revision");
     }
-    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let existing = transaction
         .query_row(
             &format!("{ENTITY_SELECT} WHERE kind = ?1 AND origin_platform = ?2 AND native_id = ?3"),
@@ -388,7 +443,7 @@ pub(crate) fn upsert_native_entity(
         )
         .optional()?;
     let now = unix_ms();
-    let record = if let Some(existing) = existing {
+    if let Some(existing) = existing {
         if existing.workspace_id != input.workspace_id || existing.parent_id != input.parent_id {
             bail!("native upsert cannot change canonical workspace or parent identity");
         }
@@ -396,10 +451,52 @@ pub(crate) fn upsert_native_entity(
             bail!("native upsert id does not match the existing canonical entity");
         }
         if existing.tombstoned_at_unix_ms.is_some() {
-            bail!("tombstoned canonical entity cannot be updated");
+            if !allow_revive {
+                bail!("tombstoned canonical entity cannot be updated");
+            }
+            let revision = existing
+                .revision
+                .checked_add(1)
+                .context("canonical entity revision overflow")?;
+            transaction.execute(
+                "UPDATE canonical_entities
+                 SET state = ?2, sensitivity = ?3, revision = ?4, payload_json = ?5,
+                     payload_hash = ?6, idempotency_key = ?7, expires_at_unix_ms = ?8,
+                     updated_at_unix_ms = ?9, tombstoned_at_unix_ms = NULL
+                 WHERE id = ?1 AND tombstoned_at_unix_ms IS NOT NULL",
+                params![
+                    existing.id.to_string(),
+                    input.state,
+                    input.sensitivity.as_str(),
+                    i64_from_u64(revision, "entity revision")?,
+                    serde_json::to_string(&input.payload)?,
+                    input.payload_hash,
+                    input.idempotency_key,
+                    input.expires_at_unix_ms,
+                    now,
+                ],
+            )?;
+            transaction.execute(
+                "DELETE FROM tombstones WHERE entity_id = ?1",
+                [existing.id.to_string()],
+            )?;
+            append_audit_tx(
+                transaction,
+                "canonical.entity.native_revived",
+                input.workspace_id,
+                Some(existing.id),
+                json!({
+                    "kind":input.kind,
+                    "revision":revision,
+                    "payloadHash":input.payload_hash,
+                    "state":input.state,
+                    "originPlatform":origin_platform,
+                    "nativeId":native_id,
+                }),
+            )?;
+            return read_entity_tx(transaction, existing.id);
         }
         if entity_replay_matches(&existing, input) {
-            transaction.commit()?;
             return Ok(existing);
         }
         let revision = existing
@@ -425,7 +522,7 @@ pub(crate) fn upsert_native_entity(
             ],
         )?;
         append_audit_tx(
-            &transaction,
+            transaction,
             "canonical.entity.native_upserted",
             input.workspace_id,
             Some(existing.id),
@@ -438,54 +535,52 @@ pub(crate) fn upsert_native_entity(
                 "nativeId":native_id,
             }),
         )?;
-        read_entity_tx(&transaction, existing.id)?
-    } else {
-        if let Some(parent_id) = input.parent_id {
-            ensure_live_entity(&transaction, parent_id, "parent")?;
-        }
-        let id = input.id.unwrap_or_else(Uuid::now_v7);
-        transaction.execute(
-            "INSERT INTO canonical_entities(
-                id, kind, workspace_id, workspace_key, parent_id, origin_platform, native_id,
-                state, sensitivity, revision, payload_json, payload_hash, idempotency_key,
-                expires_at_unix_ms, created_at_unix_ms, updated_at_unix_ms,
-                tombstoned_at_unix_ms
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11, ?12, ?13, ?14, ?14, NULL)",
-            params![
-                id.to_string(),
-                input.kind.as_str(),
-                input.workspace_id.map(|value| value.to_string()),
-                workspace_key(input.workspace_id),
-                input.parent_id.map(|value| value.to_string()),
-                origin_platform,
-                native_id,
-                input.state,
-                input.sensitivity.as_str(),
-                serde_json::to_string(&input.payload)?,
-                input.payload_hash,
-                input.idempotency_key,
-                input.expires_at_unix_ms,
-                now,
-            ],
-        )?;
-        append_audit_tx(
-            &transaction,
-            "canonical.entity.created",
-            input.workspace_id,
-            Some(id),
-            json!({
-                "kind":input.kind,
-                "revision":1,
-                "payloadHash":input.payload_hash,
-                "state":input.state,
-                "originPlatform":origin_platform,
-                "nativeId":native_id,
-            }),
-        )?;
-        read_entity_tx(&transaction, id)?
-    };
-    transaction.commit()?;
-    Ok(record)
+        return read_entity_tx(transaction, existing.id);
+    }
+
+    if let Some(parent_id) = input.parent_id {
+        ensure_live_entity(transaction, parent_id, "parent")?;
+    }
+    let id = input.id.unwrap_or_else(Uuid::now_v7);
+    transaction.execute(
+        "INSERT INTO canonical_entities(
+            id, kind, workspace_id, workspace_key, parent_id, origin_platform, native_id,
+            state, sensitivity, revision, payload_json, payload_hash, idempotency_key,
+            expires_at_unix_ms, created_at_unix_ms, updated_at_unix_ms,
+            tombstoned_at_unix_ms
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11, ?12, ?13, ?14, ?14, NULL)",
+        params![
+            id.to_string(),
+            input.kind.as_str(),
+            input.workspace_id.map(|value| value.to_string()),
+            workspace_key(input.workspace_id),
+            input.parent_id.map(|value| value.to_string()),
+            origin_platform,
+            native_id,
+            input.state,
+            input.sensitivity.as_str(),
+            serde_json::to_string(&input.payload)?,
+            input.payload_hash,
+            input.idempotency_key,
+            input.expires_at_unix_ms,
+            now,
+        ],
+    )?;
+    append_audit_tx(
+        transaction,
+        "canonical.entity.created",
+        input.workspace_id,
+        Some(id),
+        json!({
+            "kind":input.kind,
+            "revision":1,
+            "payloadHash":input.payload_hash,
+            "state":input.state,
+            "originPlatform":origin_platform,
+            "nativeId":native_id,
+        }),
+    )?;
+    read_entity_tx(transaction, id)
 }
 
 fn entity_replay_matches(existing: &SerializedEntityRecord, input: &SerializedEntityInput) -> bool {
@@ -598,6 +693,536 @@ pub(crate) fn list_entities_all(
         entity_from_row,
     )?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+pub(crate) fn registry_snapshot(
+    connection: &Connection,
+    include_stale: bool,
+    limit: usize,
+    workspace_cursor: Option<Uuid>,
+    client_cursor: Option<Uuid>,
+    binding_cursor: Option<Uuid>,
+    now_unix_ms: i64,
+) -> Result<SerializedRegistrySnapshot> {
+    Ok(SerializedRegistrySnapshot {
+        workspaces: registry_workspace_page(connection, workspace_cursor, limit)?,
+        clients: registry_client_page(
+            connection,
+            include_stale,
+            client_cursor,
+            limit,
+            now_unix_ms,
+        )?,
+        bindings: registry_binding_page(
+            connection,
+            include_stale,
+            binding_cursor,
+            limit,
+            now_unix_ms,
+        )?,
+    })
+}
+
+pub(crate) fn registry_workspace_page(
+    connection: &Connection,
+    cursor: Option<Uuid>,
+    limit: usize,
+) -> Result<SerializedRegistryPage> {
+    let mut statement = connection.prepare(
+        "SELECT id FROM canonical_entities
+         WHERE kind = ?1
+           AND state = 'registered'
+           AND tombstoned_at_unix_ms IS NULL
+           AND (?2 IS NULL OR id > ?2)
+         ORDER BY id
+         LIMIT ?3",
+    )?;
+    let rows = statement.query_map(
+        params![
+            EntityKind::Workspace.as_str(),
+            cursor.map(|value| value.to_string()),
+            page_query_limit(limit)?,
+        ],
+        |row| row.get::<_, String>(0),
+    )?;
+    registry_page_from_ids(
+        connection,
+        rows.collect::<rusqlite::Result<Vec<_>>>()?,
+        limit,
+    )
+}
+
+pub(crate) fn registry_client_page(
+    connection: &Connection,
+    include_stale: bool,
+    cursor: Option<Uuid>,
+    limit: usize,
+    now_unix_ms: i64,
+) -> Result<SerializedRegistryPage> {
+    let mut statement = connection.prepare(
+        "SELECT id FROM canonical_entities
+         WHERE kind = ?1
+           AND tombstoned_at_unix_ms IS NULL
+           AND (?2 = 1 OR (
+                state = 'connected'
+                AND (expires_at_unix_ms IS NULL OR expires_at_unix_ms > ?3)
+           ))
+           AND (?4 IS NULL OR id > ?4)
+         ORDER BY id
+         LIMIT ?5",
+    )?;
+    let rows = statement.query_map(
+        params![
+            EntityKind::ClientRegistration.as_str(),
+            i64::from(include_stale),
+            now_unix_ms,
+            cursor.map(|value| value.to_string()),
+            page_query_limit(limit)?,
+        ],
+        |row| row.get::<_, String>(0),
+    )?;
+    registry_page_from_ids(
+        connection,
+        rows.collect::<rusqlite::Result<Vec<_>>>()?,
+        limit,
+    )
+}
+
+pub(crate) fn registry_binding_page(
+    connection: &Connection,
+    include_stale: bool,
+    cursor: Option<Uuid>,
+    limit: usize,
+    now_unix_ms: i64,
+) -> Result<SerializedRegistryPage> {
+    let mut statement = connection.prepare(
+        "SELECT binding.id
+         FROM canonical_entities binding
+         JOIN canonical_entities client
+           ON client.id = binding.parent_id
+          AND client.kind = ?2
+          AND client.tombstoned_at_unix_ms IS NULL
+         JOIN canonical_entities workspace
+           ON workspace.id = binding.workspace_id
+          AND workspace.kind = ?3
+          AND workspace.state = 'registered'
+          AND workspace.tombstoned_at_unix_ms IS NULL
+         WHERE binding.kind = ?1
+           AND binding.state = 'bound'
+           AND binding.tombstoned_at_unix_ms IS NULL
+           AND (?4 = 1 OR (
+                client.state = 'connected'
+                AND (client.expires_at_unix_ms IS NULL OR client.expires_at_unix_ms > ?5)
+                AND (binding.expires_at_unix_ms IS NULL OR binding.expires_at_unix_ms > ?5)
+           ))
+           AND (?6 IS NULL OR binding.id > ?6)
+         ORDER BY binding.id
+         LIMIT ?7",
+    )?;
+    let rows = statement.query_map(
+        params![
+            EntityKind::ClientWorkspaceBinding.as_str(),
+            EntityKind::ClientRegistration.as_str(),
+            EntityKind::Workspace.as_str(),
+            i64::from(include_stale),
+            now_unix_ms,
+            cursor.map(|value| value.to_string()),
+            page_query_limit(limit)?,
+        ],
+        |row| row.get::<_, String>(0),
+    )?;
+    registry_page_from_ids(
+        connection,
+        rows.collect::<rusqlite::Result<Vec<_>>>()?,
+        limit,
+    )
+}
+
+fn page_query_limit(limit: usize) -> Result<i64> {
+    i64::try_from(limit.saturating_add(1)).context("registry page limit exceeds SQLite range")
+}
+
+fn registry_page_from_ids(
+    connection: &Connection,
+    mut ids: Vec<String>,
+    limit: usize,
+) -> Result<SerializedRegistryPage> {
+    let truncated = ids.len() > limit;
+    if truncated {
+        ids.truncate(limit);
+    }
+    let mut items = Vec::with_capacity(ids.len());
+    for id in ids {
+        let id = Uuid::parse_str(&id).context("registry query returned an invalid UUID")?;
+        let record = get_entity(connection, id)?
+            .with_context(|| format!("registry entity disappeared during read: {id}"))?;
+        items.push(record);
+    }
+    let next_cursor = truncated
+        .then(|| items.last().map(|record| record.id))
+        .flatten();
+    Ok(SerializedRegistryPage {
+        items,
+        next_cursor,
+        truncated,
+    })
+}
+
+pub(crate) fn registry_register_workspace(
+    connection: &mut Connection,
+    input: &SerializedEntityInput,
+) -> Result<SerializedWorkspaceRegistrationResult> {
+    if input.kind != EntityKind::Workspace {
+        bail!("workspace registration requires a workspace payload");
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let workspace = upsert_native_entity_tx(&transaction, input, true)?;
+    let payload: WorkspacePayload = typed_payload(&workspace)?;
+    let mut downgraded_bindings = Vec::new();
+    if payload.trust_state != WorkspaceTrustState::Trusted {
+        for binding_id in binding_ids_tx(&transaction, None, Some(workspace.id))? {
+            let existing = read_entity_tx(&transaction, binding_id)?;
+            let mut binding: ClientWorkspaceBindingPayload = typed_payload(&existing)?;
+            if binding.access_mode == ClientAccessMode::ReadWrite {
+                binding.access_mode = ClientAccessMode::ReadOnly;
+                downgraded_bindings.push(update_entity_payload_tx(
+                    &transaction,
+                    &existing,
+                    "bound",
+                    serde_json::to_value(binding)?,
+                    existing.expires_at_unix_ms,
+                    "registry.binding.trust_downgraded",
+                )?);
+            }
+        }
+    }
+    transaction.commit()?;
+    Ok(SerializedWorkspaceRegistrationResult {
+        workspace,
+        downgraded_bindings,
+    })
+}
+
+pub(crate) fn registry_register_client(
+    connection: &mut Connection,
+    input: &SerializedEntityInput,
+) -> Result<SerializedClientRegistrationResult> {
+    if input.kind != EntityKind::ClientRegistration {
+        bail!("client registration requires a client-registration payload");
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let client = upsert_native_entity_tx(&transaction, input, true)?;
+    let bindings = refresh_client_bindings_tx(&transaction, &client)?;
+    transaction.commit()?;
+    Ok(SerializedClientRegistrationResult { client, bindings })
+}
+
+pub(crate) fn registry_heartbeat_client(
+    connection: &mut Connection,
+    client_id: Uuid,
+    ttl_ms: u64,
+    capabilities: Option<Value>,
+) -> Result<SerializedClientRegistrationResult> {
+    if ttl_ms == 0 || ttl_ms > 86_400_000 {
+        bail!("client ttl must be between 1 ms and 24 hours");
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let existing = read_entity_tx(&transaction, client_id)?;
+    if existing.kind != EntityKind::ClientRegistration
+        || existing.tombstoned_at_unix_ms.is_some()
+        || existing.state != "connected"
+    {
+        bail!("client registration is not active");
+    }
+    let now = unix_ms();
+    let expires = now
+        .checked_add(i64_from_u64(ttl_ms, "client ttl")?)
+        .context("client expiration overflow")?;
+    let mut payload: ClientRegistrationPayload = typed_payload(&existing)?;
+    payload.connection_state = "connected".to_string();
+    payload.last_seen_at_unix_ms = now;
+    if let Some(capabilities) = capabilities {
+        payload.capabilities = capabilities;
+    }
+    let client = update_entity_payload_tx(
+        &transaction,
+        &existing,
+        "connected",
+        serde_json::to_value(payload)?,
+        Some(expires),
+        "registry.client.heartbeat",
+    )?;
+    let bindings = refresh_client_bindings_tx(&transaction, &client)?;
+    transaction.commit()?;
+    Ok(SerializedClientRegistrationResult { client, bindings })
+}
+
+pub(crate) fn registry_bind_client_workspace(
+    connection: &mut Connection,
+    input: &SerializedEntityInput,
+) -> Result<SerializedEntityRecord> {
+    if input.kind != EntityKind::ClientWorkspaceBinding {
+        bail!("binding mutation requires a client-workspace-binding payload");
+    }
+    let client_id = input
+        .parent_id
+        .context("binding omitted its client parent")?;
+    let workspace_id = input
+        .workspace_id
+        .context("binding omitted its workspace")?;
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let client = read_entity_tx(&transaction, client_id)?;
+    let workspace = read_entity_tx(&transaction, workspace_id)?;
+    ensure_active_client(&client, unix_ms())?;
+    ensure_registered_workspace(&workspace)?;
+    let client_payload: ClientRegistrationPayload = typed_payload(&client)?;
+    let workspace_payload: WorkspacePayload = typed_payload(&workspace)?;
+    let binding_payload: ClientWorkspaceBindingPayload = typed_payload_input(input)?;
+    if binding_payload.client_id != client_id || binding_payload.workspace_id != workspace_id {
+        bail!("binding payload identity does not match canonical parent/workspace identity");
+    }
+    if binding_payload.access_mode == ClientAccessMode::ReadWrite {
+        if workspace_payload.trust_state != WorkspaceTrustState::Trusted {
+            bail!("read-write binding requires a trusted workspace");
+        }
+        if !client_payload.write_capable
+            || client_payload.compatibility_state != ClientCompatibilityState::Verified
+        {
+            bail!("read-write binding requires a verified client compatibility matrix");
+        }
+    }
+    let mut current = input.clone();
+    current.expires_at_unix_ms = client.expires_at_unix_ms;
+    let binding = upsert_native_entity_tx(&transaction, &current, true)?;
+    transaction.commit()?;
+    Ok(binding)
+}
+
+pub(crate) fn registry_forget_workspace(
+    connection: &mut Connection,
+    workspace_id: Uuid,
+    reason: &str,
+    actor: &str,
+) -> Result<SerializedRegistryCascadeResult> {
+    registry_tombstone_parent(
+        connection,
+        workspace_id,
+        EntityKind::Workspace,
+        reason,
+        actor,
+    )
+}
+
+pub(crate) fn registry_disconnect_client(
+    connection: &mut Connection,
+    client_id: Uuid,
+    reason: &str,
+    actor: &str,
+) -> Result<SerializedRegistryCascadeResult> {
+    registry_tombstone_parent(
+        connection,
+        client_id,
+        EntityKind::ClientRegistration,
+        reason,
+        actor,
+    )
+}
+
+fn registry_tombstone_parent(
+    connection: &mut Connection,
+    entity_id: Uuid,
+    expected_kind: EntityKind,
+    reason: &str,
+    actor: &str,
+) -> Result<SerializedRegistryCascadeResult> {
+    require_non_empty(reason, "registry tombstone reason")?;
+    require_non_empty(actor, "registry tombstone actor")?;
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let result = registry_tombstone_parent_tx(
+        &transaction,
+        entity_id,
+        expected_kind,
+        reason,
+        actor,
+        unix_ms(),
+    )?;
+    transaction.commit()?;
+    Ok(result)
+}
+
+fn registry_tombstone_parent_tx(
+    transaction: &Transaction<'_>,
+    entity_id: Uuid,
+    expected_kind: EntityKind,
+    reason: &str,
+    actor: &str,
+    now: i64,
+) -> Result<SerializedRegistryCascadeResult> {
+    let parent = read_entity_tx(transaction, entity_id)?;
+    if parent.kind != expected_kind {
+        bail!("registry cascade target kind does not match the requested operation");
+    }
+    let binding_ids = match expected_kind {
+        EntityKind::Workspace => binding_ids_tx(transaction, None, Some(entity_id))?,
+        EntityKind::ClientRegistration => binding_ids_tx(transaction, Some(entity_id), None)?,
+        _ => bail!("unsupported registry cascade target"),
+    };
+    for binding_id in &binding_ids {
+        tombstone_entity_tx(transaction, *binding_id, reason, actor, now)?;
+    }
+    let tombstone = tombstone_entity_tx(transaction, entity_id, reason, actor, now)?;
+    Ok(SerializedRegistryCascadeResult {
+        entity_id,
+        binding_ids,
+        tombstone,
+    })
+}
+
+fn refresh_client_bindings_tx(
+    transaction: &Transaction<'_>,
+    client: &SerializedEntityRecord,
+) -> Result<Vec<SerializedEntityRecord>> {
+    let client_payload: ClientRegistrationPayload = typed_payload(client)?;
+    let mut refreshed = Vec::new();
+    for binding_id in binding_ids_tx(transaction, Some(client.id), None)? {
+        let existing = read_entity_tx(transaction, binding_id)?;
+        let workspace_id = existing
+            .workspace_id
+            .context("client binding omitted its workspace identity")?;
+        let workspace = read_entity_tx(transaction, workspace_id)?;
+        if ensure_registered_workspace(&workspace).is_err() {
+            tombstone_entity_tx(
+                transaction,
+                binding_id,
+                "workspace_unavailable",
+                "soleaux-registry",
+                unix_ms(),
+            )?;
+            continue;
+        }
+        let workspace_payload: WorkspacePayload = typed_payload(&workspace)?;
+        let mut binding: ClientWorkspaceBindingPayload = typed_payload(&existing)?;
+        if binding.access_mode == ClientAccessMode::ReadWrite
+            && (workspace_payload.trust_state != WorkspaceTrustState::Trusted
+                || !client_payload.write_capable
+                || client_payload.compatibility_state != ClientCompatibilityState::Verified)
+        {
+            binding.access_mode = ClientAccessMode::ReadOnly;
+        }
+        binding.last_seen_at_unix_ms = client_payload.last_seen_at_unix_ms;
+        refreshed.push(update_entity_payload_tx(
+            transaction,
+            &existing,
+            "bound",
+            serde_json::to_value(binding)?,
+            client.expires_at_unix_ms,
+            "registry.binding.refreshed",
+        )?);
+    }
+    Ok(refreshed)
+}
+
+fn update_entity_payload_tx(
+    transaction: &Transaction<'_>,
+    existing: &SerializedEntityRecord,
+    state: &str,
+    payload: Value,
+    expires_at_unix_ms: Option<i64>,
+    event_type: &str,
+) -> Result<SerializedEntityRecord> {
+    let revision = existing
+        .revision
+        .checked_add(1)
+        .context("canonical entity revision overflow")?;
+    let payload_json = serde_json::to_string(&payload)?;
+    let payload_hash = blake3::hash(payload_json.as_bytes()).to_hex().to_string();
+    let now = unix_ms();
+    let changed = transaction.execute(
+        "UPDATE canonical_entities
+         SET state = ?2, revision = ?3, payload_json = ?4, payload_hash = ?5,
+             expires_at_unix_ms = ?6, updated_at_unix_ms = ?7
+         WHERE id = ?1 AND revision = ?8 AND tombstoned_at_unix_ms IS NULL",
+        params![
+            existing.id.to_string(),
+            state,
+            i64_from_u64(revision, "entity revision")?,
+            payload_json,
+            payload_hash,
+            expires_at_unix_ms,
+            now,
+            i64_from_u64(existing.revision, "entity revision")?,
+        ],
+    )?;
+    if changed != 1 {
+        bail!("canonical entity changed during serialized registry mutation");
+    }
+    append_audit_tx(
+        transaction,
+        event_type,
+        existing.workspace_id,
+        Some(existing.id),
+        json!({"kind":existing.kind,"revision":revision,"state":state}),
+    )?;
+    read_entity_tx(transaction, existing.id)
+}
+
+fn binding_ids_tx(
+    transaction: &Transaction<'_>,
+    client_id: Option<Uuid>,
+    workspace_id: Option<Uuid>,
+) -> Result<Vec<Uuid>> {
+    let mut statement = transaction.prepare(
+        "SELECT id FROM canonical_entities
+         WHERE kind = ?1
+           AND tombstoned_at_unix_ms IS NULL
+           AND (?2 IS NULL OR parent_id = ?2)
+           AND (?3 IS NULL OR workspace_id = ?3)
+         ORDER BY id",
+    )?;
+    let rows = statement.query_map(
+        params![
+            EntityKind::ClientWorkspaceBinding.as_str(),
+            client_id.map(|value| value.to_string()),
+            workspace_id.map(|value| value.to_string()),
+        ],
+        |row| row.get::<_, String>(0),
+    )?;
+    rows.map(|value| parse_uuid(0, &value?))
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
+}
+
+fn ensure_active_client(record: &SerializedEntityRecord, now_unix_ms: i64) -> Result<()> {
+    if record.kind != EntityKind::ClientRegistration
+        || record.tombstoned_at_unix_ms.is_some()
+        || record.state != "connected"
+        || record
+            .expires_at_unix_ms
+            .is_some_and(|expires| expires <= now_unix_ms)
+    {
+        bail!("client registration is not active");
+    }
+    Ok(())
+}
+
+fn ensure_registered_workspace(record: &SerializedEntityRecord) -> Result<()> {
+    if record.kind != EntityKind::Workspace
+        || record.tombstoned_at_unix_ms.is_some()
+        || record.state != "registered"
+    {
+        bail!("workspace registration is not active");
+    }
+    Ok(())
+}
+
+fn typed_payload<T: DeserializeOwned>(record: &SerializedEntityRecord) -> Result<T> {
+    serde_json::from_value(record.payload.clone())
+        .with_context(|| format!("decoding {} registry payload", record.kind.as_str()))
+}
+
+fn typed_payload_input<T: DeserializeOwned>(input: &SerializedEntityInput) -> Result<T> {
+    serde_json::from_value(input.payload.clone())
+        .with_context(|| format!("decoding {} registry input", input.kind.as_str()))
 }
 
 pub(crate) fn put_link(
@@ -1049,13 +1674,40 @@ pub(crate) fn apply_retention(
     }
     let mut tombstones = Vec::new();
     for id in candidates.into_iter().take(limit) {
-        tombstones.push(tombstone_entity_tx(
-            &transaction,
-            id,
-            "retention_policy",
-            "soleaux-retention",
-            now,
-        )?);
+        let entity = read_entity_tx(&transaction, id)?;
+        match entity.kind {
+            EntityKind::Workspace | EntityKind::ClientRegistration => {
+                let cascade = registry_tombstone_parent_tx(
+                    &transaction,
+                    id,
+                    entity.kind,
+                    "retention_policy",
+                    "soleaux-retention",
+                    now,
+                )?;
+                for binding_id in &cascade.binding_ids {
+                    tombstones.push(
+                        transaction
+                            .query_row(
+                                "SELECT entity_id, entity_kind, workspace_id, payload_hash, reason, actor,
+                                        tombstoned_at_unix_ms, purged_at_unix_ms
+                                 FROM tombstones WHERE entity_id = ?1",
+                                [binding_id.to_string()],
+                                tombstone_from_row,
+                            )
+                            .context("reading cascaded retention tombstone")?,
+                    );
+                }
+                tombstones.push(cascade.tombstone);
+            }
+            _ => tombstones.push(tombstone_entity_tx(
+                &transaction,
+                id,
+                "retention_policy",
+                "soleaux-retention",
+                now,
+            )?),
+        }
     }
     transaction.commit()?;
     Ok(tombstones)
@@ -1071,7 +1723,14 @@ pub(crate) fn purge_tombstones(
         let mut statement = transaction.prepare(
             "SELECT entity_id FROM tombstones
              WHERE purged_at_unix_ms IS NULL AND tombstoned_at_unix_ms <= ?1
-             ORDER BY tombstoned_at_unix_ms, entity_id LIMIT ?2",
+             ORDER BY CASE entity_kind
+                        WHEN 'client_workspace_binding' THEN 0
+                        WHEN 'client_registration' THEN 1
+                        WHEN 'workspace' THEN 2
+                        ELSE 3
+                      END,
+                      tombstoned_at_unix_ms, entity_id
+             LIMIT ?2",
         )?;
         let rows = statement.query_map(
             params![before_unix_ms, i64::try_from(limit).unwrap_or(i64::MAX)],

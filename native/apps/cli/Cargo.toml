@@ -21,3 +21,6 @@ soleaux-mcp = { path = "../../daemon/mcp" }
 soleaux-state = { path = "../../daemon/state" }
 tokio.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

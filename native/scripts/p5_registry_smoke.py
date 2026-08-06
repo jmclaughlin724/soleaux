@@ -17,11 +17,16 @@ def run_json(command: list[str], env: dict[str, str]) -> dict[str, Any]:
     completed = subprocess.run(
         command,
         env=env,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         timeout=30,
     )
+    if completed.returncode != 0:
+        raise AssertionError(
+            f"command failed ({completed.returncode}): {' '.join(command)}\n"
+            f"stdout={completed.stdout}\nstderr={completed.stderr}"
+        )
     return json.loads(completed.stdout)
 
 
@@ -107,7 +112,9 @@ def main() -> int:
         workspace_id = workspace["workspace"]["id"]
 
         client_ids: list[str] = []
+        compatibility: dict[str, str] = {}
         for kind in ("cli", "desktop", "editor", "adapter"):
+            client_version = "0.4.0-dev.5" if kind == "cli" else "unprobed-smoke"
             client = run_json(
                 [
                     str(cli),
@@ -121,7 +128,7 @@ def main() -> int:
                     "--display-name",
                     f"Smoke {kind}",
                     "--client-version",
-                    "1.0.0-smoke",
+                    client_version,
                     "--ttl-ms",
                     "300000",
                     "--capabilities",
@@ -131,6 +138,9 @@ def main() -> int:
             )
             client_id = client["client"]["id"]
             client_ids.append(client_id)
+            compatibility[kind] = client["compatibilityState"]
+            assert client["writeCapable"] is (kind == "cli")
+            assert client["compatibilityState"] == ("verified" if kind == "cli" else "unprobed")
             run_json(
                 [
                     str(cli),
@@ -139,7 +149,7 @@ def main() -> int:
                     client_id,
                     workspace_id,
                     "--access-mode",
-                    "read_write",
+                    "read_write" if kind == "cli" else "read_only",
                     "--capabilities",
                     '{"context":true}',
                 ],
@@ -176,6 +186,98 @@ def main() -> int:
             env,
         )
         assert heartbeat["client"]["revision"] >= 2
+
+        downgraded = run_json(
+            [
+                str(cli),
+                "registry",
+                "workspace",
+                "register",
+                str(repository),
+                "--display-name",
+                "Soleaux source",
+                "--trust-state",
+                "read_only",
+                "--metadata",
+                '{"smoke":true,"downgraded":true}',
+            ],
+            env,
+        )
+        assert len(downgraded["downgradedBindings"]) == 1
+        binding_status = run_json([str(cli), "registry", "bindings"], env)
+        cli_binding = next(
+            item
+            for item in binding_status["bindings"]
+            if item["payload"]["clientId"] == client_ids[0]
+        )
+        assert cli_binding["payload"]["accessMode"] == "read_only"
+
+        forgotten = run_json(
+            [str(cli), "registry", "workspace", "forget", workspace_id, "--yes"], env
+        )
+        assert len(forgotten["unboundClientBindings"]) == 4
+        revived_workspace = run_json(
+            [
+                str(cli),
+                "registry",
+                "workspace",
+                "register",
+                str(repository),
+                "--display-name",
+                "Soleaux source",
+                "--trust-state",
+                "trusted",
+                "--metadata",
+                '{"smoke":true,"revived":true}',
+            ],
+            env,
+        )
+        assert revived_workspace["workspace"]["id"] == workspace_id
+
+        disconnected = run_json(
+            [str(cli), "registry", "client", "disconnect", client_ids[0], "--yes"], env
+        )
+        assert disconnected["clientId"] == client_ids[0]
+        revived_client = run_json(
+            [
+                str(cli),
+                "registry",
+                "client",
+                "register",
+                "--kind",
+                "cli",
+                "--instance-id",
+                "smoke-cli",
+                "--display-name",
+                "Smoke cli revived",
+                "--client-version",
+                "0.4.0-dev.5",
+                "--ttl-ms",
+                "300000",
+                "--capabilities",
+                '{"registry":true,"revived":true}',
+            ],
+            env,
+        )
+        assert revived_client["client"]["id"] == client_ids[0]
+        run_json(
+            [
+                str(cli),
+                "registry",
+                "bind",
+                client_ids[0],
+                workspace_id,
+                "--access-mode",
+                "read_write",
+                "--capabilities",
+                '{"context":true,"revived":true}',
+            ],
+            env,
+        )
+        revived_status = run_json([str(cli), "registry", "status"], env)
+        assert len(revived_status["workspaces"]) == 1
+        assert len(revived_status["clients"]) == 4
+        assert len(revived_status["bindings"]) == 1
         stop_daemon(cli, process, env)
 
         evidence = {
@@ -194,6 +296,11 @@ def main() -> int:
                 "bindings": len(persisted_status["bindings"]),
             },
             "heartbeatRevision": heartbeat["client"]["revision"],
+            "compatibility": compatibility,
+            "trustDowngradedBindings": len(downgraded["downgradedBindings"]),
+            "workspaceRevived": revived_workspace["workspace"]["id"] == workspace_id,
+            "clientRevived": revived_client["client"]["id"] == client_ids[0],
+            "finalBindings": len(revived_status["bindings"]),
             "publicToolCeiling": first_status["publicToolCeiling"],
             "productionClaimAllowed": first_status["productionClaimAllowed"],
             "status": "pass",

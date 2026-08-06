@@ -4,7 +4,7 @@ use soleaux_ipc::{
     IpcClient, IpcMethod, IpcRequest, SoleauxPaths, install, install_service, restart_service,
     service_status, start_service, stop_service, uninstall,
 };
-use soleaux_state::{CanonicalEntityInput, HandoffPayload, StateStore};
+use soleaux_state::{CanonicalEntityInput, HandoffPayload, StateStore, WorkspaceTrustState};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -102,6 +102,50 @@ pub async fn registry_call(method: IpcMethod) -> Result<Value> {
         );
     }
     ipc_result(&paths, method).await
+}
+
+pub async fn apply_and_register_attach(root: &Path) -> Result<Value> {
+    let receipt = soleaux_mcp::provisioning::apply_attach(root)?;
+    let canonical = fs::canonicalize(root)
+        .with_context(|| format!("resolving workspace path {}", root.display()))?;
+    let path = canonical
+        .to_str()
+        .context("workspace path is not valid UTF-8")?
+        .to_owned();
+    let registration = registry_call(IpcMethod::WorkspaceRegister {
+        path,
+        display_name: canonical
+            .file_name()
+            .and_then(|value| value.to_str())
+            .map(ToOwned::to_owned),
+        trust_state: WorkspaceTrustState::ReadOnly,
+        metadata: json!({"attachedBy":"soleaux attach","canonicalRegistry":true}),
+    })
+    .await;
+    finish_attachment(root, receipt, registration)
+}
+
+fn finish_attachment(
+    root: &Path,
+    receipt: soleaux_mcp::provisioning::ProvisionReceipt,
+    registration: Result<Value>,
+) -> Result<Value> {
+    match registration {
+        Ok(registry) => Ok(json!({
+            "schemaVersion":"soleaux.workspace-attach/v2",
+            "provisioning":receipt,
+            "registry":registry,
+            "productionClaimAllowed":false,
+        })),
+        Err(failure) => match soleaux_mcp::provisioning::revert_last(root) {
+            Ok(restored) => bail!(
+                "canonical workspace registration failed and attachment files were restored ({restored:?}): {failure:#}"
+            ),
+            Err(rollback) => bail!(
+                "canonical workspace registration failed: {failure:#}; attachment rollback also failed: {rollback:#}"
+            ),
+        },
+    }
 }
 
 pub async fn backup(destination: PathBuf) -> Result<Value> {
@@ -277,4 +321,23 @@ fn validate_digest(value: &str) -> Result<()> {
         bail!("handoff payload hash must be 64 lowercase hexadecimal characters");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::anyhow;
+    use tempfile::tempdir;
+
+    #[test]
+    fn failed_canonical_registration_rolls_back_workspace_attachment() {
+        let directory = tempdir().expect("tempdir");
+        let root = fs::canonicalize(directory.path()).expect("root");
+        let receipt = soleaux_mcp::provisioning::apply_attach(&root).expect("apply attach");
+        assert!(root.join(".soleaux/attachment.json").is_file());
+        let error = finish_attachment(&root, receipt, Err(anyhow!("registry unavailable")))
+            .expect_err("registration failure must roll back attachment");
+        assert!(error.to_string().contains("attachment files were restored"));
+        assert!(!root.join(".soleaux/attachment.json").exists());
+    }
 }

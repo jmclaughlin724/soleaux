@@ -2,6 +2,8 @@
 
 All notable changes to the unified native Soleaux product are recorded here. Exact phase receipts and independent verification remain the evidence owners.
 
+The project is licensed under MIT.
+
 ## [Unreleased] — `0.4.0-dev.5`
 
 ### Phase 4 — correct, durable unsigned alpha closed — 2026-08-05

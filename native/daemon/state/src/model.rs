@@ -662,6 +662,10 @@ pub const LOCKED_PROFILE_SHA256: &str =
 pub const LOCKED_CONTEXT_PACKET_SHA256: &str =
     "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f";
 pub const PUBLIC_TOOL_CEILING: u16 = 12;
+pub const REGISTRY_PAGE_LIMIT_DEFAULT: usize = 24;
+pub const REGISTRY_PAGE_LIMIT_MAX: usize = 32;
+pub const REGISTRY_JSON_FIELD_MAX_BYTES: usize = 2 * 1024;
+pub const REGISTRY_TEXT_FIELD_MAX_BYTES: usize = 4 * 1024;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -718,6 +722,25 @@ impl ClientKind {
             "editor" => Ok(Self::Editor),
             "adapter" => Ok(Self::Adapter),
             other => bail!("unsupported client kind: {other}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientCompatibilityState {
+    Verified,
+    #[default]
+    Unprobed,
+    Unsupported,
+}
+
+impl ClientCompatibilityState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Verified => "verified",
+            Self::Unprobed => "unprobed",
+            Self::Unsupported => "unsupported",
         }
     }
 }
@@ -794,6 +817,10 @@ pub struct ClientRegistrationPayload {
     pub client_version: String,
     pub protocol_version: String,
     pub connection_state: String,
+    #[serde(default)]
+    pub compatibility_state: ClientCompatibilityState,
+    #[serde(default)]
+    pub write_capable: bool,
     pub last_seen_at_unix_ms: i64,
     #[serde(default)]
     pub capabilities: Value,
@@ -810,6 +837,9 @@ impl CanonicalPayload for ClientRegistrationPayload {
         require(&self.client_version, "client version")?;
         require(&self.protocol_version, "client protocol version")?;
         require(&self.connection_state, "client connection state")?;
+        if self.write_capable != (self.compatibility_state == ClientCompatibilityState::Verified) {
+            bail!("client write capability must match verified compatibility state");
+        }
         if self.last_seen_at_unix_ms < 0 {
             bail!("client last-seen time must be non-negative");
         }
@@ -852,6 +882,60 @@ fn validate_hex_digest(value: &str, label: &str) -> Result<()> {
         bail!("{label} must use lowercase hexadecimal characters");
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRegistryPage {
+    pub items: Vec<CanonicalRecord<WorkspacePayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientRegistryPage {
+    pub items: Vec<CanonicalRecord<ClientRegistrationPayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientWorkspaceBindingRegistryPage {
+    pub items: Vec<CanonicalRecord<ClientWorkspaceBindingPayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistrySnapshot {
+    pub workspaces: WorkspaceRegistryPage,
+    pub clients: ClientRegistryPage,
+    pub bindings: ClientWorkspaceBindingRegistryPage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRegistrationResult {
+    pub workspace: CanonicalRecord<WorkspacePayload>,
+    pub downgraded_bindings: Vec<CanonicalRecord<ClientWorkspaceBindingPayload>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientRegistrationResult {
+    pub client: CanonicalRecord<ClientRegistrationPayload>,
+    pub bindings: Vec<CanonicalRecord<ClientWorkspaceBindingPayload>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryCascadeResult {
+    pub entity_id: Uuid,
+    pub binding_ids: Vec<Uuid>,
+    pub tombstone: TombstoneRecord,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

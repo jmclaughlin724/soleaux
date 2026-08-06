@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use soleaux_state::{ClientAccessMode, ClientKind, WorkspaceTrustState};
+use soleaux_state::{
+    ClientAccessMode, ClientKind, REGISTRY_PAGE_LIMIT_DEFAULT, WorkspaceTrustState,
+};
 use uuid::Uuid;
 
 pub const IPC_SCHEMA_VERSION: &str = "soleaux.ipc/v1";
@@ -44,6 +46,14 @@ pub enum IpcMethod {
     RegistryStatus {
         #[serde(default)]
         include_stale: bool,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+        #[serde(default)]
+        workspace_cursor: Option<Uuid>,
+        #[serde(default)]
+        client_cursor: Option<Uuid>,
+        #[serde(default)]
+        binding_cursor: Option<Uuid>,
     },
     WorkspaceRegister {
         path: String,
@@ -53,7 +63,12 @@ pub enum IpcMethod {
         #[serde(default)]
         metadata: Value,
     },
-    WorkspaceList,
+    WorkspaceList {
+        #[serde(default)]
+        cursor: Option<Uuid>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+    },
     WorkspaceForget {
         workspace_id: Uuid,
     },
@@ -78,6 +93,18 @@ pub enum IpcMethod {
     ClientList {
         #[serde(default)]
         include_stale: bool,
+        #[serde(default)]
+        cursor: Option<Uuid>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+    },
+    ClientBindingList {
+        #[serde(default)]
+        include_stale: bool,
+        #[serde(default)]
+        cursor: Option<Uuid>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
     },
     ClientDisconnect {
         client_id: Uuid,
@@ -95,6 +122,10 @@ pub enum IpcMethod {
         binding_id: Uuid,
     },
     Shutdown,
+}
+
+fn default_registry_limit() -> usize {
+    REGISTRY_PAGE_LIMIT_DEFAULT
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

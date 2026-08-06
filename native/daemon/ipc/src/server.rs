@@ -81,9 +81,20 @@ impl IpcServer {
                 .state
                 .export_snapshot()
                 .and_then(|value| serde_json::to_value(value).map_err(Into::into)),
-            IpcMethod::RegistryStatus { include_stale } => {
-                crate::registry::status(&self.state, *include_stale)
-            }
+            IpcMethod::RegistryStatus {
+                include_stale,
+                limit,
+                workspace_cursor,
+                client_cursor,
+                binding_cursor,
+            } => crate::registry::status(
+                &self.state,
+                *include_stale,
+                *limit,
+                *workspace_cursor,
+                *client_cursor,
+                *binding_cursor,
+            ),
             IpcMethod::WorkspaceRegister {
                 path,
                 display_name,
@@ -96,7 +107,9 @@ impl IpcServer {
                 *trust_state,
                 metadata.clone(),
             ),
-            IpcMethod::WorkspaceList => crate::registry::list_workspaces(&self.state),
+            IpcMethod::WorkspaceList { cursor, limit } => {
+                crate::registry::list_workspaces(&self.state, *cursor, *limit)
+            }
             IpcMethod::WorkspaceForget { workspace_id } => {
                 crate::registry::forget_workspace(&self.state, *workspace_id)
             }
@@ -130,9 +143,16 @@ impl IpcServer {
                 *ttl_ms,
                 capabilities.clone(),
             ),
-            IpcMethod::ClientList { include_stale } => {
-                crate::registry::list_clients(&self.state, *include_stale)
-            }
+            IpcMethod::ClientList {
+                include_stale,
+                cursor,
+                limit,
+            } => crate::registry::list_clients(&self.state, *include_stale, *cursor, *limit),
+            IpcMethod::ClientBindingList {
+                include_stale,
+                cursor,
+                limit,
+            } => crate::registry::list_bindings(&self.state, *include_stale, *cursor, *limit),
             IpcMethod::ClientDisconnect { client_id } => {
                 crate::registry::disconnect_client(&self.state, *client_id)
             }
@@ -226,11 +246,12 @@ fn error_code(method: &IpcMethod) -> &'static str {
         IpcMethod::StateIntegrity | IpcMethod::StateSnapshot => "state_read_failed",
         IpcMethod::RegistryStatus { .. } => "registry_status_failed",
         IpcMethod::WorkspaceRegister { .. }
-        | IpcMethod::WorkspaceList
+        | IpcMethod::WorkspaceList { .. }
         | IpcMethod::WorkspaceForget { .. } => "workspace_registry_failed",
         IpcMethod::ClientRegister { .. }
         | IpcMethod::ClientHeartbeat { .. }
         | IpcMethod::ClientList { .. }
+        | IpcMethod::ClientBindingList { .. }
         | IpcMethod::ClientDisconnect { .. } => "client_registry_failed",
         IpcMethod::ClientBindWorkspace { .. } | IpcMethod::ClientUnbindWorkspace { .. } => {
             "client_workspace_binding_failed"
