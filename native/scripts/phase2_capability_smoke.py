@@ -9,6 +9,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any
 
 import jsonschema
@@ -35,6 +36,49 @@ def run_json(argv: list[str], env: dict[str, str], stdin: str | None = None) -> 
     return json.loads(completed.stdout)
 
 
+def start_daemon(
+    daemon: pathlib.Path,
+    endpoint: pathlib.Path,
+    state_db: pathlib.Path,
+    env: dict[str, str],
+) -> subprocess.Popen[str]:
+    process = subprocess.Popen(
+        [
+            str(daemon),
+            "ipc",
+            "--endpoint",
+            str(endpoint),
+            "--state-db",
+            str(state_db),
+        ],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    for _ in range(200):
+        if endpoint.exists():
+            return process
+        if process.poll() is not None:
+            stdout, stderr = process.communicate(timeout=5)
+            raise RuntimeError(f"soleauxd exited before creating IPC endpoint: {stdout}\n{stderr}")
+        time.sleep(0.025)
+    process.kill()
+    stdout, stderr = process.communicate(timeout=5)
+    raise RuntimeError(f"soleauxd did not create IPC endpoint: {stdout}\n{stderr}")
+
+
+def stop_daemon(cli: pathlib.Path, process: subprocess.Popen[str], env: dict[str, str]) -> None:
+    try:
+        run_json([str(cli), "service", "stop"], env)
+        process.wait(timeout=10)
+    except BaseException:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        raise
+
+
 def create_backend(path: pathlib.Path) -> None:
     path.write_text(
         """#!/usr/bin/env python3
@@ -58,10 +102,12 @@ for line in sys.stdin:
     path.chmod(0o755)
 
 
-def gateway_and_provisioning(cli: pathlib.Path) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory(prefix="soleaux-phase2-workspace-") as workspace, tempfile.TemporaryDirectory(
-        prefix="soleaux-phase2-home-"
-    ) as home, tempfile.TemporaryDirectory(prefix="soleaux-phase2-team-") as team:
+def gateway_and_provisioning(cli: pathlib.Path, daemon: pathlib.Path) -> dict[str, Any]:
+    with (
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-workspace-") as workspace,
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-home-") as home,
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-team-") as team,
+    ):
         root = pathlib.Path(workspace)
         home_path = pathlib.Path(home)
         team_path = pathlib.Path(team)
@@ -97,7 +143,13 @@ def gateway_and_provisioning(cli: pathlib.Path) -> dict[str, Any]:
         env = dict(os.environ)
         env["SOLEAUX_HOME"] = str(home_path)
         env["SOLEAUX_TEAM_CATALOG"] = str(team_path)
-        env["SOLEAUXD"] = str(cli.with_name("soleauxd"))
+        runtime = home_path / "runtime"
+        endpoint = runtime / "soleaux.sock"
+        state_db = home_path / "state" / "canonical.sqlite3"
+        env["SOLEAUXD"] = str(daemon)
+        env["SOLEAUX_RUNTIME_DIR"] = str(runtime)
+        env["SOLEAUX_INSTALL_BIN"] = str(home_path / "bin")
+        env["XDG_CONFIG_HOME"] = str(home_path / "config")
 
         status_before = run_json([str(cli), "mcp", "status", str(root)], env)
         assert len(status_before) == 1
@@ -135,9 +187,7 @@ def gateway_and_provisioning(cli: pathlib.Path) -> dict[str, Any]:
         assert_envelope(catalog, source="registry.list")
         entries = catalog["data"]["entries"]
         scopes = {
-            entry.get("metadata", {}).get("scope")
-            for entry in entries
-            if isinstance(entry, dict)
+            entry.get("metadata", {}).get("scope") for entry in entries if isinstance(entry, dict)
         }
         # Compact listing does not include metadata; inspect each domain through MCP below.
         assert len(catalog["data"]["domains"]) >= 6
@@ -155,10 +205,22 @@ def gateway_and_provisioning(cli: pathlib.Path) -> dict[str, Any]:
 
         attach_plan = run_json([str(cli), "attach", str(root), "--dry-run"], env)
         assert attach_plan["public_tool_ceiling"] == 12
-        attached = run_json([str(cli), "attach", str(root), "--yes"], env)
-        assert attached["root_tool_inflation"] is False
-        assert (root / ".soleaux" / "attachment.json").is_file()
-        assert list((home_path / "workspaces").glob("*.json"))
+        process = start_daemon(daemon, endpoint, state_db, env)
+        try:
+            attached = run_json([str(cli), "attach", str(root), "--yes"], env)
+            assert attached["schemaVersion"] == "soleaux.workspace-attach/v2"
+            assert attached["provisioning"]["root_tool_inflation"] is False
+            assert (root / ".soleaux" / "attachment.json").is_file()
+            workspace = attached["registry"]["workspace"]
+            assert workspace["payload"]["canonicalPath"] == str(root.resolve())
+            assert workspace["payload"]["trustState"] == "read_only"
+            registry = run_json([str(cli), "registry", "status"], env)
+            assert len(registry["workspaces"]) == 1
+            assert registry["workspaces"][0]["id"] == workspace["id"]
+            assert registry["publicToolCeiling"] == 12
+            assert registry["productionClaimAllowed"] is False
+        finally:
+            stop_daemon(cli, process, env)
 
         logout = run_json([str(cli), "mcp", "logout", "fixture"], env)
         assert logout["status"] == "removed"
@@ -170,16 +232,19 @@ def gateway_and_provisioning(cli: pathlib.Path) -> dict[str, Any]:
             "credential_outside_worktree": True,
             "catalog_domain_count": len(catalog["data"]["domains"]),
             "adopt_written": len(adopted["written"]),
-            "attach_written": len(attached["written"]),
+            "attach_written": len(attached["provisioning"]["written"]),
+            "canonical_workspace_registered": True,
             "catalog_scopes_placeholder": sorted(value for value in scopes if value),
         }
 
 
 def mcp_phase2(binary: pathlib.Path, source: pathlib.Path) -> dict[str, Any]:
     schema = json.loads((source / "contracts" / "context-packet-v2.schema.json").read_text())
-    with tempfile.TemporaryDirectory(prefix="soleaux-phase2-mcp-") as workspace, tempfile.TemporaryDirectory(
-        prefix="soleaux-phase2-home-"
-    ) as home, tempfile.TemporaryDirectory(prefix="soleaux-phase2-team-") as team:
+    with (
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-mcp-") as workspace,
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-home-") as home,
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-team-") as team,
+    ):
         root = pathlib.Path(workspace)
         home_path = pathlib.Path(home)
         team_path = pathlib.Path(team)
@@ -190,7 +255,9 @@ def mcp_phase2(binary: pathlib.Path, source: pathlib.Path) -> dict[str, Any]:
             "export function runService() { return 'ok'; }\n", encoding="utf-8"
         )
         (root / ".github" / "CODEOWNERS").write_text("src/** @team/core\n", encoding="utf-8")
-        (root / "AGENTS.md").write_text("# Constraints\nRun tests before merge.\n", encoding="utf-8")
+        (root / "AGENTS.md").write_text(
+            "# Constraints\nRun tests before merge.\n", encoding="utf-8"
+        )
         (root / "package.json").write_text(
             json.dumps({"name": "phase2", "scripts": {"test": "node --test", "lint": "eslint ."}}),
             encoding="utf-8",
@@ -219,7 +286,10 @@ def mcp_phase2(binary: pathlib.Path, source: pathlib.Path) -> dict[str, Any]:
 
         context, is_error = mcp.tool(
             "context.compile",
-            {"objective": "Update runService while respecting ownership and validation", "paths": ["src/service.ts"]},
+            {
+                "objective": "Update runService while respecting ownership and validation",
+                "paths": ["src/service.ts"],
+            },
         )
         assert not is_error
         assert_envelope(context, source="context.compile")
@@ -240,13 +310,20 @@ def mcp_phase2(binary: pathlib.Path, source: pathlib.Path) -> dict[str, Any]:
         domains = {domain["name"] for domain in listed["data"]["domains"]}
         assert {"skills", "agents", "rules", "mcp_backends"} <= domains
 
-        for domain, expected_scope in [("skills", "user"), ("agents", "team"), ("rules", "workspace")]:
+        for domain, expected_scope in [
+            ("skills", "user"),
+            ("agents", "team"),
+            ("rules", "workspace"),
+        ]:
             ids = [entry["id"] for entry in listed["data"]["entries"] if entry["domain"] == domain]
             assert ids, (domain, listed)
             read, is_error = mcp.tool("registry.read", {"domain": domain, "ids": ids, "limit": 200})
             assert not is_error
             assert_envelope(read, source="registry.read")
-            assert any(entry["metadata"].get("scope") == expected_scope for entry in read["data"]["entries"])
+            assert any(
+                entry["metadata"].get("scope") == expected_scope
+                for entry in read["data"]["entries"]
+            )
 
         governance, is_error = mcp.tool("registry.read", {"tables": ["governance"], "limit": 200})
         assert not is_error
@@ -274,15 +351,22 @@ def mcp_phase2(binary: pathlib.Path, source: pathlib.Path) -> dict[str, Any]:
 
 def optional_providers(binary: pathlib.Path) -> dict[str, Any]:
     results: dict[str, Any] = {}
-    with tempfile.TemporaryDirectory(prefix="soleaux-phase2-postgres-") as workspace, tempfile.TemporaryDirectory(
-        prefix="soleaux-phase2-home-"
-    ) as home:
+    with (
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-postgres-") as workspace,
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-home-") as home,
+    ):
         root = pathlib.Path(workspace)
         (root / "README.md").write_text("postgres fixture\n", encoding="utf-8")
         env = dict(os.environ)
         env["SOLEAUX_HOME"] = home
         mcp = Mcp(
-            [str(binary), "serve", str(root), "--substitute", "restart_lsp=parse_and_validate_postgres_sql"],
+            [
+                str(binary),
+                "serve",
+                str(root),
+                "--substitute",
+                "restart_lsp=parse_and_validate_postgres_sql",
+            ],
             env,
         )
         mcp.call("initialize", {"protocolVersion": "2025-11-25"})
@@ -298,16 +382,23 @@ def optional_providers(binary: pathlib.Path) -> dict[str, Any]:
         results["postgres_tools"] = names
         mcp.close()
 
-    with tempfile.TemporaryDirectory(prefix="soleaux-phase2-next-") as workspace, tempfile.TemporaryDirectory(
-        prefix="soleaux-phase2-home-"
-    ) as home:
+    with (
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-next-") as workspace,
+        tempfile.TemporaryDirectory(prefix="soleaux-phase2-home-") as home,
+    ):
         root = pathlib.Path(workspace)
         (root / "app" / "users" / "[id]").mkdir(parents=True)
         (root / "app" / "api" / "health").mkdir(parents=True)
         (root / "next.config.mjs").write_text("export default {};\n", encoding="utf-8")
-        (root / "package.json").write_text(json.dumps({"dependencies": {"next": "16.0.0"}}), encoding="utf-8")
-        (root / "app" / "users" / "[id]" / "page.tsx").write_text("export default function Page(){return null}\n", encoding="utf-8")
-        (root / "app" / "api" / "health" / "route.ts").write_text("export async function GET(){return new Response('ok')}\n", encoding="utf-8")
+        (root / "package.json").write_text(
+            json.dumps({"dependencies": {"next": "16.0.0"}}), encoding="utf-8"
+        )
+        (root / "app" / "users" / "[id]" / "page.tsx").write_text(
+            "export default function Page(){return null}\n", encoding="utf-8"
+        )
+        (root / "app" / "api" / "health" / "route.ts").write_text(
+            "export async function GET(){return new Response('ok')}\n", encoding="utf-8"
+        )
         env = dict(os.environ)
         env["SOLEAUX_HOME"] = home
         mcp = Mcp(
@@ -343,7 +434,7 @@ def main() -> None:
         "product_version": "0.4.0-dev.5",
         "production_claim_allowed": False,
         "phase3_started": False,
-        "gateway_and_provisioning": gateway_and_provisioning(cli),
+        "gateway_and_provisioning": gateway_and_provisioning(cli, daemon),
         "mcp": mcp_phase2(daemon, source),
         "optional_providers": optional_providers(daemon),
         "status": "pass",

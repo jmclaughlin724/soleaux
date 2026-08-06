@@ -14,6 +14,7 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+use uuid::Uuid;
 
 const MANAGED_BEGIN: &str = "<!-- soleaux:managed:begin -->";
 const MANAGED_END: &str = "<!-- soleaux:managed:end -->";
@@ -86,15 +87,7 @@ struct BackupRecord {
 }
 
 #[derive(Debug, Clone)]
-struct AdditionalWrite {
-    scope: BackupScope,
-    path: String,
-    rendered: Vec<u8>,
-}
-
-#[derive(Debug, Clone)]
 struct PreparedWrite {
-    scope: BackupScope,
     path: String,
     target: PathBuf,
     existing: Option<Vec<u8>>,
@@ -171,26 +164,68 @@ pub fn attach_plan(root: &Path) -> Result<ProvisionPlan> {
 pub fn apply_attach(root: &Path) -> Result<ProvisionReceipt> {
     let root = canonical_root(root)?;
     let plan = attach_plan(&root)?;
-    let id = workspace_id(&root);
-    let registry_relative = format!("workspaces/{id}.json");
-    let value = json!({
-        "schema_version":"soleaux.workspace-attachment/v1",
-        "workspace_id":id,
-        "workspace":root,
-        "profile_digest":"89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc",
-        "context_digest":"3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
-        "public_tool_ceiling":12,
-        "production_claim_allowed":false,
-    });
-    apply_plan_with_additional(
-        &root,
-        &plan,
-        vec![AdditionalWrite {
-            scope: BackupScope::SoleauxHome,
-            path: registry_relative,
-            rendered: serde_json::to_vec_pretty(&value)?,
-        }],
-    )
+    apply_plan(&root, &plan)
+}
+
+pub fn attachment_workspace_id(root: &Path) -> Result<Option<Uuid>> {
+    let root = canonical_root(root)?;
+    let path = root.join(".soleaux/attachment.json");
+    let Some(bytes) = read_optional(&path)? else {
+        return Ok(None);
+    };
+    let value: serde_json::Value = serde_json::from_slice(&bytes)
+        .with_context(|| format!("reading attachment marker {}", path.display()))?;
+    let Some(value) = value
+        .get("workspace_id")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return Ok(None);
+    };
+    match Uuid::parse_str(value) {
+        Ok(workspace_id) => Ok(Some(workspace_id)),
+        Err(_) if value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) => {
+            Ok(None)
+        }
+        Err(error) => Err(error).context("attachment marker contains an invalid workspace_id"),
+    }
+}
+
+pub fn bind_attachment_workspace_id(root: &Path, workspace_id: Uuid) -> Result<()> {
+    let root = canonical_root(root)?;
+    let marker_path = root.join(".soleaux/attachment.json");
+    let marker_preimage = fs::read(&marker_path)
+        .with_context(|| format!("reading attachment marker {}", marker_path.display()))?;
+    let mut marker: serde_json::Value = serde_json::from_slice(&marker_preimage)?;
+    marker
+        .as_object_mut()
+        .context("attachment marker root must be an object")?
+        .insert("workspace_id".to_string(), json!(workspace_id));
+    let marker_bytes = serde_json::to_vec_pretty(&marker)?;
+
+    let manifest_path = root.join(".soleaux/backups/latest.json");
+    let manifest_preimage = fs::read(&manifest_path)
+        .with_context(|| format!("reading backup manifest {}", manifest_path.display()))?;
+    let mut manifest: BackupManifest = serde_json::from_slice(&manifest_preimage)?;
+    let record = manifest
+        .records
+        .iter_mut()
+        .find(|record| {
+            record.scope == BackupScope::Workspace && record.path == ".soleaux/attachment.json"
+        })
+        .context("attachment manifest omitted its workspace marker record")?;
+    record.applied_sha256 = sha256_hex(&marker_bytes);
+    let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
+
+    atomic_write(&marker_path, &marker_bytes)?;
+    if let Err(failure) = atomic_write(&manifest_path, &manifest_bytes) {
+        let rollback = atomic_write(&marker_path, &marker_preimage);
+        return Err(transaction_error(
+            "binding the canonical workspace id to the attachment marker",
+            failure,
+            rollback,
+        ));
+    }
+    Ok(())
 }
 
 pub fn revert_last(root: &Path) -> Result<Vec<String>> {
@@ -279,22 +314,13 @@ where
 }
 
 fn apply_plan(root: &Path, plan: &ProvisionPlan) -> Result<ProvisionReceipt> {
-    apply_plan_with_additional(root, plan, Vec::new())
-}
-
-fn apply_plan_with_additional(
-    root: &Path,
-    plan: &ProvisionPlan,
-    additional: Vec<AdditionalWrite>,
-) -> Result<ProvisionReceipt> {
     let mut writer = |path: &Path, bytes: &[u8]| atomic_write(path, bytes);
-    apply_plan_with_writer(root, plan, additional, &mut writer)
+    apply_plan_with_writer(root, plan, &mut writer)
 }
 
 fn apply_plan_with_writer<F>(
     root: &Path,
     plan: &ProvisionPlan,
-    additional: Vec<AdditionalWrite>,
     writer: &mut F,
 ) -> Result<ProvisionReceipt>
 where
@@ -309,7 +335,7 @@ where
 
     let timestamp = unix_ms();
     let backup_root = root.join(".soleaux/backups").join(timestamp.to_string());
-    let writes = prepare_writes(root, plan, additional, timestamp)?;
+    let writes = prepare_writes(root, plan, timestamp)?;
 
     // Persist every preimage before the first configured path is changed.
     let mut backups = Vec::new();
@@ -342,7 +368,7 @@ where
         records: writes
             .iter()
             .map(|write| BackupRecord {
-                scope: write.scope,
+                scope: BackupScope::Workspace,
                 path: write.path.clone(),
                 backup_path: write.backup_path.clone(),
                 created: write.existing.is_none(),
@@ -373,12 +399,7 @@ where
     })
 }
 
-fn prepare_writes(
-    root: &Path,
-    plan: &ProvisionPlan,
-    additional: Vec<AdditionalWrite>,
-    timestamp: u64,
-) -> Result<Vec<PreparedWrite>> {
+fn prepare_writes(root: &Path, plan: &ProvisionPlan, timestamp: u64) -> Result<Vec<PreparedWrite>> {
     let mut writes = Vec::new();
     for action in &plan.actions {
         let target = admit(root, &action.path)?;
@@ -394,24 +415,10 @@ fn prepare_writes(
         writes.push(prepared_write(
             root,
             timestamp,
-            BackupScope::Workspace,
             action.path.clone(),
             target,
             existing,
             rendered,
-        )?);
-    }
-    for write in additional {
-        let target = admit_scoped(root, write.scope, &write.path)?;
-        let existing = read_optional(&target)?;
-        writes.push(prepared_write(
-            root,
-            timestamp,
-            write.scope,
-            write.path,
-            target,
-            existing,
-            write.rendered,
         )?);
     }
     Ok(writes)
@@ -420,28 +427,19 @@ fn prepare_writes(
 fn prepared_write(
     root: &Path,
     timestamp: u64,
-    scope: BackupScope,
     path: String,
     target: PathBuf,
     existing: Option<Vec<u8>>,
     rendered: Vec<u8>,
 ) -> Result<PreparedWrite> {
-    let backup_path = existing.as_ref().map(|_| {
-        let storage_path = match scope {
-            BackupScope::Workspace => path.clone(),
-            BackupScope::SoleauxHome => format!("external/soleaux_home/{path}"),
-        };
-        format!(".soleaux/backups/{timestamp}/{storage_path}")
-    });
+    let backup_path = existing
+        .as_ref()
+        .map(|_| format!(".soleaux/backups/{timestamp}/{path}"));
     if let Some(path) = &backup_path {
         let _ = admit(root, path)?;
     }
-    let receipt_path = match scope {
-        BackupScope::Workspace => path.clone(),
-        BackupScope::SoleauxHome => target.to_string_lossy().to_string(),
-    };
+    let receipt_path = path.clone();
     Ok(PreparedWrite {
-        scope,
         path,
         target,
         existing,
@@ -712,23 +710,6 @@ fn admit_scoped(root: &Path, scope: BackupScope, relative: &str) -> Result<PathB
     }
 }
 
-fn validate_relative_path(relative: &str) -> Result<()> {
-    let relative = Path::new(relative);
-    if relative.is_absolute()
-        || relative.components().any(|component| {
-            matches!(
-                component,
-                std::path::Component::ParentDir
-                    | std::path::Component::RootDir
-                    | std::path::Component::Prefix(_)
-            )
-        })
-    {
-        bail!("provisioning paths must remain repository-relative");
-    }
-    Ok(())
-}
-
 fn normalized_base(base: &Path) -> Result<PathBuf> {
     if base.exists() {
         return fs::canonicalize(base)
@@ -752,6 +733,23 @@ fn normalized_base(base: &Path) -> Result<PathBuf> {
         normalized.push(component);
     }
     Ok(normalized)
+}
+
+fn validate_relative_path(relative: &str) -> Result<()> {
+    let relative = Path::new(relative);
+    if relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        bail!("provisioning paths must remain repository-relative");
+    }
+    Ok(())
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
@@ -837,8 +835,8 @@ mod tests {
             }
             atomic_write(path, bytes)
         };
-        let error = apply_plan_with_writer(&root, &plan, Vec::new(), &mut writer)
-            .expect_err("transaction must fail");
+        let error =
+            apply_plan_with_writer(&root, &plan, &mut writer).expect_err("transaction must fail");
         assert!(
             error
                 .to_string()
@@ -913,6 +911,65 @@ mod tests {
             before_provider
         );
         assert!(root.join(".mcp.json").exists());
+    }
+
+    #[test]
+    fn attach_writes_only_the_workspace_local_receipt() {
+        let directory = tempdir().expect("tempdir");
+        let root = canonical_root(directory.path()).expect("root");
+        let plan = attach_plan(&root).expect("plan");
+        assert_eq!(plan.actions.len(), 1);
+        assert_eq!(plan.actions[0].path, ".soleaux/attachment.json");
+        let receipt = apply_attach(&root).expect("attach");
+        assert_eq!(receipt.written, vec![".soleaux/attachment.json"]);
+        assert!(root.join(".soleaux/attachment.json").is_file());
+    }
+
+    #[test]
+    fn canonical_workspace_id_updates_marker_and_manifest_together() {
+        let directory = tempdir().expect("tempdir");
+        let root = canonical_root(directory.path()).expect("root");
+        apply_attach(&root).expect("attach");
+        let workspace_id = Uuid::now_v7();
+        bind_attachment_workspace_id(&root, workspace_id).expect("bind canonical id");
+        assert_eq!(
+            attachment_workspace_id(&root).expect("marker id"),
+            Some(workspace_id)
+        );
+        revert_last(&root).expect("revert canonical marker");
+        assert!(!root.join(".soleaux/attachment.json").exists());
+    }
+
+    #[test]
+    fn legacy_soleaux_home_manifest_scope_remains_revertible() {
+        let directory = tempdir().expect("tempdir");
+        let root = canonical_root(directory.path()).expect("root");
+        let home = directory.path().join("soleaux-home");
+        let _home_guard = crate::test_environment::SoleauxHomeGuard::set(&home);
+        let legacy_path = home.join("workspaces/legacy.json");
+        atomic_write(&legacy_path, b"legacy registry entry").expect("legacy entry");
+        let manifest_path = root.join(".soleaux/backups/latest.json");
+        let manifest = json!({
+            "schema_version":"soleaux.provisioning-backup/v2",
+            "workspace":root,
+            "created_unix_ms":unix_ms(),
+            "records":[{
+                "scope":"soleaux_home",
+                "path":"workspaces/legacy.json",
+                "backup_path":null,
+                "created":true,
+                "preimage_sha256":null,
+                "applied_sha256":sha256_hex(b"legacy registry entry")
+            }]
+        });
+        atomic_write(
+            &manifest_path,
+            &serde_json::to_vec_pretty(&manifest).expect("manifest"),
+        )
+        .expect("write manifest");
+        let restored = revert_last(&root).expect("legacy revert");
+        assert_eq!(restored, vec!["workspaces/legacy.json"]);
+        assert!(!legacy_path.exists());
     }
 
     #[test]

@@ -23,10 +23,13 @@ pub enum EntityKind {
     Conflict,
     Materialization,
     Artifact,
+    Workspace,
+    ClientRegistration,
+    ClientWorkspaceBinding,
 }
 
 impl EntityKind {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 20] = [
         Self::PlatformAccount,
         Self::NativeMapping,
         Self::Session,
@@ -44,6 +47,9 @@ impl EntityKind {
         Self::Conflict,
         Self::Materialization,
         Self::Artifact,
+        Self::Workspace,
+        Self::ClientRegistration,
+        Self::ClientWorkspaceBinding,
     ];
 
     pub const fn as_str(self) -> &'static str {
@@ -65,6 +71,9 @@ impl EntityKind {
             Self::Conflict => "conflict",
             Self::Materialization => "materialization",
             Self::Artifact => "artifact",
+            Self::Workspace => "workspace",
+            Self::ClientRegistration => "client_registration",
+            Self::ClientWorkspaceBinding => "client_workspace_binding",
         }
     }
 
@@ -87,6 +96,9 @@ impl EntityKind {
             "conflict" => Ok(Self::Conflict),
             "materialization" => Ok(Self::Materialization),
             "artifact" => Ok(Self::Artifact),
+            "workspace" => Ok(Self::Workspace),
+            "client_registration" => Ok(Self::ClientRegistration),
+            "client_workspace_binding" => Ok(Self::ClientWorkspaceBinding),
             other => bail!("unsupported canonical entity kind: {other}"),
         }
     }
@@ -643,6 +655,287 @@ impl CanonicalPayload for ArtifactPayload {
         }
         Ok(())
     }
+}
+
+pub const LOCKED_PROFILE_SHA256: &str =
+    "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc";
+pub const LOCKED_CONTEXT_PACKET_SHA256: &str =
+    "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f";
+pub const PUBLIC_TOOL_CEILING: u16 = 12;
+pub const REGISTRY_PAGE_LIMIT_DEFAULT: usize = 24;
+pub const REGISTRY_PAGE_LIMIT_MAX: usize = 32;
+pub const REGISTRY_JSON_FIELD_MAX_BYTES: usize = 2 * 1024;
+pub const REGISTRY_TEXT_FIELD_MAX_BYTES: usize = 4 * 1024;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceTrustState {
+    Untrusted,
+    ReadOnly,
+    Trusted,
+}
+
+impl WorkspaceTrustState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Untrusted => "untrusted",
+            Self::ReadOnly => "read_only",
+            Self::Trusted => "trusted",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self> {
+        match value {
+            "untrusted" => Ok(Self::Untrusted),
+            "read_only" => Ok(Self::ReadOnly),
+            "trusted" => Ok(Self::Trusted),
+            other => bail!("unsupported workspace trust state: {other}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientKind {
+    Cli,
+    Desktop,
+    Editor,
+    Adapter,
+}
+
+impl ClientKind {
+    pub const ALL: [Self; 4] = [Self::Cli, Self::Desktop, Self::Editor, Self::Adapter];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cli => "cli",
+            Self::Desktop => "desktop",
+            Self::Editor => "editor",
+            Self::Adapter => "adapter",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self> {
+        match value {
+            "cli" => Ok(Self::Cli),
+            "desktop" => Ok(Self::Desktop),
+            "editor" => Ok(Self::Editor),
+            "adapter" => Ok(Self::Adapter),
+            other => bail!("unsupported client kind: {other}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientCompatibilityState {
+    Verified,
+    #[default]
+    Unprobed,
+    Unsupported,
+}
+
+impl ClientCompatibilityState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Verified => "verified",
+            Self::Unprobed => "unprobed",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientAccessMode {
+    ReadOnly,
+    ReadWrite,
+}
+
+impl ClientAccessMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ReadOnly => "read_only",
+            Self::ReadWrite => "read_write",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self> {
+        match value {
+            "read_only" => Ok(Self::ReadOnly),
+            "read_write" => Ok(Self::ReadWrite),
+            other => bail!("unsupported client access mode: {other}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacePayload {
+    pub canonical_path: String,
+    pub path_hash: String,
+    pub display_name: String,
+    pub trust_state: WorkspaceTrustState,
+    pub profile_digest: String,
+    pub context_digest: String,
+    pub public_tool_ceiling: u16,
+    pub production_claim_allowed: bool,
+    #[serde(default)]
+    pub metadata: Value,
+}
+
+impl CanonicalPayload for WorkspacePayload {
+    const KIND: EntityKind = EntityKind::Workspace;
+
+    fn validate(&self) -> Result<()> {
+        require(&self.canonical_path, "workspace canonical path")?;
+        require(&self.path_hash, "workspace path hash")?;
+        require(&self.display_name, "workspace display name")?;
+        validate_hex_digest(&self.path_hash, "workspace path hash")?;
+        if self.profile_digest != LOCKED_PROFILE_SHA256 {
+            bail!("workspace profile digest does not match the locked contract");
+        }
+        if self.context_digest != LOCKED_CONTEXT_PACKET_SHA256 {
+            bail!("workspace context digest does not match the locked contract");
+        }
+        if self.public_tool_ceiling != PUBLIC_TOOL_CEILING {
+            bail!("workspace public tool ceiling must remain {PUBLIC_TOOL_CEILING}");
+        }
+        if self.production_claim_allowed {
+            bail!("workspace registration cannot enable a production claim");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientRegistrationPayload {
+    pub client_kind: ClientKind,
+    pub instance_id: String,
+    pub display_name: String,
+    pub client_version: String,
+    pub protocol_version: String,
+    pub connection_state: String,
+    #[serde(default)]
+    pub compatibility_state: ClientCompatibilityState,
+    #[serde(default)]
+    pub write_capable: bool,
+    pub last_seen_at_unix_ms: i64,
+    #[serde(default)]
+    pub capabilities: Value,
+    #[serde(default)]
+    pub metadata: Value,
+}
+
+impl CanonicalPayload for ClientRegistrationPayload {
+    const KIND: EntityKind = EntityKind::ClientRegistration;
+
+    fn validate(&self) -> Result<()> {
+        require(&self.instance_id, "client instance id")?;
+        require(&self.display_name, "client display name")?;
+        require(&self.client_version, "client version")?;
+        require(&self.protocol_version, "client protocol version")?;
+        require(&self.connection_state, "client connection state")?;
+        if self.write_capable != (self.compatibility_state == ClientCompatibilityState::Verified) {
+            bail!("client write capability must match verified compatibility state");
+        }
+        if self.last_seen_at_unix_ms < 0 {
+            bail!("client last-seen time must be non-negative");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientWorkspaceBindingPayload {
+    pub client_id: Uuid,
+    pub workspace_id: Uuid,
+    pub access_mode: ClientAccessMode,
+    pub binding_state: String,
+    pub attached_at_unix_ms: i64,
+    pub last_seen_at_unix_ms: i64,
+    #[serde(default)]
+    pub capabilities: Value,
+    #[serde(default)]
+    pub metadata: Value,
+}
+
+impl CanonicalPayload for ClientWorkspaceBindingPayload {
+    const KIND: EntityKind = EntityKind::ClientWorkspaceBinding;
+
+    fn validate(&self) -> Result<()> {
+        require(&self.binding_state, "client workspace binding state")?;
+        if self.attached_at_unix_ms < 0 || self.last_seen_at_unix_ms < 0 {
+            bail!("client workspace binding times must be non-negative");
+        }
+        Ok(())
+    }
+}
+
+fn validate_hex_digest(value: &str, label: &str) -> Result<()> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        bail!("{label} must be a lowercase 64-character hexadecimal digest");
+    }
+    if value.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        bail!("{label} must use lowercase hexadecimal characters");
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRegistryPage {
+    pub items: Vec<CanonicalRecord<WorkspacePayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientRegistryPage {
+    pub items: Vec<CanonicalRecord<ClientRegistrationPayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientWorkspaceBindingRegistryPage {
+    pub items: Vec<CanonicalRecord<ClientWorkspaceBindingPayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistrySnapshot {
+    pub workspaces: WorkspaceRegistryPage,
+    pub clients: ClientRegistryPage,
+    pub bindings: ClientWorkspaceBindingRegistryPage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRegistrationResult {
+    pub workspace: CanonicalRecord<WorkspacePayload>,
+    pub downgraded_bindings: Vec<CanonicalRecord<ClientWorkspaceBindingPayload>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientRegistrationResult {
+    pub client: CanonicalRecord<ClientRegistrationPayload>,
+    pub bindings: Vec<CanonicalRecord<ClientWorkspaceBindingPayload>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryCascadeResult {
+    pub entity_id: Uuid,
+    pub binding_ids: Vec<Uuid>,
+    pub tombstone: TombstoneRecord,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

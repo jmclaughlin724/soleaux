@@ -137,4 +137,4 @@ The program remains fail-closed:
 
 ## License
 
-MIT.
+Soleaux is licensed under the MIT License.

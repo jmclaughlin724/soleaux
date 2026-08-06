@@ -87,10 +87,10 @@ fn resolve_home() -> Result<PathBuf> {
     }
     #[cfg(target_os = "macos")]
     {
-        return Ok(user_home()?
+        Ok(user_home()?
             .join("Library")
             .join("Application Support")
-            .join("Soleaux"));
+            .join("Soleaux"))
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
@@ -129,10 +129,10 @@ fn resolve_runtime(home: &std::path::Path) -> Result<PathBuf> {
 fn resolve_service_manifest() -> Result<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        return Ok(user_home()?
+        Ok(user_home()?
             .join("Library")
             .join("LaunchAgents")
-            .join("com.soleaux.daemon.plist"));
+            .join("com.soleaux.daemon.plist"))
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {

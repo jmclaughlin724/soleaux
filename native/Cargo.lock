@@ -2013,6 +2013,7 @@ dependencies = [
  "soleaux-ipc",
  "soleaux-mcp",
  "soleaux-state",
+ "tempfile",
  "tokio",
  "uuid",
 ]

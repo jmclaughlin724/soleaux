@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     fs,
-    io::Write,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
     sync::{Arc, Mutex},
 };
+#[cfg(target_os = "linux")]
+use std::{io::Write, process::Stdio};
 use uuid::Uuid;
 
 pub type MasterKey = [u8; 32];

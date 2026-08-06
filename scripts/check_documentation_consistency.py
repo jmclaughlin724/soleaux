@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +37,24 @@ def load_json(relative: str) -> Any:
 
 def sha256(relative: str) -> str:
     return hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+
+
+def task_id_from_line(line: str) -> str | None:
+    marker_start = line.find("**")
+    if marker_start < 0:
+        return None
+    marker_end = line.find("**", marker_start + 2)
+    if marker_end < 0:
+        return None
+    candidate = line[marker_start + 2 : marker_end]
+    prefix, separator, number = candidate.rpartition("-")
+    if separator != "-" or len(number) != 3 or not number.isdigit():
+        return None
+    if prefix in {"BR", "DOC"}:
+        return candidate
+    if prefix.startswith("P") and prefix[1:].isdigit():
+        return candidate
+    return None
 
 
 manifest = load_json("docs/DOCUMENTATION-MANIFEST.json")
@@ -116,17 +133,23 @@ arms = [arm["id"] for arm in phase3.get("arms", [])]
 if arms != ["control_no_soleaux", "historical_python", "native_treatment"]:
     fail("Phase 3 arms drifted")
 phase3_tasks = load_json("docs/experiments/phase3/TASKS.json")
-if [task["id"] for task in phase3_tasks["tasks"]] != ["P3-T01", "P3-T02", "P3-T03"]:
+if [task["id"] for task in phase3_tasks["tasks"]] != [
+    "P3-T01",
+    "P3-T02",
+    "P3-T03",
+]:
     fail("Phase 3 task registry drifted")
 
 tasks_text = (ROOT / "TASKS.md").read_text(encoding="utf-8")
-task_ids = re.findall(r"\*\*((?:BR|DOC|P\d)-\d{3})\*\*", tasks_text)
+task_ids = [
+    task_id for line in tasks_text.splitlines() if (task_id := task_id_from_line(line)) is not None
+]
 if len(task_ids) != len(set(task_ids)):
     fail("duplicate task IDs found")
 for task in sorted(expected_p4):
-    if not re.search(rf"- \[x\] \*\*{re.escape(task)}\*\*", tasks_text):
+    if f"- [x] **{task}**" not in tasks_text:
         fail(f"closed Phase 4 task is unchecked: {task}")
-if not re.search(r"- \[ \] \*\*P5-001\*\*", tasks_text):
+if "- [ ] **P5-001**" not in tasks_text:
     fail("P5-001 must be the first open implementation task")
 
 required_markers = {

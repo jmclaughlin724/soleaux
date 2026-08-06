@@ -22,6 +22,50 @@ enum WriteCommand {
         input: database::SerializedEntityInput,
         reply: mpsc::SyncSender<std::result::Result<SerializedEntityRecord, String>>,
     },
+    UpsertNativeEntity {
+        input: database::SerializedEntityInput,
+        reply: mpsc::SyncSender<std::result::Result<SerializedEntityRecord, String>>,
+    },
+    RegistryRegisterWorkspace {
+        input: database::SerializedEntityInput,
+        reply: mpsc::SyncSender<
+            std::result::Result<database::SerializedWorkspaceRegistrationResult, String>,
+        >,
+    },
+    RegistryRegisterClient {
+        input: database::SerializedEntityInput,
+        reply: mpsc::SyncSender<
+            std::result::Result<database::SerializedClientRegistrationResult, String>,
+        >,
+    },
+    RegistryHeartbeatClient {
+        client_id: Uuid,
+        ttl_ms: u64,
+        capabilities: Option<Value>,
+        reply: mpsc::SyncSender<
+            std::result::Result<database::SerializedClientRegistrationResult, String>,
+        >,
+    },
+    RegistryBindClientWorkspace {
+        input: database::SerializedEntityInput,
+        reply: mpsc::SyncSender<std::result::Result<SerializedEntityRecord, String>>,
+    },
+    RegistryForgetWorkspace {
+        workspace_id: Uuid,
+        reason: String,
+        actor: String,
+        reply: mpsc::SyncSender<
+            std::result::Result<database::SerializedRegistryCascadeResult, String>,
+        >,
+    },
+    RegistryDisconnectClient {
+        client_id: Uuid,
+        reason: String,
+        actor: String,
+        reply: mpsc::SyncSender<
+            std::result::Result<database::SerializedRegistryCascadeResult, String>,
+        >,
+    },
     PutLink {
         input: EntityLinkInput,
         reply: mpsc::SyncSender<std::result::Result<EntityLinkRecord, String>>,
@@ -139,37 +183,7 @@ impl StateStore {
         &self,
         input: CanonicalEntityInput<T>,
     ) -> Result<CanonicalRecord<T>> {
-        input.payload.validate()?;
-        if input.state.trim().is_empty() {
-            bail!("canonical entity state must be non-empty");
-        }
-        if input
-            .idempotency_key
-            .as_deref()
-            .is_some_and(|value| value.trim().is_empty())
-        {
-            bail!("canonical idempotency key must be non-empty when supplied");
-        }
-        if input.origin_platform.is_some() != input.native_id.is_some() {
-            bail!("origin platform and native id must be supplied together");
-        }
-        let payload = serde_json::to_value(&input.payload)?;
-        let encoded = serde_json::to_vec(&payload)?;
-        let serialized = database::SerializedEntityInput {
-            id: input.id,
-            kind: T::KIND,
-            workspace_id: input.workspace_id,
-            parent_id: input.parent_id,
-            origin_platform: input.origin_platform,
-            native_id: input.native_id,
-            state: input.state,
-            sensitivity: input.sensitivity,
-            idempotency_key: input.idempotency_key,
-            expected_revision: input.expected_revision,
-            expires_at_unix_ms: input.expires_at_unix_ms,
-            payload,
-            payload_hash: blake3::hash(&encoded).to_hex().to_string(),
-        };
+        let serialized = serialize_entity_input(input)?;
         let (sender, receiver) = mpsc::sync_channel(1);
         self.writer
             .send(WriteCommand::PutEntity {
@@ -181,6 +195,213 @@ impl StateStore {
         typed_record(record)
     }
 
+    pub fn upsert_native<T: CanonicalPayload>(
+        &self,
+        input: CanonicalEntityInput<T>,
+    ) -> Result<CanonicalRecord<T>> {
+        let serialized = serialize_entity_input(input)?;
+        if serialized.origin_platform.is_none() || serialized.native_id.is_none() {
+            bail!("native upsert requires origin platform and native id");
+        }
+        if serialized.expected_revision.is_some() {
+            bail!("native upsert does not accept expected_revision");
+        }
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::UpsertNativeEntity {
+                input: serialized,
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        let record = receive(receiver, "native canonical entity")?;
+        typed_record(record)
+    }
+
+    pub fn registry_snapshot(
+        &self,
+        include_stale: bool,
+        limit: usize,
+        workspace_cursor: Option<Uuid>,
+        client_cursor: Option<Uuid>,
+        binding_cursor: Option<Uuid>,
+        now_unix_ms: i64,
+    ) -> Result<RegistrySnapshot> {
+        validate_registry_limit(limit)?;
+        let connection = self.reader()?;
+        registry_snapshot_from_serialized(database::registry_snapshot(
+            &connection,
+            include_stale,
+            limit,
+            workspace_cursor,
+            client_cursor,
+            binding_cursor,
+            now_unix_ms,
+        )?)
+    }
+
+    pub fn registry_workspaces(
+        &self,
+        cursor: Option<Uuid>,
+        limit: usize,
+    ) -> Result<WorkspaceRegistryPage> {
+        validate_registry_limit(limit)?;
+        let connection = self.reader()?;
+        workspace_page_from_serialized(database::registry_workspace_page(
+            &connection,
+            cursor,
+            limit,
+        )?)
+    }
+
+    pub fn registry_clients(
+        &self,
+        include_stale: bool,
+        cursor: Option<Uuid>,
+        limit: usize,
+        now_unix_ms: i64,
+    ) -> Result<ClientRegistryPage> {
+        validate_registry_limit(limit)?;
+        let connection = self.reader()?;
+        client_page_from_serialized(database::registry_client_page(
+            &connection,
+            include_stale,
+            cursor,
+            limit,
+            now_unix_ms,
+        )?)
+    }
+
+    pub fn registry_bindings(
+        &self,
+        include_stale: bool,
+        cursor: Option<Uuid>,
+        limit: usize,
+        now_unix_ms: i64,
+    ) -> Result<ClientWorkspaceBindingRegistryPage> {
+        validate_registry_limit(limit)?;
+        let connection = self.reader()?;
+        binding_page_from_serialized(database::registry_binding_page(
+            &connection,
+            include_stale,
+            cursor,
+            limit,
+            now_unix_ms,
+        )?)
+    }
+
+    pub fn registry_register_workspace(
+        &self,
+        input: CanonicalEntityInput<WorkspacePayload>,
+    ) -> Result<WorkspaceRegistrationResult> {
+        let serialized = serialize_entity_input(input)?;
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::RegistryRegisterWorkspace {
+                input: serialized,
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        let result = receive(receiver, "workspace registry mutation")?;
+        Ok(WorkspaceRegistrationResult {
+            workspace: typed_record(result.workspace)?,
+            downgraded_bindings: result
+                .downgraded_bindings
+                .into_iter()
+                .map(typed_record)
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    pub fn registry_register_client(
+        &self,
+        input: CanonicalEntityInput<ClientRegistrationPayload>,
+    ) -> Result<ClientRegistrationResult> {
+        let serialized = serialize_entity_input(input)?;
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::RegistryRegisterClient {
+                input: serialized,
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        client_registration_from_serialized(receive(receiver, "client registry mutation")?)
+    }
+
+    pub fn registry_heartbeat_client(
+        &self,
+        client_id: Uuid,
+        ttl_ms: u64,
+        capabilities: Option<Value>,
+    ) -> Result<ClientRegistrationResult> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::RegistryHeartbeatClient {
+                client_id,
+                ttl_ms,
+                capabilities,
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        client_registration_from_serialized(receive(receiver, "client heartbeat mutation")?)
+    }
+
+    pub fn registry_bind_client_workspace(
+        &self,
+        input: CanonicalEntityInput<ClientWorkspaceBindingPayload>,
+    ) -> Result<CanonicalRecord<ClientWorkspaceBindingPayload>> {
+        let serialized = serialize_entity_input(input)?;
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::RegistryBindClientWorkspace {
+                input: serialized,
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        typed_record(receive(receiver, "client/workspace binding mutation")?)
+    }
+
+    pub fn registry_forget_workspace(
+        &self,
+        workspace_id: Uuid,
+        reason: impl Into<String>,
+        actor: impl Into<String>,
+    ) -> Result<RegistryCascadeResult> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::RegistryForgetWorkspace {
+                workspace_id,
+                reason: reason.into(),
+                actor: actor.into(),
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        Ok(registry_cascade_from_serialized(receive(
+            receiver,
+            "workspace registry cascade",
+        )?))
+    }
+
+    pub fn registry_disconnect_client(
+        &self,
+        client_id: Uuid,
+        reason: impl Into<String>,
+        actor: impl Into<String>,
+    ) -> Result<RegistryCascadeResult> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.writer
+            .send(WriteCommand::RegistryDisconnectClient {
+                client_id,
+                reason: reason.into(),
+                actor: actor.into(),
+                reply: sender,
+            })
+            .context("canonical state writer stopped")?;
+        Ok(registry_cascade_from_serialized(receive(
+            receiver,
+            "client registry cascade",
+        )?))
+    }
+
     pub fn get<T: CanonicalPayload>(&self, id: Uuid) -> Result<Option<CanonicalRecord<T>>> {
         self.get_serialized(id)?.map(typed_record).transpose()
     }
@@ -188,6 +409,20 @@ impl StateStore {
     pub fn get_serialized(&self, id: Uuid) -> Result<Option<SerializedEntityRecord>> {
         let connection = self.reader()?;
         database::get_entity(&connection, id)
+    }
+
+    pub fn get_by_native<T: CanonicalPayload>(
+        &self,
+        origin_platform: &str,
+        native_id: &str,
+    ) -> Result<Option<CanonicalRecord<T>>> {
+        if origin_platform.trim().is_empty() || native_id.trim().is_empty() {
+            bail!("native identity values must be non-empty");
+        }
+        let connection = self.reader()?;
+        database::get_entity_by_native(&connection, T::KIND, origin_platform, native_id)?
+            .map(typed_record)
+            .transpose()
     }
 
     pub fn list<T: CanonicalPayload>(
@@ -211,6 +446,18 @@ impl StateStore {
     ) -> Result<Vec<SerializedEntityRecord>> {
         let connection = self.reader()?;
         database::list_entities(&connection, kind, workspace_id, limit, include_tombstoned)
+    }
+
+    pub fn list_all<T: CanonicalPayload>(
+        &self,
+        limit: usize,
+        include_tombstoned: bool,
+    ) -> Result<Vec<CanonicalRecord<T>>> {
+        let connection = self.reader()?;
+        database::list_entities_all(&connection, T::KIND, limit, include_tombstoned)?
+            .into_iter()
+            .map(typed_record)
+            .collect()
     }
 
     pub fn link(&self, input: EntityLinkInput) -> Result<EntityLinkRecord> {
@@ -525,6 +772,78 @@ fn writer_loop(
             WriteCommand::PutEntity { input, reply } => {
                 respond(reply, database::put_entity(&mut connection, &input));
             }
+            WriteCommand::UpsertNativeEntity { input, reply } => {
+                respond(
+                    reply,
+                    database::upsert_native_entity(&mut connection, &input),
+                );
+            }
+            WriteCommand::RegistryRegisterWorkspace { input, reply } => {
+                respond(
+                    reply,
+                    database::registry_register_workspace(&mut connection, &input),
+                );
+            }
+            WriteCommand::RegistryRegisterClient { input, reply } => {
+                respond(
+                    reply,
+                    database::registry_register_client(&mut connection, &input),
+                );
+            }
+            WriteCommand::RegistryHeartbeatClient {
+                client_id,
+                ttl_ms,
+                capabilities,
+                reply,
+            } => {
+                respond(
+                    reply,
+                    database::registry_heartbeat_client(
+                        &mut connection,
+                        client_id,
+                        ttl_ms,
+                        capabilities,
+                    ),
+                );
+            }
+            WriteCommand::RegistryBindClientWorkspace { input, reply } => {
+                respond(
+                    reply,
+                    database::registry_bind_client_workspace(&mut connection, &input),
+                );
+            }
+            WriteCommand::RegistryForgetWorkspace {
+                workspace_id,
+                reason,
+                actor,
+                reply,
+            } => {
+                respond(
+                    reply,
+                    database::registry_forget_workspace(
+                        &mut connection,
+                        workspace_id,
+                        &reason,
+                        &actor,
+                    ),
+                );
+            }
+            WriteCommand::RegistryDisconnectClient {
+                client_id,
+                reason,
+                actor,
+                reply,
+            } => {
+                respond(
+                    reply,
+                    database::registry_disconnect_client(
+                        &mut connection,
+                        client_id,
+                        &reason,
+                        &actor,
+                    ),
+                );
+            }
             WriteCommand::PutLink { input, reply } => {
                 respond(reply, database::put_link(&mut connection, &input));
             }
@@ -699,6 +1018,127 @@ fn writer_loop(
             WriteCommand::Shutdown => break,
         }
     }
+}
+
+fn validate_registry_limit(limit: usize) -> Result<()> {
+    if limit == 0 || limit > REGISTRY_PAGE_LIMIT_MAX {
+        bail!(
+            "registry page limit must be between 1 and {}",
+            REGISTRY_PAGE_LIMIT_MAX
+        );
+    }
+    Ok(())
+}
+
+fn workspace_page_from_serialized(
+    page: database::SerializedRegistryPage,
+) -> Result<WorkspaceRegistryPage> {
+    Ok(WorkspaceRegistryPage {
+        items: page
+            .items
+            .into_iter()
+            .map(typed_record)
+            .collect::<Result<Vec<_>>>()?,
+        next_cursor: page.next_cursor,
+        truncated: page.truncated,
+    })
+}
+
+fn client_page_from_serialized(
+    page: database::SerializedRegistryPage,
+) -> Result<ClientRegistryPage> {
+    Ok(ClientRegistryPage {
+        items: page
+            .items
+            .into_iter()
+            .map(typed_record)
+            .collect::<Result<Vec<_>>>()?,
+        next_cursor: page.next_cursor,
+        truncated: page.truncated,
+    })
+}
+
+fn binding_page_from_serialized(
+    page: database::SerializedRegistryPage,
+) -> Result<ClientWorkspaceBindingRegistryPage> {
+    Ok(ClientWorkspaceBindingRegistryPage {
+        items: page
+            .items
+            .into_iter()
+            .map(typed_record)
+            .collect::<Result<Vec<_>>>()?,
+        next_cursor: page.next_cursor,
+        truncated: page.truncated,
+    })
+}
+
+fn registry_snapshot_from_serialized(
+    snapshot: database::SerializedRegistrySnapshot,
+) -> Result<RegistrySnapshot> {
+    Ok(RegistrySnapshot {
+        workspaces: workspace_page_from_serialized(snapshot.workspaces)?,
+        clients: client_page_from_serialized(snapshot.clients)?,
+        bindings: binding_page_from_serialized(snapshot.bindings)?,
+    })
+}
+
+fn client_registration_from_serialized(
+    result: database::SerializedClientRegistrationResult,
+) -> Result<ClientRegistrationResult> {
+    Ok(ClientRegistrationResult {
+        client: typed_record(result.client)?,
+        bindings: result
+            .bindings
+            .into_iter()
+            .map(typed_record)
+            .collect::<Result<Vec<_>>>()?,
+    })
+}
+
+fn registry_cascade_from_serialized(
+    result: database::SerializedRegistryCascadeResult,
+) -> RegistryCascadeResult {
+    RegistryCascadeResult {
+        entity_id: result.entity_id,
+        binding_ids: result.binding_ids,
+        tombstone: result.tombstone,
+    }
+}
+
+fn serialize_entity_input<T: CanonicalPayload>(
+    input: CanonicalEntityInput<T>,
+) -> Result<database::SerializedEntityInput> {
+    input.payload.validate()?;
+    if input.state.trim().is_empty() {
+        bail!("canonical entity state must be non-empty");
+    }
+    if input
+        .idempotency_key
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
+        bail!("canonical idempotency key must be non-empty when supplied");
+    }
+    if input.origin_platform.is_some() != input.native_id.is_some() {
+        bail!("origin platform and native id must be supplied together");
+    }
+    let payload = serde_json::to_value(&input.payload)?;
+    let encoded = serde_json::to_vec(&payload)?;
+    Ok(database::SerializedEntityInput {
+        id: input.id,
+        kind: T::KIND,
+        workspace_id: input.workspace_id,
+        parent_id: input.parent_id,
+        origin_platform: input.origin_platform,
+        native_id: input.native_id,
+        state: input.state,
+        sensitivity: input.sensitivity,
+        idempotency_key: input.idempotency_key,
+        expected_revision: input.expected_revision,
+        expires_at_unix_ms: input.expires_at_unix_ms,
+        payload,
+        payload_hash: blake3::hash(&encoded).to_hex().to_string(),
+    })
 }
 
 fn respond<T>(reply: mpsc::SyncSender<std::result::Result<T, String>>, result: Result<T>) {
