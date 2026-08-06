@@ -435,13 +435,16 @@ fn daemon_workspace_command(
     run(command)
 }
 
+fn canonical_path_to_utf8(path: &Path) -> Result<String> {
+    path.to_str()
+        .context("workspace path is not valid UTF-8")
+        .map(ToOwned::to_owned)
+}
+
 fn canonical_utf8_path(path: &Path) -> Result<String> {
     let canonical = fs::canonicalize(path)
         .with_context(|| format!("resolving workspace path {}", path.display()))?;
-    canonical
-        .to_str()
-        .context("workspace path is not valid UTF-8")
-        .map(ToOwned::to_owned)
+    canonical_path_to_utf8(&canonical)
 }
 
 fn print_json(value: impl serde::Serialize) -> Result<()> {
@@ -833,17 +836,14 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[cfg(unix)]
     #[test]
-    fn canonical_workspace_path_rejects_non_utf8_names() {
+    fn canonical_workspace_path_encoding_rejects_non_utf8_names() {
         use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-        let directory = tempdir().expect("tempdir");
-        let invalid = directory.path().join(OsString::from_vec(vec![b'w', 0xff]));
-        fs::create_dir(&invalid).expect("create non-UTF8 directory");
-        let error = canonical_utf8_path(&invalid).expect_err("non-UTF8 path must fail closed");
+        let invalid = PathBuf::from(OsString::from_vec(vec![b'w', 0xff]));
+        let error = canonical_path_to_utf8(&invalid).expect_err("non-UTF8 path must fail closed");
         assert!(error.to_string().contains("valid UTF-8"));
     }
 }

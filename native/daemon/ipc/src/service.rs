@@ -178,14 +178,14 @@ pub fn render_manifest(paths: &SoleauxPaths, daemon: &Path) -> Result<String> {
     let log = absolute_or_literal(&paths.log_file)?;
     #[cfg(target_os = "macos")]
     {
-        return Ok(format!(
+        Ok(format!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>Label</key><string>com.soleaux.daemon</string>\n<key>ProgramArguments</key><array><string>{}</string><string>ipc</string><string>--endpoint</string><string>{}</string><string>--state-db</string><string>{}</string></array>\n<key>RunAtLoad</key><true/>\n<key>KeepAlive</key><true/>\n<key>ProcessType</key><string>Interactive</string>\n<key>StandardOutPath</key><string>{}</string>\n<key>StandardErrorPath</key><string>{}</string>\n</dict></plist>\n",
             xml_escape(&daemon),
             xml_escape(&endpoint),
             xml_escape(&state),
             xml_escape(&log),
             xml_escape(&log),
-        ));
+        ))
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
@@ -226,7 +226,7 @@ fn platform_start(paths: &SoleauxPaths) -> Result<()> {
                 .arg(&paths.service_manifest),
             "starting launchd service",
         )?;
-        return Ok(());
+        Ok(())
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
@@ -273,7 +273,7 @@ fn platform_stop(paths: &SoleauxPaths) -> Result<()> {
             .arg("bootout")
             .arg(target)
             .status();
-        return Ok(());
+        Ok(())
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
