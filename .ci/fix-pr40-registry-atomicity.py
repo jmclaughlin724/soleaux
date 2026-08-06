@@ -224,7 +224,7 @@ fn registry_client_revalidation_returns_owned_bindings_without_global_paging() {
         .expect("workspace")
         .workspace;
 
-    for index in 0..(REGISTRY_PAGE_LIMIT_DEFAULT + 3) {
+    for index in 0..27 {
         let filler = store
             .registry_register_client(registry_client_input(
                 ClientKind::Adapter,
