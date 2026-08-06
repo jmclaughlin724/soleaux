@@ -63,7 +63,7 @@ jobs:
           cargo clippy -p soleaux-ipc --all-targets --locked -- -D warnings
           cargo test -p soleaux-ipc --locked
 
-      - name: Commit only reviewed product source
+      - name: Commit only reviewed non-workflow product source
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -71,7 +71,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
-            .github/workflows/client-capability-matrix.yml \
             docs/testing/CLIENT-CAPABILITY-MATRIX.md \
             native/contracts/client-capability-matrix-v1.json \
             native/daemon/ipc/src/compatibility.rs \
@@ -79,7 +78,7 @@ jobs:
             native/scripts/probe_client_capabilities.py \
             native/scripts/p5_client_matrix_smoke.py
           git diff --cached --check
-          test -z "$(git diff --cached --name-only -- .ci .github/workflows/p5-client-review-fixes.yml)"
+          test -z "$(git diff --cached --name-only -- .ci .github/workflows)"
           git commit -m 'fix: harden client probe admission and evidence provenance'
           git push \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
