@@ -1,0 +1,44 @@
+name: Diagnose P5 client overlay
+
+on:
+  push:
+    branches:
+      - automation/p5-client-review-closure
+    paths:
+      - .github/workflows/diagnose-p5-client-overlay.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Reconstruct and inspect generated probe
+        run: |
+          set -euo pipefail
+          cat .ci/p5-client-review-overlay.part00 \
+              .ci/p5-client-review-overlay.part01 \
+              .ci/p5-client-review-overlay.part02 \
+              .ci/p5-client-review-overlay.part03 \
+              > /tmp/overlay.b64
+          base64 -d /tmp/overlay.b64 > /tmp/overlay.tar.gz
+          tar -xzf /tmp/overlay.tar.gz
+          python3 .ci/apply-p5-client-review-closure.py > /tmp/provenance.json
+          grep -n -A80 -B20 'SIGNAL' native/scripts/probe_client_capabilities.py || true
+          grep -n -A40 -B10 'opencode' native/scripts/probe_client_capabilities.py || true
+          python3 -m py_compile native/scripts/probe_client_capabilities.py
+          tar -czf /tmp/generated-overlay.tar.gz \
+            native/scripts/probe_client_capabilities.py \
+            tests/test_client_capability_matrix.py \
+            native/contracts/client-capability-matrix-v1.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p5-client-generated-overlay-${{ github.run_id }}
+          path: |
+            /tmp/generated-overlay.tar.gz
+            /tmp/provenance.json
+          if-no-files-found: error
