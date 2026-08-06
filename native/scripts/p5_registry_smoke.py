@@ -284,25 +284,17 @@ def main() -> int:
         attached = run_json([str(cli), "attach", str(attached_workspace), "--yes"], env)
         attached_id = attached["canonicalWorkspaceId"]
         marker = json.loads(
-            (attached_workspace / ".soleaux" / "attachment.json").read_text(
-                encoding="utf-8"
-            )
+            (attached_workspace / ".soleaux" / "attachment.json").read_text(encoding="utf-8")
         )
         assert marker["workspace_id"] == attached_id
         listed = run_json([str(cli), "registry", "workspace", "list"], env)
         assert any(item["id"] == attached_id for item in listed["workspaces"])
-        reverted = run_json(
-            [str(cli), "adopt", str(attached_workspace), "--revert"], env
-        )
+        reverted = run_json([str(cli), "adopt", str(attached_workspace), "--revert"], env)
         assert reverted["canonicalWorkspaceId"] == attached_id
         assert reverted["canonicalWorkspaceRemoved"] is True
         assert not (attached_workspace / ".soleaux" / "attachment.json").exists()
-        listed_after_revert = run_json(
-            [str(cli), "registry", "workspace", "list"], env
-        )
-        assert not any(
-            item["id"] == attached_id for item in listed_after_revert["workspaces"]
-        )
+        listed_after_revert = run_json([str(cli), "registry", "workspace", "list"], env)
+        assert not any(item["id"] == attached_id for item in listed_after_revert["workspaces"])
         stop_daemon(cli, process, env)
 
         evidence = {
