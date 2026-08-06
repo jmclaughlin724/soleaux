@@ -56,7 +56,7 @@ jobs:
         working-directory: native
         run: |
           set -euo pipefail
-          cargo check -p soleaux-ipc --all-targets --locked
+          cargo check -p soleaux-ipc --all-targets
           cargo clippy -p soleaux-ipc --all-targets --locked -- -D warnings
           cargo test -p soleaux-ipc --locked
 
@@ -70,6 +70,7 @@ jobs:
           git add \
             .github/workflows/client-capability-matrix.yml \
             docs/testing/CLIENT-CAPABILITY-MATRIX.md \
+            native/Cargo.lock \
             native/contracts/client-capability-matrix-v1.json \
             native/daemon/ipc/Cargo.toml \
             native/daemon/ipc/src/compatibility.rs \
