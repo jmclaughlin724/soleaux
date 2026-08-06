@@ -146,7 +146,7 @@ helper_replacement = r'''    fn with_evidence_sha256(mut probe: Value) -> Value 
     }
 
     #[test]'''
-compatibility, count = helper_pattern.subn(belper_replacement, compatibility, count=1)
+compatibility, count = helper_pattern.subn(helper_replacement, compatibility, count=1)
 if count != 1:
     raise SystemExit(f"replace generic probe test helper: expected one match, found {count}")
 compatibility = replace_once(
