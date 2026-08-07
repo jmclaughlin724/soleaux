@@ -3,6 +3,8 @@
 
 from pathlib import Path
 
+MACOS_NEXT_CFG = '    #[cfg(all(unix, not(target_os = "macos")))]'
+
 
 def replace_once(path: str, old: str, new: str, label: str) -> None:
     target = Path(path)
@@ -95,7 +97,7 @@ service_path = "native/daemon/ipc/src/service.rs"
 replace_in_section(
     service_path,
     "pub fn render_manifest(",
-    "fn platform_start(",
+    MACOS_NEXT_CFG,
     "        return Ok(format!(\n",
     "        Ok(format!(\n",
     "macOS manifest return expression",
@@ -103,15 +105,15 @@ replace_in_section(
 replace_in_section(
     service_path,
     "pub fn render_manifest(",
-    "fn platform_start(",
-    "        ));\n    }\n    #[cfg(all(unix, not(target_os = \"macos\")))]",
-    "        ))\n    }\n    #[cfg(all(unix, not(target_os = \"macos\")))]",
+    MACOS_NEXT_CFG,
+    "        ));\n    }\n",
+    "        ))\n    }\n",
     "macOS manifest closing expression",
 )
 replace_in_section(
     service_path,
     "fn platform_start(",
-    "fn platform_stop(",
+    MACOS_NEXT_CFG,
     "        return Ok(());\n",
     "        Ok(())\n",
     "macOS service start expression",
@@ -119,7 +121,7 @@ replace_in_section(
 replace_in_section(
     service_path,
     "fn platform_stop(",
-    "fn run_status(",
+    MACOS_NEXT_CFG,
     "        return Ok(());\n",
     "        Ok(())\n",
     "macOS service stop expression",
