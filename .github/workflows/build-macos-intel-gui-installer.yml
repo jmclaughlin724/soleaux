@@ -64,15 +64,21 @@ jobs:
                   'if [[ "${ARCH}" != "arm64" ]]; then\n  echo "This installer build must run on an Apple Silicon macOS host; found ${ARCH}." >&2\n  exit 1\nfi\n',
                   'if [[ "${ARCH}" != "x86_64" ]]; then\n  echo "This installer build must run on an Intel macOS host; found ${ARCH}." >&2\n  exit 1\nfi\n',
                   "host architecture",
+                  1,
               ),
-              ('hostArchitectures="arm64"', 'hostArchitectures="x86_64"', "package architecture"),
-              ("macOS-Apple-Silicon", "macOS-Intel", "package filenames"),
+              (
+                  'hostArchitectures="arm64"',
+                  'hostArchitectures="x86_64"',
+                  "package architecture",
+                  1,
+              ),
+              ("macOS-Apple-Silicon", "macOS-Intel", "package filenames", 2),
           ]
-          for old, new, label in replacements:
+          for old, new, label, expected in replacements:
               count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected one match, found {count}")
-              text = text.replace(old, new, 1)
+              if count != expected:
+                  raise SystemExit(f"{label}: expected {expected} matches, found {count}")
+              text = text.replace(old, new)
           path.write_text(text, encoding="utf-8")
           PY
           (cd native && cargo fmt --all)
