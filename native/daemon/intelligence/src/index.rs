@@ -2,7 +2,8 @@
 
 use crate::{
     Grammar, OXC_ENGINE_VERSION, ParseCache, ParseEnvelope, ParseKey, StructuralRange,
-    TREE_SITTER_ENGINE_VERSION, parse_oxc, parse_tree_sitter, parser_fingerprint,
+    TREE_SITTER_ENGINE_VERSION, oxc_grammar_hash, parse_oxc, parse_tree_sitter,
+    tree_sitter_grammar_hash,
 };
 use anyhow::{Context, Result, bail};
 use ignore::WalkBuilder;
@@ -445,15 +446,13 @@ impl RepositoryIndex {
                 } else {
                     Grammar::TypeScript
                 };
-                let grammar_hash =
-                    parser_fingerprint(&[grammar.version(), TREE_SITTER_ENGINE_VERSION]);
                 let key = ParseKey {
                     workspace_id: self.workspace_id,
                     relative_path: relative.to_string(),
                     file_size: byte_length,
                     content_hash: content_hash.clone(),
                     engine_version: OXC_ENGINE_VERSION.to_string(),
-                    grammar_hash,
+                    grammar_hash: oxc_grammar_hash(grammar),
                     config_fingerprint: "default".to_string(),
                 };
                 Some(
@@ -471,10 +470,7 @@ impl RepositoryIndex {
                     file_size: byte_length,
                     content_hash: content_hash.clone(),
                     engine_version: TREE_SITTER_ENGINE_VERSION.to_string(),
-                    grammar_hash: parser_fingerprint(&[
-                        grammar.version(),
-                        TREE_SITTER_ENGINE_VERSION,
-                    ]),
+                    grammar_hash: tree_sitter_grammar_hash(grammar),
                     config_fingerprint: "default".to_string(),
                 };
                 Some(
@@ -499,10 +495,7 @@ impl RepositoryIndex {
                     file_size: byte_length,
                     content_hash: content_hash.clone(),
                     engine_version: TREE_SITTER_ENGINE_VERSION.to_string(),
-                    grammar_hash: parser_fingerprint(&[
-                        grammar.version(),
-                        TREE_SITTER_ENGINE_VERSION,
-                    ]),
+                    grammar_hash: tree_sitter_grammar_hash(grammar),
                     config_fingerprint: "default".to_string(),
                 };
                 Some(
@@ -696,6 +689,14 @@ impl RepositoryIndex {
 }
 
 fn symbol_from_range(range: StructuralRange) -> Option<SymbolRecord> {
+    // The symbol table stores structural containers. Definition name spans,
+    // reference sites, and injection ranges stay envelope-only detail.
+    if range.kind == "injection"
+        || range.kind.starts_with("reference.")
+        || range.kind.starts_with("definition.")
+    {
+        return None;
+    }
     let name = range.name?;
     Some(SymbolRecord {
         name,
