@@ -37,6 +37,8 @@ Phase 4 is complete. Do not reimplement P4-001 through P4-026. The merged native
 
 ## Exact next work
 
+Seed the session task tracker first with the `load-tasks` skill; it reconstructs every open task and dependency from [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json) and is safe to re-run.
+
 1. **P5-W1 and P5-V1** — the registered consolidation pre-tasks: crate wiring first, then the admission receipt verifier at the adapter-wave head, per [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md).
 2. **P5-007 through P5-013** — complete canonical sessions/history, materializers, the real LSP/Turborepo/Next.js matrices, design-partner validation, and the Phase 5 beta receipt.
 3. **P5-014 through P5-020** — complete deep adapters, memory lifecycle, signed handoffs, and durable runs/subagents.

@@ -43,6 +43,7 @@ The project is licensed under MIT.
 - Registered the investigation-discovered pre-tasks P5-W1 (wire `soleaux-mcp` to `soleaux-state`; first `soleaux-vault` consumer) and P5-V1 (daemon-trusted admission receipt verifier, previously an unowned dependency of every external write path).
 - Repaired documentation drift: GAP-007 closure state and P5-006/011/012/013 gap mapping, superseded branch-report pointers, and the rollout-plan alpha entry; defined design-partner approval.
 - Upgraded the consistency checker from hardcoded next-task literals to three-way validation across `TASKS.md`, `PROJECT-STATUS.json`, and the dependency graph.
+- Added the `load-tasks` project skill and dependency-graph group entries (Phases 6–8, external gates, Phase 3) so any session reconstructs the complete remaining-work tracker from repository state alone.
 
 ### Phase 5 — activated
 

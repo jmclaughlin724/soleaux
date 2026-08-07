@@ -186,6 +186,14 @@ for node in deps["nodes"]:
     for dependency in node.get("blockedBy", []):
         if str(dependency) not in known_node_ids:
             fail(f"dependency-graph edge references an unknown task: {dependency}")
+groups = deps.get("groups", [])
+group_ids = {str(group["id"]) for group in groups}
+if len(group_ids) != len(groups):
+    fail("dependency-graph group ids are not unique")
+for group in groups:
+    for dependency in group.get("blockedBy", []):
+        if str(dependency) not in known_node_ids and str(dependency) not in group_ids:
+            fail(f"dependency-graph group edge references an unknown id: {dependency}")
 next_open = None
 for line in tasks_text.splitlines():
     if line.startswith("- [ ] **P5-"):
