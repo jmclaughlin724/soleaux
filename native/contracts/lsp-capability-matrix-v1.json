@@ -1,0 +1,338 @@
+{
+  "asOfDate": "2026-08-07",
+  "families": [
+    {
+      "extensions": [
+        "ts",
+        "mts",
+        "cts",
+        "tsx",
+        "js",
+        "mjs",
+        "cjs",
+        "jsx"
+      ],
+      "fallbackCommands": [
+        {
+          "arguments": [
+            "--stdio"
+          ],
+          "command": "typescript-language-server"
+        }
+      ],
+      "id": "typescript",
+      "languageKey": "typescript",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "vtsls"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "py",
+        "pyi"
+      ],
+      "fallbackCommands": [
+        {
+          "arguments": [
+            "--stdio"
+          ],
+          "command": "pyright-langserver"
+        }
+      ],
+      "id": "python",
+      "languageKey": "python",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "basedpyright-langserver"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "sh",
+        "bash",
+        "zsh"
+      ],
+      "fallbackCommands": [],
+      "id": "bash",
+      "languageKey": "bash",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "start"
+        ],
+        "command": "bash-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "rs"
+      ],
+      "fallbackCommands": [],
+      "id": "rust",
+      "languageKey": "rust",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [],
+        "command": "rust-analyzer"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "go"
+      ],
+      "fallbackCommands": [],
+      "id": "go",
+      "languageKey": "go",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [],
+        "command": "gopls"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "swift"
+      ],
+      "fallbackCommands": [],
+      "id": "swift",
+      "languageKey": "swift",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [],
+        "command": "sourcekit-lsp"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "c",
+        "h",
+        "cpp",
+        "cc",
+        "cxx",
+        "hpp",
+        "hh",
+        "hxx"
+      ],
+      "fallbackCommands": [],
+      "id": "cpp",
+      "languageKey": "cpp",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [],
+        "command": "clangd"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "kt",
+        "kts"
+      ],
+      "fallbackCommands": [],
+      "id": "kotlin",
+      "languageKey": "kotlin",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [],
+        "command": "kotlin-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "java"
+      ],
+      "fallbackCommands": [],
+      "id": "java",
+      "languageKey": "java",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [],
+        "command": "jdtls"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "vue"
+      ],
+      "fallbackCommands": [],
+      "id": "vue",
+      "languageKey": "vue",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "vue-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "svelte"
+      ],
+      "fallbackCommands": [],
+      "id": "svelte",
+      "languageKey": "svelte",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "svelteserver"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "astro"
+      ],
+      "fallbackCommands": [],
+      "id": "astro",
+      "languageKey": "astro",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "astro-ls"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "mdx"
+      ],
+      "fallbackCommands": [],
+      "id": "mdx",
+      "languageKey": "mdx",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "mdx-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "yaml",
+        "yml"
+      ],
+      "fallbackCommands": [],
+      "id": "yaml",
+      "languageKey": "yaml",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "yaml-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "json",
+        "jsonc"
+      ],
+      "fallbackCommands": [],
+      "id": "json",
+      "languageKey": "json",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "vscode-json-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "html",
+        "htm"
+      ],
+      "fallbackCommands": [],
+      "id": "html",
+      "languageKey": "html",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "vscode-html-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    },
+    {
+      "extensions": [
+        "css",
+        "scss",
+        "less"
+      ],
+      "fallbackCommands": [],
+      "id": "css",
+      "languageKey": "css",
+      "multiRoot": false,
+      "primaryCommand": {
+        "arguments": [
+          "--stdio"
+        ],
+        "command": "vscode-css-language-server"
+      },
+      "probeState": "unprobed",
+      "pushDiagnostics": false,
+      "workspaceEdits": false
+    }
+  ],
+  "schemaVersion": "soleaux.lsp-capability-matrix/v1",
+  "task": "P5-009a"
+}
