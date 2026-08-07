@@ -36,6 +36,11 @@ pub async fn prepared_server(
     for substitution in &selection.substitutions {
         server = server.substitute_tool(&substitution.replace, &substitution.with)?;
     }
+    // Attach the daemon-owned canonical database only when it already exists;
+    // a standalone serve stays detached rather than materializing state.
+    if let Ok(paths) = soleaux_ipc::SoleauxPaths::resolve() {
+        server = server.with_canonical_state(&paths.state_database)?;
+    }
     server.prepare().await?;
     Ok(server)
 }
