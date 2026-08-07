@@ -46,6 +46,7 @@ Deliver one local-first product that:
 - PR #32 produced the reproducible unsigned development alpha and exact Phase 4 evidence.
 - Phase 4 closure is recorded in [`PHASE4-CLOSURE-RECEIPT.json`](PHASE4-CLOSURE-RECEIPT.json).
 - PR #36 closed P5-001 workspace/client registry convergence; evidence is recorded in [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json).
+- PRs #38 and #40 closed the P5-002 through P5-006 client capability matrices; evidence is recorded in [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json).
 
 ## Phase 3 — deferred claims proof
 
@@ -88,7 +89,7 @@ Evidence:
 
 ## Phase 5 — current
 
-P5-001 is closed. The next open task is **P5-002**, followed by the remaining platform matrices and Phase 5 lifecycle and intelligence work.
+P5-001 through P5-006 are closed. The next open task is **P5-007**, followed by the remaining Phase 5 lifecycle and intelligence work.
 
 ### Platform adapters
 
