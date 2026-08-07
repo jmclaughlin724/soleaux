@@ -7,6 +7,7 @@ on:
     paths:
       - scripts/build-macos-gui-installer.sh
       - scripts/normalize-macos-portability.py
+      - scripts/normalize-macos-installer-postinstall.py
       - .github/workflows/build-macos-gui-installer-v2.yml
   workflow_dispatch:
 
@@ -48,11 +49,14 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
-      - name: Apply exact macOS portability normalization
+      - name: Apply exact macOS source and installer normalization
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/normalize-macos-portability.py
+          python3 -m py_compile \
+            scripts/normalize-macos-portability.py \
+            scripts/normalize-macos-installer-postinstall.py
           python3 scripts/normalize-macos-portability.py
+          python3 scripts/normalize-macos-installer-postinstall.py
           (cd native && cargo fmt --all)
           git diff --check
 
@@ -95,7 +99,11 @@ jobs:
           pkgutil --payload-files "$PKG" | grep -q 'usr/local/bin/soleauxd'
           pkgutil --payload-files "$PKG" | grep -q 'Applications/Uninstall Soleaux.app'
           (cd "$OUTPUT" && shasum -a 256 -c SHA256SUMS)
-          sudo installer -pkg "$PKG" -target /
+          if ! sudo installer -verboseR -pkg "$PKG" -target /; then
+            sudo tail -n 250 /var/log/install.log || true
+            cat /var/tmp/soleaux-postinstall.log || true
+            exit 1
+          fi
           test "$(/usr/local/bin/soleaux --version)" = "soleaux 0.4.0-dev.5"
           test "$(/usr/local/bin/soleauxd --version)" = "soleauxd 0.4.0-dev.5"
           test -d '/Applications/Uninstall Soleaux.app'
@@ -104,6 +112,7 @@ jobs:
           sudo pkgutil --forget com.soleaux.runtime >/dev/null 2>&1 || true
 
       - name: Upload the user-ready macOS installer
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Soleaux-0.4.0-dev.5-macOS-Apple-Silicon-GUI-Installer
