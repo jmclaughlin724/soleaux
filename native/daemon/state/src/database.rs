@@ -900,7 +900,39 @@ pub(crate) fn registry_register_client(
         bail!("client registration requires a client-registration payload");
     }
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let client = upsert_native_entity_tx(&transaction, input, true)?;
+    let client = if let Some(expected_revision) = input.expected_revision {
+        let client_id = input
+            .id
+            .context("revision-aware client revalidation requires its canonical id")?;
+        let existing = read_entity_tx(&transaction, client_id)?;
+        ensure_active_client(&existing, unix_ms())?;
+        if existing.kind != EntityKind::ClientRegistration {
+            bail!("revision-aware client revalidation targeted the wrong entity kind");
+        }
+        if existing.revision != expected_revision {
+            bail!(
+                "client registration revision conflict: expected {expected_revision}, current {}",
+                existing.revision
+            );
+        }
+        if existing.workspace_id != input.workspace_id
+            || existing.parent_id != input.parent_id
+            || existing.origin_platform != input.origin_platform
+            || existing.native_id != input.native_id
+        {
+            bail!("revision-aware client revalidation cannot change canonical identity");
+        }
+        update_entity_payload_tx(
+            &transaction,
+            &existing,
+            &input.state,
+            input.payload.clone(),
+            input.expires_at_unix_ms,
+            "registry.client.revalidated",
+        )?
+    } else {
+        upsert_native_entity_tx(&transaction, input, true)?
+    };
     let bindings = refresh_client_bindings_tx(&transaction, &client)?;
     transaction.commit()?;
     Ok(SerializedClientRegistrationResult { client, bindings })

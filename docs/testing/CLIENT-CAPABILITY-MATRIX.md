@@ -1,8 +1,8 @@
 # Client capability and version matrix
 
-Status: Phase 5 implementation contract for P5-002 through P5-006.  This document describes the mechanisms exposed by supported client surfaces and the exact evidence required before any external client can receive a read-write Soleaux workspace binding.
+Status: Phase 5 implementation contract for P5-002 through P5-006.  This document describes supported client mechanisms and evidence. No external client receives a read-write Soleaux workspace binding until a daemon-trusted admission receipt verifier is implemented.
 
-The machine-readable authority is [`native/contracts/client-capability-matrix-v1.json`](../../native/contracts/client-capability-matrix-v1.json).  The daemon embeds that file, publishes its SHA-256 digest in registry status, and requires a probe to bind to the exact digest, platform, client version, required signals, and evidence hash.  Unknown versions, documentation-only surfaces, stale digests, malformed evidence, and platform/kind mismatches remain read-only.
+The machine-readable authority is [`native/contracts/client-capability-matrix-v1.json`](../../native/contracts/client-capability-matrix-v1.json).  The daemon embeds that file and publishes its SHA-256 digest in registry status. Probe reports are archival evidence, not runtime authorization. Unknown versions, documentation-only surfaces, stale or malformed evidence, and all external clients remain read-only.
 
 ## Safety classification
 
@@ -13,7 +13,7 @@ The machine-readable authority is [`native/contracts/client-capability-matrix-v1
 | Codex CLI / app-server | `0.146.1` | P5-004 | Pinned CLI version/help/app-server commands plus official app-server protocol documentation | Denied pending authenticated app-server lifecycle probe |
 | OpenCode | `1.18.14` | P5-005 | SHA-256-pinned Linux release binary plus HTTP/OpenAPI/SSE/plugin/rule/agent documentation | Denied pending authenticated HTTP/SSE lifecycle probe |
 | Cursor CLI / editor | supported current surface | P5-006 | Official rules, MCP, hooks, CLI, and session documentation; no moving installer is executed in evidence CI | Denied; documentation-contract surface only |
-| Generic MCP host fixture | `mcp-2025-11-25` | P5-006 | Native initialize, tools/list, context.compile, registry registration, read-write binding, and twelve-tool-ceiling smokes | Allowed only with exact matrix-bound probe evidence |
+| Generic MCP host fixture | `mcp-2025-11-25` | P5-006 | Native initialize, tools/list, context.compile, registry registration, binding rejection, and twelve-tool-ceiling smokes | Denied; conformance evidence is archival until trusted receipt admission exists |
 
 The table is not a production-readiness claim. `productionClaimAllowed` remains `false`, and the public MCP ceiling remains twelve.
 
@@ -65,22 +65,22 @@ The Linux x64 `1.18.14` release archive is pinned by SHA-256 before its version/
 
 Cursor is represented by a documentation-only supported-surface contract for rules, MCP configuration, hooks, CLI behavior, and native session history.  The evidence workflow does not execute Cursor's moving remote installer, and the entry remains read-only until a checksum-pinned version and authenticated lifecycle oracle are approved.
 
-The generic MCP fixture is the only mutation-eligible entry.  It must prove all of the following against the compiled Soleaux binaries:
+No external matrix entry is mutation eligible. The generic MCP fixture proves the
+locked conformance surface against compiled Soleaux binaries, including initialization,
+the exact twelve-tool profile, Context Packet V2, registry registration, and rejection
+of caller-self-attested read-write admission. Its compact registration proof stays below
+the IPC field limit, while full command output remains in the archival report.
 
-1. MCP initialization.
-2. The exact bounded `tools/list` surface.
-3. A valid `soleaux.context/v2` packet from `context.compile`.
-4. A daemon-owned client registration.
-5. A read-write binding to a trusted workspace.
-6. The locked public tool ceiling of twelve.
-
-Its registration includes a `soleaux.client-capability-probe/v1` object.  The daemon independently recomputes both the embedded matrix SHA-256 and the canonical probe evidence SHA-256, then refuses write access if any field, digest, or required signal is absent or mismatched.
+The only current write-capable client path is the exact internal Soleaux CLI identity.
+External write admission requires a future daemon-trusted, cryptographically bound receipt
+verifier and a separately reviewed lifecycle oracle; a caller-computed hash is never
+accepted as authorization.
 
 ## Probe and evidence files
 
 - `native/scripts/validate_client_capability_matrix.py` validates task coverage, versions, official sources, pinned assets, client kinds, and locked invariants.
-- `native/scripts/probe_client_capabilities.py` executes bounded argv-only binary probes and emits registration-ready evidence.
-- `native/scripts/p5_client_matrix_smoke.py` proves the exact generic-host registration and read-write binding while vendor clients remain read-only.
+- `native/scripts/probe_client_capabilities.py` streams and hashes bounded argv-only output, applies signal-specific oracles, and separates compact registration evidence from archival output.
+- `native/scripts/p5_client_matrix_smoke.py` proves external read-write rejection, internal CLI write access, heartbeat revalidation, and the locked registry/matrix invariants.
 - `.github/workflows/client-capability-matrix.yml` executes the client tracks independently and aggregates their evidence.
 
 ## Updating a client version
@@ -91,6 +91,6 @@ A version change requires all of the following in one reviewed change:
 2. Run the pinned binary probe for that exact version.
 3. Recompute and publish the matrix digest through the daemon.
 4. Run Rust tests, the binary registry smoke, and the full repository CI.
-5. Keep `mutationEligible=false` unless authenticated lifecycle behavior has a task-specific oracle and exact evidence.
+5. Keep `mutationEligible=false`; enabling external writes additionally requires a daemon-trusted cryptographic receipt verifier and an authenticated task-specific lifecycle oracle.
 
 A version number alone never authorizes mutation.

@@ -1027,3 +1027,117 @@ fn retention_cascades_and_purges_registry_children_before_parents() {
     assert!(store.get_serialized(client.id).expect("client").is_none());
     assert!(store.get_serialized(binding.id).expect("binding").is_none());
 }
+
+#[test]
+fn registry_client_revalidation_rejects_stale_revision() {
+    let directory = tempdir().expect("tempdir");
+    let store = StateStore::open(directory.path().join("state.sqlite3")).expect("store");
+    let expires = now_ms() + 60_000;
+    let initial = store
+        .registry_register_client(registry_client_input(
+            ClientKind::Cli,
+            "revision-fixture",
+            "Revision fixture",
+            ClientCompatibilityState::Verified,
+            expires,
+            json!({"sequence":"initial"}),
+        ))
+        .expect("initial client");
+    let mut first = registry_client_input(
+        ClientKind::Cli,
+        "revision-fixture",
+        "Revision fixture",
+        ClientCompatibilityState::Verified,
+        expires,
+        json!({"sequence":"first"}),
+    );
+    first.id = Some(initial.client.id);
+    first.expected_revision = Some(initial.client.revision);
+    let mut stale = registry_client_input(
+        ClientKind::Cli,
+        "revision-fixture",
+        "Revision fixture",
+        ClientCompatibilityState::Verified,
+        expires,
+        json!({"sequence":"stale"}),
+    );
+    stale.id = Some(initial.client.id);
+    stale.expected_revision = Some(initial.client.revision);
+    let updated = store
+        .registry_register_client(first)
+        .expect("first revalidation");
+    assert_eq!(updated.client.revision, initial.client.revision + 1);
+    let error = store
+        .registry_register_client(stale)
+        .expect_err("stale revalidation must fail closed");
+    assert!(format!("{error:#}").contains("revision conflict"));
+}
+
+#[test]
+fn registry_client_revalidation_returns_owned_bindings_without_global_paging() {
+    let directory = tempdir().expect("tempdir");
+    let store = StateStore::open(directory.path().join("state.sqlite3")).expect("store");
+    let expires = now_ms() + 60_000;
+    let workspace = store
+        .registry_register_workspace(registry_workspace_input(
+            "/tmp/soleaux-registry-binding-page",
+            WorkspaceTrustState::Trusted,
+            None,
+        ))
+        .expect("workspace")
+        .workspace;
+    for index in 0..27 {
+        let filler = store
+            .registry_register_client(registry_client_input(
+                ClientKind::Adapter,
+                &format!("filler-{index}"),
+                &format!("Filler {index}"),
+                ClientCompatibilityState::Unprobed,
+                expires,
+                json!({"index":index}),
+            ))
+            .expect("filler client")
+            .client;
+        store
+            .registry_bind_client_workspace(registry_binding_input(
+                filler.id,
+                workspace.id,
+                ClientAccessMode::ReadOnly,
+            ))
+            .expect("filler binding");
+    }
+    let target = store
+        .registry_register_client(registry_client_input(
+            ClientKind::Cli,
+            "target-client",
+            "Target client",
+            ClientCompatibilityState::Verified,
+            expires,
+            json!({"target":true}),
+        ))
+        .expect("target client")
+        .client;
+    let target_binding = store
+        .registry_bind_client_workspace(registry_binding_input(
+            target.id,
+            workspace.id,
+            ClientAccessMode::ReadWrite,
+        ))
+        .expect("target binding");
+    let mut revalidation = registry_client_input(
+        ClientKind::Cli,
+        "target-client",
+        "Target client",
+        ClientCompatibilityState::Verified,
+        expires,
+        json!({"target":true,"revalidated":true}),
+    );
+    revalidation.id = Some(target.id);
+    revalidation.expected_revision = Some(target.revision);
+    let result = store
+        .registry_register_client(revalidation)
+        .expect("target revalidation");
+    assert_eq!(result.bindings.len(), 1);
+    assert_eq!(result.bindings[0].id, target_binding.id);
+    assert_eq!(result.bindings[0].payload.client_id, target.id);
+}

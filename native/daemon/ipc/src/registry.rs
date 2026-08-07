@@ -5,11 +5,14 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::{Value, json};
+#[cfg(test)]
+use soleaux_state::ClientCompatibilityState;
 use soleaux_state::{
     CanonicalEntityInput, ClientAccessMode, ClientKind, ClientRegistrationPayload,
-    ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256, LOCKED_PROFILE_SHA256,
-    PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES, REGISTRY_PAGE_LIMIT_DEFAULT,
-    REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload, WorkspaceTrustState,
+    ClientRegistrationResult, ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256,
+    LOCKED_PROFILE_SHA256, PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES,
+    REGISTRY_PAGE_LIMIT_DEFAULT, REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload,
+    WorkspaceTrustState,
 };
 use std::{
     fs,
@@ -243,7 +246,8 @@ pub(crate) fn heartbeat_client(
     if let Some(capabilities) = &capabilities {
         validate_json_field(capabilities, "client capabilities")?;
     }
-    let result = state.registry_heartbeat_client(client_id, ttl_ms, capabilities)?;
+    let (result, compatibility) =
+        revalidate_client(state, client_id, capabilities, Some(ttl_ms), true)?;
     let (bindings, binding_count, bindings_truncated) = bounded_children(result.bindings)?;
     bounded_response(json!({
         "schemaVersion":"soleaux.client-heartbeat/v1",
@@ -251,6 +255,9 @@ pub(crate) fn heartbeat_client(
         "bindings":bindings,
         "bindingCount":binding_count,
         "bindingsTruncated":bindings_truncated,
+        "writeCapable":compatibility.write_capable,
+        "compatibilityState":compatibility.state,
+        "compatibility":compatibility,
         "productionClaimAllowed":false,
     }))
 }
@@ -315,6 +322,12 @@ pub(crate) fn bind_client_workspace(
 ) -> Result<Value> {
     validate_json_field(&capabilities, "binding capabilities")?;
     validate_json_field(&metadata, "binding metadata")?;
+    let (_result, compatibility) = revalidate_client(state, client_id, None, None, false)?;
+    if access_mode == ClientAccessMode::ReadWrite && !compatibility.write_capable {
+        bail!(
+            "read-write binding requires a currently verified daemon-trusted client compatibility decision"
+        );
+    }
     let now = unix_ms();
     let native_id = format!("{client_id}:{workspace_id}");
     let payload = ClientWorkspaceBindingPayload {
@@ -354,6 +367,94 @@ pub(crate) fn unbind_client_workspace(state: &StateStore, binding_id: Uuid) -> R
         "tombstone":tombstone,
         "productionClaimAllowed":false,
     }))
+}
+
+fn revalidate_client(
+    state: &StateStore,
+    client_id: Uuid,
+    capabilities: Option<Value>,
+    ttl_ms: Option<u64>,
+    touch_last_seen: bool,
+) -> Result<(
+    ClientRegistrationResult,
+    crate::compatibility::CompatibilityDecision,
+)> {
+    let existing = state
+        .get::<ClientRegistrationPayload>(client_id)?
+        .context("client registration does not exist")?;
+    let now = unix_ms();
+    if existing.tombstoned_at_unix_ms.is_some()
+        || existing.state != "connected"
+        || existing
+            .expires_at_unix_ms
+            .is_some_and(|expires| expires <= now)
+    {
+        bail!("client registration is not active");
+    }
+
+    let mut payload = existing.payload.clone();
+    if let Some(capabilities) = capabilities {
+        payload.capabilities = capabilities;
+    }
+    let compatibility = evaluate_client_compatibility(
+        payload.client_kind,
+        &payload.client_version,
+        &payload.protocol_version,
+        CLIENT_PROTOCOL_VERSION,
+        &payload.capabilities,
+        &payload.metadata,
+    )?;
+    let previous_capabilities = existing.payload.capabilities.clone();
+    let previous_state = payload.compatibility_state;
+    let previous_write_capable = payload.write_capable;
+    payload.compatibility_state = compatibility.state;
+    payload.write_capable = compatibility.write_capable;
+    payload.connection_state = "connected".to_string();
+    if touch_last_seen {
+        payload.last_seen_at_unix_ms = now;
+    }
+    let expires_at_unix_ms = ttl_ms
+        .map(|ttl| expiration(now, ttl))
+        .transpose()?
+        .or(existing.expires_at_unix_ms);
+    let changed = touch_last_seen
+        || ttl_ms.is_some()
+        || payload.capabilities != previous_capabilities
+        || previous_state != payload.compatibility_state
+        || previous_write_capable != payload.write_capable;
+    if !changed {
+        return Ok((
+            ClientRegistrationResult {
+                client: existing,
+                bindings: Vec::new(),
+            },
+            compatibility,
+        ));
+    }
+
+    let origin_platform = existing
+        .origin_platform
+        .clone()
+        .context("client registration omitted its origin platform")?;
+    let native_id = existing
+        .native_id
+        .clone()
+        .context("client registration omitted its native identity")?;
+    let input = CanonicalEntityInput {
+        id: Some(existing.id),
+        workspace_id: existing.workspace_id,
+        parent_id: existing.parent_id,
+        origin_platform: Some(origin_platform),
+        native_id: Some(native_id),
+        state: "connected".to_string(),
+        sensitivity: existing.sensitivity,
+        idempotency_key: existing.idempotency_key.clone(),
+        expected_revision: Some(existing.revision),
+        expires_at_unix_ms,
+        payload,
+    };
+    let result = state.registry_register_client(input)?;
+    Ok((result, compatibility))
 }
 
 fn validate_json_field(value: &Value, label: &str) -> Result<()> {
@@ -462,5 +563,88 @@ mod tests {
                 .len()
                 <= REGISTRY_MUTATION_CHILDREN_MAX_BYTES
         );
+    }
+}
+
+#[cfg(test)]
+mod compatibility_regression_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn bind_revalidates_and_downgrades_a_stale_external_client() {
+        let directory = tempdir().expect("tempdir");
+        let workspace_path = directory.path().join("workspace");
+        fs::create_dir_all(&workspace_path).expect("workspace");
+        let state = StateStore::open(directory.path().join("state.sqlite3")).expect("state");
+        let workspace = register_workspace(
+            &state,
+            workspace_path.to_str().expect("utf8"),
+            Some("fixture".to_string()),
+            WorkspaceTrustState::Trusted,
+            json!({}),
+        )
+        .expect("workspace registration");
+        let workspace_id =
+            Uuid::parse_str(workspace["workspace"]["id"].as_str().expect("workspace id"))
+                .expect("workspace uuid");
+
+        let now = unix_ms();
+        let payload = ClientRegistrationPayload {
+            client_kind: ClientKind::Adapter,
+            instance_id: "stale-external".to_string(),
+            display_name: "stale external".to_string(),
+            client_version: "mcp-2025-11-25".to_string(),
+            protocol_version: CLIENT_PROTOCOL_VERSION.to_string(),
+            connection_state: "connected".to_string(),
+            compatibility_state: ClientCompatibilityState::Verified,
+            write_capable: true,
+            last_seen_at_unix_ms: now,
+            capabilities: json!({
+                "soleauxProbe":{
+                    "status":"pass",
+                    "passedSignals":[
+                        "initialize",
+                        "tools_list",
+                        "context_compile",
+                        "registry_registration",
+                        "read_only_binding",
+                        "tool_ceiling"
+                    ]
+                }
+            }),
+            metadata: json!({"platform":"generic_mcp_host"}),
+        };
+        let mut input = CanonicalEntityInput::active(payload);
+        input.state = "connected".to_string();
+        input.origin_platform = Some(CLIENT_ORIGIN.to_string());
+        input.native_id = Some("adapter:stale-external".to_string());
+        input.idempotency_key = Some("client:adapter:stale-external".to_string());
+        input.expires_at_unix_ms = Some(expiration(now, 60_000).expect("expiration"));
+        let stale = state
+            .registry_register_client(input)
+            .expect("stale cached registration")
+            .client;
+        assert!(stale.payload.write_capable);
+
+        let error = bind_client_workspace(
+            &state,
+            stale.id,
+            workspace_id,
+            ClientAccessMode::ReadWrite,
+            json!({}),
+            json!({}),
+        )
+        .expect_err("external stale compatibility must be rejected");
+        assert!(format!("{error:#}").contains("daemon-trusted"));
+        let updated = state
+            .get::<ClientRegistrationPayload>(stale.id)
+            .expect("client read")
+            .expect("client exists");
+        assert_eq!(
+            updated.payload.compatibility_state,
+            ClientCompatibilityState::Unprobed
+        );
+        assert!(!updated.payload.write_capable);
     }
 }
