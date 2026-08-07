@@ -11,6 +11,7 @@ mod protocol;
 mod registry;
 mod server;
 mod service;
+mod session;
 #[cfg(unix)]
 mod unix;
 

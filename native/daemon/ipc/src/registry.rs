@@ -457,7 +457,7 @@ fn revalidate_client(
     Ok((result, compatibility))
 }
 
-fn validate_json_field(value: &Value, label: &str) -> Result<()> {
+pub(crate) fn validate_json_field(value: &Value, label: &str) -> Result<()> {
     if !value.is_object() {
         bail!("{label} must be a JSON object");
     }
@@ -471,7 +471,7 @@ fn validate_json_field(value: &Value, label: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_text(value: &str, label: &str) -> Result<()> {
+pub(crate) fn validate_text(value: &str, label: &str) -> Result<()> {
     if value.trim().is_empty() {
         bail!("{label} must be non-empty");
     }
@@ -484,7 +484,7 @@ fn validate_text(value: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
-fn bounded_children<T: Serialize>(items: Vec<T>) -> Result<(Vec<T>, usize, bool)> {
+pub(crate) fn bounded_children<T: Serialize>(items: Vec<T>) -> Result<(Vec<T>, usize, bool)> {
     let total = items.len();
     let mut bounded = Vec::new();
     let mut encoded_bytes = 2usize;
@@ -507,7 +507,7 @@ fn bounded_children<T: Serialize>(items: Vec<T>) -> Result<(Vec<T>, usize, bool)
     Ok((bounded, total, truncated))
 }
 
-fn bounded_response<T: Serialize>(value: T) -> Result<Value> {
+pub(crate) fn bounded_response<T: Serialize>(value: T) -> Result<Value> {
     let value = serde_json::to_value(value)?;
     let encoded = serde_json::to_vec(&value)?;
     let maximum = IPC_MAX_FRAME_BYTES.saturating_sub(REGISTRY_RESPONSE_RESERVE_BYTES);

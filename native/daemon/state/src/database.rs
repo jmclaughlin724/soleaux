@@ -695,6 +695,141 @@ pub(crate) fn list_entities_all(
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+fn serialized_id_page(
+    mut items: Vec<SerializedEntityRecord>,
+    limit: usize,
+) -> SerializedRegistryPage {
+    let truncated = items.len() > limit;
+    if truncated {
+        items.truncate(limit);
+    }
+    let next_cursor = if truncated {
+        items.last().map(|record| record.id)
+    } else {
+        None
+    };
+    SerializedRegistryPage {
+        items,
+        next_cursor,
+        truncated,
+    }
+}
+
+pub(crate) fn session_page(
+    connection: &Connection,
+    workspace_id: Option<Uuid>,
+    include_archived: bool,
+    cursor: Option<Uuid>,
+    limit: usize,
+) -> Result<SerializedRegistryPage> {
+    let workspace = workspace_key(workspace_id);
+    let cursor_key = cursor.map(|value| value.to_string()).unwrap_or_default();
+    let archived = if include_archived {
+        ""
+    } else {
+        " AND state != 'archived'"
+    };
+    let sql = format!(
+        "{ENTITY_SELECT} WHERE kind = ?1 AND workspace_key = ?2
+         AND tombstoned_at_unix_ms IS NULL{archived}
+         AND (?3 = '' OR id > ?3)
+         ORDER BY id LIMIT ?4"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![
+            EntityKind::Session.as_str(),
+            workspace,
+            cursor_key,
+            i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX)
+        ],
+        entity_from_row,
+    )?;
+    let items = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(serialized_id_page(items, limit))
+}
+
+pub(crate) fn entity_child_page(
+    connection: &Connection,
+    parent_id: Uuid,
+    kind: EntityKind,
+    cursor: Option<Uuid>,
+    limit: usize,
+) -> Result<SerializedRegistryPage> {
+    let cursor_key = cursor.map(|value| value.to_string()).unwrap_or_default();
+    let sql = format!(
+        "{ENTITY_SELECT} WHERE parent_id = ?1 AND kind = ?2
+         AND tombstoned_at_unix_ms IS NULL
+         AND (?3 = '' OR id > ?3)
+         ORDER BY id LIMIT ?4"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![
+            parent_id.to_string(),
+            kind.as_str(),
+            cursor_key,
+            i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX)
+        ],
+        entity_from_row,
+    )?;
+    let items = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(serialized_id_page(items, limit))
+}
+
+pub(crate) fn turn_page(
+    connection: &Connection,
+    session_id: Uuid,
+    after_ordinal: Option<u64>,
+    limit: usize,
+) -> Result<(Vec<SerializedEntityRecord>, Option<u64>, bool)> {
+    let floor = after_ordinal
+        .map(|value| i64::try_from(value).unwrap_or(i64::MAX))
+        .unwrap_or(-1);
+    let sql = format!(
+        "{ENTITY_SELECT} WHERE parent_id = ?1 AND kind = ?2
+         AND tombstoned_at_unix_ms IS NULL
+         AND CAST(json_extract(payload_json, '$.ordinal') AS INTEGER) > ?3
+         ORDER BY CAST(json_extract(payload_json, '$.ordinal') AS INTEGER), id
+         LIMIT ?4"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![
+            session_id.to_string(),
+            EntityKind::Turn.as_str(),
+            floor,
+            i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX)
+        ],
+        entity_from_row,
+    )?;
+    let mut items = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    let truncated = items.len() > limit;
+    if truncated {
+        items.truncate(limit);
+    }
+    let next_ordinal = if truncated {
+        items
+            .last()
+            .and_then(|record| record.payload.get("ordinal"))
+            .and_then(Value::as_u64)
+    } else {
+        None
+    };
+    Ok((items, next_ordinal, truncated))
+}
+
+pub(crate) fn next_turn_ordinal(connection: &Connection, session_id: Uuid) -> Result<u64> {
+    let next: i64 = connection.query_row(
+        "SELECT COALESCE(MAX(CAST(json_extract(payload_json, '$.ordinal') AS INTEGER)), -1) + 1
+         FROM canonical_entities
+         WHERE parent_id = ?1 AND kind = ?2 AND tombstoned_at_unix_ms IS NULL",
+        params![session_id.to_string(), EntityKind::Turn.as_str()],
+        |row| row.get(0),
+    )?;
+    u64::try_from(next).context("turn ordinal overflow")
+}
+
 pub(crate) fn registry_snapshot(
     connection: &Connection,
     include_stale: bool,

@@ -277,7 +277,30 @@ impl CanonicalPayload for SessionPayload {
 
     fn validate(&self) -> Result<()> {
         require(&self.platform, "platform")?;
-        require(&self.session_state, "session state")
+        validate_session_state(&self.session_state)
+    }
+}
+
+pub const SESSION_STATE_ACTIVE: &str = "active";
+pub const SESSION_STATE_ARCHIVED: &str = "archived";
+
+pub fn validate_session_state(value: &str) -> Result<()> {
+    if value == SESSION_STATE_ACTIVE || value == SESSION_STATE_ARCHIVED {
+        return Ok(());
+    }
+    bail!("unsupported session state: {value}")
+}
+
+/// Same-platform lifecycle only: archive suspends an active session and
+/// resume reactivates an archived one. Cross-platform continuation is a
+/// signed handoff, never a session-state transition.
+pub fn validate_session_transition(from: &str, to: &str) -> Result<()> {
+    validate_session_state(from)?;
+    validate_session_state(to)?;
+    match (from, to) {
+        (SESSION_STATE_ACTIVE, SESSION_STATE_ARCHIVED)
+        | (SESSION_STATE_ARCHIVED, SESSION_STATE_ACTIVE) => Ok(()),
+        _ => bail!("unsupported session transition: {from} -> {to}"),
     }
 }
 
@@ -905,6 +928,22 @@ pub struct ClientRegistryPage {
 pub struct ClientWorkspaceBindingRegistryPage {
     pub items: Vec<CanonicalRecord<ClientWorkspaceBindingPayload>>,
     pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRegistryPage {
+    pub items: Vec<CanonicalRecord<SessionPayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnPage {
+    pub items: Vec<CanonicalRecord<TurnPayload>>,
+    pub next_ordinal: Option<u64>,
     pub truncated: bool,
 }
 

@@ -160,6 +160,252 @@ async fn same_user_ipc_supports_concurrent_clients_state_operations_and_shutdown
 
 #[cfg(unix)]
 #[tokio::test]
+async fn session_history_service_supports_lifecycle_turns_and_lineage() {
+    let directory = tempdir().expect("tempdir");
+    let paths = fixture_paths(directory.path().to_path_buf());
+    let workspace_path = directory.path().join("workspace");
+    fs::create_dir_all(&workspace_path).expect("workspace");
+
+    let server = IpcServer::open(paths.clone()).expect("server");
+    let task = tokio::spawn(server.run());
+    for _ in 0..100 {
+        if paths.endpoint.exists() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert!(
+        paths.endpoint.exists(),
+        "session IPC endpoint was not created"
+    );
+    let client = IpcClient::new(&paths.endpoint);
+
+    let workspace = client
+        .call(IpcRequest::new(IpcMethod::WorkspaceRegister {
+            path: workspace_path.to_string_lossy().to_string(),
+            display_name: None,
+            trust_state: WorkspaceTrustState::Trusted,
+            metadata: json!({}),
+        }))
+        .await
+        .expect("register workspace")
+        .result
+        .expect("workspace result");
+    let workspace_id: uuid::Uuid =
+        serde_json::from_value(workspace["workspace"]["id"].clone()).expect("workspace id");
+
+    let created = client
+        .call(IpcRequest::new(IpcMethod::SessionCreate {
+            workspace_id,
+            platform: "claude_code".to_string(),
+            native_session_id: Some("native-session-1".to_string()),
+            title: "Fixture session".to_string(),
+            repository_ref: json!({"path": workspace_path.to_string_lossy()}),
+            model: Some("fixture-model".to_string()),
+            metadata: json!({"fixture": true}),
+        }))
+        .await
+        .expect("create session")
+        .result
+        .expect("session result");
+    let session_id: uuid::Uuid =
+        serde_json::from_value(created["session"]["id"].clone()).expect("session id");
+    assert_eq!(created["session"]["payload"]["sessionState"], "active");
+    assert_eq!(
+        created["session"]["payload"]["lineageRootId"],
+        json!(session_id)
+    );
+
+    for expected_ordinal in 0..2u64 {
+        let turn = client
+            .call(IpcRequest::new(IpcMethod::TurnAppend {
+                session_id,
+                actor: "user".to_string(),
+                native_turn_id: None,
+                usage: json!({}),
+                metadata: json!({}),
+            }))
+            .await
+            .expect("append turn")
+            .result
+            .expect("turn result");
+        assert_eq!(turn["turn"]["payload"]["ordinal"], json!(expected_ordinal));
+    }
+
+    let turns = client
+        .call(IpcRequest::new(IpcMethod::TurnList {
+            session_id,
+            after_ordinal: Some(0),
+            limit: 8,
+        }))
+        .await
+        .expect("list turns")
+        .result
+        .expect("turn list");
+    assert_eq!(turns["turns"].as_array().expect("turns").len(), 1);
+    assert_eq!(turns["turns"][0]["payload"]["ordinal"], json!(1));
+
+    let first_turn = client
+        .call(IpcRequest::new(IpcMethod::TurnList {
+            session_id,
+            after_ordinal: None,
+            limit: 1,
+        }))
+        .await
+        .expect("first turn page")
+        .result
+        .expect("first turn result");
+    assert_eq!(first_turn["truncated"], true);
+    assert_eq!(first_turn["nextOrdinal"], json!(0));
+    let turn_id: uuid::Uuid =
+        serde_json::from_value(first_turn["turns"][0]["id"].clone()).expect("turn id");
+
+    let message = client
+        .call(IpcRequest::new(IpcMethod::MessageAppend {
+            turn_id,
+            role: "user".to_string(),
+            native_message_id: None,
+            model: None,
+            metadata: json!({}),
+        }))
+        .await
+        .expect("append message")
+        .result
+        .expect("message result");
+    assert_eq!(message["message"]["payload"]["turnId"], json!(turn_id));
+    let messages = client
+        .call(IpcRequest::new(IpcMethod::MessageList {
+            turn_id,
+            cursor: None,
+            limit: 8,
+        }))
+        .await
+        .expect("list messages")
+        .result
+        .expect("message list");
+    assert_eq!(messages["messages"].as_array().expect("messages").len(), 1);
+
+    let fork = client
+        .call(IpcRequest::new(IpcMethod::SessionFork {
+            session_id,
+            title: Some("Fixture fork".to_string()),
+        }))
+        .await
+        .expect("fork session")
+        .result
+        .expect("fork result");
+    let fork_id: uuid::Uuid =
+        serde_json::from_value(fork["session"]["id"].clone()).expect("fork id");
+    assert_eq!(fork["forkedFrom"], json!(session_id));
+    assert_eq!(
+        fork["session"]["payload"]["lineageRootId"],
+        json!(session_id)
+    );
+
+    let lineage = client
+        .call(IpcRequest::new(IpcMethod::SessionLineage {
+            session_id: fork_id,
+        }))
+        .await
+        .expect("lineage")
+        .result
+        .expect("lineage result");
+    assert_eq!(lineage["lineage"].as_array().expect("lineage").len(), 2);
+    assert_eq!(lineage["lineage"][0]["id"], json!(fork_id));
+    assert_eq!(lineage["lineage"][1]["id"], json!(session_id));
+
+    let archived = client
+        .call(IpcRequest::new(IpcMethod::SessionArchive { session_id }))
+        .await
+        .expect("archive")
+        .result
+        .expect("archive result");
+    assert_eq!(archived["session"]["payload"]["sessionState"], "archived");
+
+    let rejected = client
+        .call(IpcRequest::new(IpcMethod::TurnAppend {
+            session_id,
+            actor: "user".to_string(),
+            native_turn_id: None,
+            usage: json!({}),
+            metadata: json!({}),
+        }))
+        .await
+        .expect_err("archived session must reject turns");
+    assert!(format!("{rejected:#}").contains("session_operation_failed"));
+
+    let sessions = client
+        .call(IpcRequest::new(IpcMethod::SessionList {
+            workspace_id: Some(workspace_id),
+            include_archived: false,
+            cursor: None,
+            limit: 8,
+        }))
+        .await
+        .expect("list active sessions")
+        .result
+        .expect("session list");
+    assert_eq!(sessions["sessions"].as_array().expect("sessions").len(), 1);
+    assert_eq!(sessions["sessions"][0]["id"], json!(fork_id));
+    let all_sessions = client
+        .call(IpcRequest::new(IpcMethod::SessionList {
+            workspace_id: Some(workspace_id),
+            include_archived: true,
+            cursor: None,
+            limit: 8,
+        }))
+        .await
+        .expect("list all sessions")
+        .result
+        .expect("all session list");
+    assert_eq!(
+        all_sessions["sessions"].as_array().expect("sessions").len(),
+        2
+    );
+
+    let resumed = client
+        .call(IpcRequest::new(IpcMethod::SessionResume { session_id }))
+        .await
+        .expect("resume")
+        .result
+        .expect("resume result");
+    assert_eq!(resumed["session"]["payload"]["sessionState"], "active");
+    let turn = client
+        .call(IpcRequest::new(IpcMethod::TurnAppend {
+            session_id,
+            actor: "assistant".to_string(),
+            native_turn_id: None,
+            usage: json!({}),
+            metadata: json!({}),
+        }))
+        .await
+        .expect("append after resume")
+        .result
+        .expect("resumed turn result");
+    assert_eq!(turn["turn"]["payload"]["ordinal"], json!(2));
+
+    let read = client
+        .call(IpcRequest::new(IpcMethod::SessionRead {
+            session_id,
+            after_ordinal: None,
+            turn_limit: 8,
+        }))
+        .await
+        .expect("read session")
+        .result
+        .expect("read result");
+    assert_eq!(read["turns"].as_array().expect("turns").len(), 3);
+
+    let shutdown = client
+        .call(IpcRequest::new(IpcMethod::Shutdown))
+        .await
+        .expect("shutdown");
+    assert_eq!(shutdown.result.expect("shutdown result")["shutdown"], true);
+    task.await.expect("server task").expect("server exit");
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn workspace_registry_converges_concurrent_client_types_and_survives_restart() {
     let directory = tempdir().expect("tempdir");
     let paths = fixture_paths(directory.path().to_path_buf());
