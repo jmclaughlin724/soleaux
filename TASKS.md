@@ -161,10 +161,9 @@ P5-001 evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json). P
 
 Acceptance detail, entry state, and dependencies for every remaining Phase 5 task live in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) with edges in [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json).
 
-- [ ] **P5-W1** Wire `soleaux-mcp` to `soleaux-state` and give `soleaux-vault` its first daemon consumer.
-- [ ] **P5-V1** Daemon-trusted admission receipt verifier and reviewed lifecycle oracle for external client write admission.
+- [x] **P5-W1** Wire `soleaux-mcp` to `soleaux-state` and give `soleaux-vault` its first daemon consumer.
 
-The next open implementation task is P5-W1.
+P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The next open implementation task is P5-007.
 
 #### Canonical lifecycle, materializers, and real repositories
 
@@ -178,6 +177,7 @@ The next open implementation task is P5-W1.
 
 #### Deep adapter implementations
 
+- [ ] **P5-V1** Daemon-trusted admission receipt verifier and reviewed lifecycle oracle for external client write admission.
 - [ ] **P5-014** Claude SDK execution host, external SessionStore, hooks, permissions, compaction, and restart reconciliation.
 - [ ] **P5-015** Claude Desktop user-facing import/export and supported local connector workflows; hosted CRUD remains a non-goal.
 - [ ] **P5-016** Codex generated app-server client, approvals, steering, compaction, archive, cursors, reconnect, and safe mode.

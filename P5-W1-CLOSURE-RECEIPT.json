@@ -1,0 +1,37 @@
+{
+  "capabilities": [
+    "soleaux-mcp gains the soleaux-state edge with a canonical-state attachment surface",
+    "with_canonical_state attaches only when the daemon-owned database already exists, so serving MCP never materializes per-user canonical state as a side effect",
+    "daemon boot constructs the deny-by-default capability policy engine with zero grants",
+    "daemon boot constructs the OS keychain vault key-store handle while key material remains strictly on-demand"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-07",
+  "implementationHeadCommit": "239aa2683c1e9ea3c2d58d08ae143812019cfba8",
+  "implementationMergeCommit": "82beb7940b290c9c390b20e70d2ef33bb847beb6",
+  "implementationPullRequest": 44,
+  "nextTask": "P5-007",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-W1",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 119
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  },
+  "workflowRuns": {
+    "ci": 31218723772,
+    "clientCapabilityMatrix": 31218724186,
+    "native": 31218724532
+  }
+}

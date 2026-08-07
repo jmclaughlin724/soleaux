@@ -45,6 +45,11 @@ The project is licensed under MIT.
 - Upgraded the consistency checker from hardcoded next-task literals to three-way validation across `TASKS.md`, `PROJECT-STATUS.json`, and the dependency graph.
 - Added the `load-tasks` project skill and dependency-graph group entries (Phases 6–8, external gates, Phase 3) so any session reconstructs the complete remaining-work tracker from repository state alone.
 
+### Phase 5 — P5-W1 crate wiring closed — 2026-08-07
+
+- Merged PR #44: `soleaux-mcp` gains the `soleaux-state` edge with an attach-only-if-exists canonical-state surface, and the IPC daemon constructs the deny-by-default capability policy engine and the OS keychain vault key-store handle at boot; key material stays on-demand.
+- Persisted [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json); the next open implementation task is P5-007.
+
 ### Phase 5 — activated
 
 - Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.
