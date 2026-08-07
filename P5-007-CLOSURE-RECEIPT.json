@@ -1,0 +1,56 @@
+{
+  "capabilities": [
+    "validated same-platform session state machine (active/archived) enforced at every canonical write",
+    "typed IPC surface for session create/list/read/archive/resume/fork/lineage, ordinal-ordered turns, and messages with registry-convention bounded pages",
+    "race-free turn ordinals through the canonical idempotency unique index with bounded retry",
+    "adapter idempotency through canonical native-identity upserts for sessions and messages",
+    "bounded lineage traversal to the fork root with an explicit depth ceiling",
+    "memory.search session scope serves a bounded canonicalSessions section without touching the locked scope enum or the filesystem snapshot cursor",
+    "soleaux://sessions and soleaux://sessions/{id} MCP resources scoped strictly to the workspace registered for the served root",
+    "serve-time canonical-state attachment only when the daemon database already exists; standalone serving never materializes per-user state",
+    "cross-platform continuation remains a signed handoff, never a false native resume"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-07",
+  "implementationPullRequests": [
+    {
+      "headCommit": "645f4f73d8ce38d4c46fe4f37537b9ced02d9500",
+      "mergeCommit": "85d3382929a13b0fdb1e9588f9fe3f7eb82a5183",
+      "pullRequest": 46,
+      "workflowRuns": {
+        "ci": 31221022292,
+        "clientCapabilityMatrix": 31221022265,
+        "native": 31221022381
+      }
+    },
+    {
+      "headCommit": "513b81df31861f4df32d2993516fc1275509e214",
+      "mergeCommit": "ab7d707fb47d9bfc96374d76e63ad0f68e77e2de",
+      "pullRequest": 47,
+      "workflowRuns": {
+        "ci": 31222521941,
+        "clientCapabilityMatrix": 31222521833,
+        "native": 31222521830
+      }
+    }
+  ],
+  "nextTask": "P5-008",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-007",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 121
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

@@ -68,7 +68,7 @@ P5-002 through P5-006 are closed on implementation merge `c51265a3927f3b163b9cac
 
 Evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json).
 
-The remaining Phase 5 work is consolidated in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) with machine-readable dependencies in [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json), including the registered pre-task P5-V1 (admission receipt verifier). P5-W1 crate wiring is closed on merge `82beb7940b290c9c390b20e70d2ef33bb847beb6` (PR #44); evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The next open implementation task is **P5-007**.
+The remaining Phase 5 work is consolidated in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) with machine-readable dependencies in [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json), including the registered pre-task P5-V1 (admission receipt verifier). P5-W1 crate wiring is closed (PR #44; [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json)). P5-007 is closed on merges `85d3382929a13b0fdb1e9588f9fe3f7eb82a5183` (PR #46) and `ab7d707fb47d9bfc96374d76e63ad0f68e77e2de` (PR #47): the canonical session/history service with the validated active/archived state machine, ordinal-ordered turns and messages over typed IPC, race-free ordinal claims, bounded lineage, the memory.search session-scope canonical section, and the `soleaux://sessions` resources; evidence: [`P5-007-CLOSURE-RECEIPT.json`](P5-007-CLOSURE-RECEIPT.json). The next open implementation task is **P5-008**.
 
 ## Locked invariants
 
