@@ -233,7 +233,7 @@ P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The 
 - [ ] **P7-007** Signed SBOM and build provenance.
 - [ ] **P7-008** macOS/Windows/Linux and architecture matrix, including case-insensitive paths and symlink cycles.
 - [ ] **P7-009** Incident response, backup/restore, relay outage, upgrade/downgrade, and rollback exercises.
-- [ ] **P7-010** Stage-17-style readiness decision.
+- [ ] **P7-010** Recorded readiness decision per [`docs/operations/EVIDENCE-AND-RECEIPTS.md`](docs/operations/EVIDENCE-AND-RECEIPTS.md).
 - [ ] **P7-011** Large-repository/pathological-file/concurrent-client/memory-pressure/worker-crash tests.
 - [ ] **P7-012** Production relay hardening, queues, expiry/DLQ, abuse controls, replay defense, push rotation, SLOs, self-hosting, and DR.
 - [ ] **P7-013** Enterprise audit export, retention, air-gap, and SSO only after local product gates pass.

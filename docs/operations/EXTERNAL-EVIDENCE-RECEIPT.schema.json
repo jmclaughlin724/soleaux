@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assessedCommit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "assessmentDate": {
+      "format": "date",
+      "type": "string"
+    },
+    "engagementScope": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "expiryDate": {
+      "format": "date",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "findingsBySeverity": {
+      "additionalProperties": false,
+      "properties": {
+        "critical": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "high": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "info": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "low": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "medium": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "info"
+      ],
+      "type": "object"
+    },
+    "gateTask": {
+      "pattern": "^P[0-9]+-[0-9]{3}$",
+      "type": "string"
+    },
+    "prohibitedSubstitutionsConfirmedAbsent": {
+      "const": true
+    },
+    "productionClaimAllowed": {
+      "const": false
+    },
+    "provider": {
+      "additionalProperties": false,
+      "properties": {
+        "contact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "independent": {
+          "const": true
+        },
+        "organization": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "organization",
+        "independent"
+      ],
+      "type": "object"
+    },
+    "remediationStatus": {
+      "enum": [
+        "none_required",
+        "remediated_and_retested",
+        "remediation_in_progress",
+        "accepted_with_owner_signoff"
+      ],
+      "type": "string"
+    },
+    "reportRetentionLocation": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "reportSha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "retestPolicy": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "soleaux.external-evidence-receipt/v1"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "gateTask",
+    "provider",
+    "engagementScope",
+    "assessedCommit",
+    "assessmentDate",
+    "reportSha256",
+    "reportRetentionLocation",
+    "findingsBySeverity",
+    "remediationStatus",
+    "retestPolicy",
+    "prohibitedSubstitutionsConfirmedAbsent",
+    "productionClaimAllowed"
+  ],
+  "title": "Soleaux external evidence receipt",
+  "type": "object"
+}
