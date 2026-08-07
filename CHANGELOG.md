@@ -50,6 +50,11 @@ The project is licensed under MIT.
 - Merged PR #44: `soleaux-mcp` gains the `soleaux-state` edge with an attach-only-if-exists canonical-state surface, and the IPC daemon constructs the deny-by-default capability policy engine and the OS keychain vault key-store handle at boot; key material stays on-demand.
 - Persisted [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json); the next open implementation task is P5-007.
 
+### Phase 5 — P5-007 canonical session/history service closed — 2026-08-07
+
+- Merged PRs #46 and #47: the daemon-owned session/history service with a validated active/archived state machine enforced at every canonical write, typed IPC for sessions/turns/messages with bounded pages, race-free turn ordinals via the idempotency unique index, bounded lineage traversal, adapter-idempotent native-identity upserts, the memory.search session-scope canonical section (locked scope enum untouched), the `soleaux://sessions` MCP resources, and attach-only-if-exists canonical-state wiring in serve.
+- Persisted [`P5-007-CLOSURE-RECEIPT.json`](P5-007-CLOSURE-RECEIPT.json); the next open implementation task is P5-008.
+
 ### Phase 5 — activated
 
 - Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.

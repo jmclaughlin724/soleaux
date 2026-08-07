@@ -163,11 +163,11 @@ Acceptance detail, entry state, and dependencies for every remaining Phase 5 tas
 
 - [x] **P5-W1** Wire `soleaux-mcp` to `soleaux-state` and give `soleaux-vault` its first daemon consumer.
 
-P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The next open implementation task is P5-007.
+P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The next open implementation task is P5-008.
 
 #### Canonical lifecycle, materializers, and real repositories
 
-- [ ] **P5-007** Canonical session/history service and same-platform resume/fork/archive.
+- [x] **P5-007** Canonical session/history service and same-platform resume/fork/archive. Evidence: [`P5-007-CLOSURE-RECEIPT.json`](P5-007-CLOSURE-RECEIPT.json).
 - [ ] **P5-008** Materializer compatibility compiler, diff/backup/atomic apply/rollback, echo guards, and load verification.
 - [ ] **P5-009** Real LSP matrix: TypeScript/VTSLS, BasedPyright, Bash, Rust, Go, SourceKit, clangd, Kotlin, JDT, Vue, Svelte, Astro, MDX, YAML/JSON/HTML/CSS.
 - [ ] **P5-010** Turborepo and Next.js compatibility matrices on real repositories/versions.

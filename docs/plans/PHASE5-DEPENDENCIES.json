@@ -8,7 +8,7 @@
     { "blockedBy": [], "id": "P3-PREREQS", "planSection": "Deferred Phase 3 lane", "taskRange": "measurement-schema three-arm fix, checker unpin, reactivation inputs", "title": "P3 prerequisites: schema fix, checker unpin, reactivation inputs" },
     { "blockedBy": ["P3-PREREQS"], "id": "P3-EXECUTION", "planSection": "Deferred Phase 3 lane", "taskRange": "P3-005..P3-025", "title": "P3 execution: frozen three-arm claims experiment (P3-005..025)" }
   ],
-  "nextOpen": "P5-007",
+  "nextOpen": "P5-008",
   "nodes": [
     { "blockedBy": [], "id": "P5-W1", "lane": "lifecycle", "receipt": "P5-W1-CLOSURE-RECEIPT.json", "wave": 1 },
     { "blockedBy": ["P5-W1"], "id": "P5-007", "lane": "lifecycle", "receipt": "P5-007-CLOSURE-RECEIPT.json", "wave": 1 },

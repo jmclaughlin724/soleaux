@@ -64,7 +64,7 @@
     }
   },
   "nextActions": [
-    "Execute P5-007 canonical sessions/history, then the P5-V1 admission receipt verifier at the adapter-wave head, per docs/plans/PHASE5-IMPLEMENTATION-PLAN.md.",
+    "Execute P5-008 materializer compatibility, then the P5-V1 admission receipt verifier at the adapter-wave head, per docs/plans/PHASE5-IMPLEMENTATION-PLAN.md.",
     "Execute P5-007 through P5-013: canonical sessions/history, materializers, real LSP/Turborepo/Next.js matrices, design-partner validation, and the Phase 5 beta receipt.",
     "Execute P5-014 through P5-020: deep client adapters, memory lifecycle, signed handoffs, and durable run/subagent orchestration.",
     "Execute P5-021 through P5-029: intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.",
@@ -86,7 +86,7 @@
     "artifactId": 8955671128,
     "artifactSha256": "7cee5ddd84571718119447322fcf88a9ca2161c556b9af1a93ea4794ebd39dc8",
     "completedTask": "P5-001",
-    "currentTask": "P5-007",
+    "currentTask": "P5-008",
     "exactServiceWorkflowRunId": 31071496501,
     "finalValidationWorkflowRunId": 31070227364,
     "mergeCommit": "f231b86f581b7f3d5d081ed4b8d235a72758342a",
@@ -177,15 +177,17 @@
         "P5-004",
         "P5-005",
         "P5-006",
-        "P5-W1"
+        "P5-W1",
+        "P5-007"
       ],
-      "currentTask": "P5-007",
+      "currentTask": "P5-008",
       "name": "Adapters, lifecycle, intelligence depth, and extensibility",
       "number": 5,
       "receipts": [
         "P5-001-CLOSURE-RECEIPT.json",
         "P5-002-P5-006-CLOSURE-RECEIPT.json",
-        "P5-W1-CLOSURE-RECEIPT.json"
+        "P5-W1-CLOSURE-RECEIPT.json",
+        "P5-007-CLOSURE-RECEIPT.json"
       ],
       "status": "in_progress"
     },
