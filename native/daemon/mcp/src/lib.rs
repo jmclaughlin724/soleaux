@@ -41,6 +41,7 @@ use soleaux_intelligence::{
     turborepo::{load_graph, packages_for_path, search_scope},
 };
 use soleaux_redaction::redact_text;
+use soleaux_state::StateStore;
 use soleaux_storage::{IndexedFileRecord, Store, SymbolHit, SymbolRecord};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -161,6 +162,7 @@ pub struct PublicMcpServer {
     semantic: SemanticService,
     registry: Arc<RwLock<RegistrySnapshot>>,
     editor: EditorService,
+    canonical_state: Option<StateStore>,
     repository_read_refresh: Arc<AsyncMutex<()>>,
 }
 
@@ -217,8 +219,26 @@ impl PublicMcpServer {
             semantic,
             registry: Arc::new(RwLock::new(registry)),
             editor,
+            canonical_state: None,
             repository_read_refresh: Arc::new(AsyncMutex::new(())),
         })
+    }
+
+    /// Attach the daemon-owned canonical state database when it already exists.
+    /// A missing database leaves the server detached: serving MCP must never
+    /// materialize per-user canonical state as a side effect.
+    pub fn with_canonical_state(mut self, path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        self.canonical_state = if path.is_file() {
+            Some(StateStore::open(path)?)
+        } else {
+            None
+        };
+        Ok(self)
+    }
+
+    pub fn canonical_state(&self) -> Option<&StateStore> {
+        self.canonical_state.as_ref()
     }
 
     pub fn substitute_tool(mut self, replace: &str, with: &str) -> Result<Self> {
@@ -2258,6 +2278,21 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn canonical_state_attaches_only_when_the_database_exists() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server");
+        let canonical = temp.path().join("canonical.sqlite3");
+        let server = server
+            .with_canonical_state(&canonical)
+            .expect("detached attach");
+        assert!(server.canonical_state().is_none());
+        drop(StateStore::open(&canonical).expect("create canonical state"));
+        let server = server.with_canonical_state(&canonical).expect("attach");
+        assert!(server.canonical_state().is_some());
+    }
 
     #[test]
     fn locked_tool_input_schemas_are_supported_and_closed() {
