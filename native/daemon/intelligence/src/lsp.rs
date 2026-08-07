@@ -10,6 +10,7 @@ use dashmap::DashMap;
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
@@ -31,6 +32,319 @@ use uuid::Uuid;
 
 pub const DEFAULT_SOFT_DEADLINE: Duration = Duration::from_millis(800);
 pub const DEFAULT_HARD_TIMEOUT: Duration = Duration::from_secs(15);
+
+pub const LSP_CAPABILITY_MATRIX_SCHEMA_VERSION: &str = "soleaux.lsp-capability-matrix/v1";
+pub const LSP_CAPABILITY_MATRIX_JSON: &str =
+    include_str!("../../../contracts/lsp-capability-matrix-v1.json");
+
+/// One wired language-server family. `id` is simultaneously the supervisor
+/// `server_id`, the routing key [`language_key`] collapses onto, and the matrix
+/// row identity; `languages` are indexer names, `extensions` the file suffixes
+/// behind them, and `commands` the ordered launch candidates (primary first).
+#[derive(Debug, Clone, Copy)]
+pub struct LanguageServerFamily {
+    pub id: &'static str,
+    pub languages: &'static [&'static str],
+    pub extensions: &'static [&'static str],
+    pub commands: &'static [FamilyCommand],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FamilyCommand {
+    pub command: &'static str,
+    pub arguments: &'static [&'static str],
+}
+
+const STDIO: &[&str] = &["--stdio"];
+const NO_ARGUMENTS: &[&str] = &[];
+
+pub const LANGUAGE_SERVER_FAMILIES: &[LanguageServerFamily] = &[
+    LanguageServerFamily {
+        id: "typescript",
+        languages: &["typescript", "tsx", "javascript", "jsx"],
+        extensions: &["ts", "mts", "cts", "tsx", "js", "mjs", "cjs", "jsx"],
+        commands: &[
+            FamilyCommand {
+                command: "vtsls",
+                arguments: STDIO,
+            },
+            FamilyCommand {
+                command: "typescript-language-server",
+                arguments: STDIO,
+            },
+        ],
+    },
+    LanguageServerFamily {
+        id: "python",
+        languages: &["python"],
+        extensions: &["py", "pyi"],
+        commands: &[
+            FamilyCommand {
+                command: "basedpyright-langserver",
+                arguments: STDIO,
+            },
+            FamilyCommand {
+                command: "pyright-langserver",
+                arguments: STDIO,
+            },
+        ],
+    },
+    LanguageServerFamily {
+        id: "bash",
+        languages: &["bash"],
+        extensions: &["sh", "bash", "zsh"],
+        commands: &[FamilyCommand {
+            command: "bash-language-server",
+            arguments: &["start"],
+        }],
+    },
+    LanguageServerFamily {
+        id: "rust",
+        languages: &["rust"],
+        extensions: &["rs"],
+        commands: &[FamilyCommand {
+            command: "rust-analyzer",
+            arguments: NO_ARGUMENTS,
+        }],
+    },
+    LanguageServerFamily {
+        id: "go",
+        languages: &["go"],
+        extensions: &["go"],
+        commands: &[FamilyCommand {
+            command: "gopls",
+            arguments: NO_ARGUMENTS,
+        }],
+    },
+    LanguageServerFamily {
+        id: "swift",
+        languages: &["swift"],
+        extensions: &["swift"],
+        commands: &[FamilyCommand {
+            command: "sourcekit-lsp",
+            arguments: NO_ARGUMENTS,
+        }],
+    },
+    LanguageServerFamily {
+        id: "cpp",
+        languages: &["c", "cpp"],
+        extensions: &["c", "h", "cpp", "cc", "cxx", "hpp", "hh", "hxx"],
+        commands: &[FamilyCommand {
+            command: "clangd",
+            arguments: NO_ARGUMENTS,
+        }],
+    },
+    LanguageServerFamily {
+        id: "kotlin",
+        languages: &["kotlin"],
+        extensions: &["kt", "kts"],
+        commands: &[FamilyCommand {
+            command: "kotlin-language-server",
+            arguments: NO_ARGUMENTS,
+        }],
+    },
+    LanguageServerFamily {
+        id: "java",
+        languages: &["java"],
+        extensions: &["java"],
+        commands: &[FamilyCommand {
+            command: "jdtls",
+            arguments: NO_ARGUMENTS,
+        }],
+    },
+    LanguageServerFamily {
+        id: "vue",
+        languages: &["vue"],
+        extensions: &["vue"],
+        commands: &[FamilyCommand {
+            command: "vue-language-server",
+            arguments: STDIO,
+        }],
+    },
+    LanguageServerFamily {
+        id: "svelte",
+        languages: &["svelte"],
+        extensions: &["svelte"],
+        commands: &[FamilyCommand {
+            command: "svelteserver",
+            arguments: STDIO,
+        }],
+    },
+    LanguageServerFamily {
+        id: "astro",
+        languages: &["astro"],
+        extensions: &["astro"],
+        commands: &[FamilyCommand {
+            command: "astro-ls",
+            arguments: STDIO,
+        }],
+    },
+    LanguageServerFamily {
+        id: "mdx",
+        languages: &["mdx"],
+        extensions: &["mdx"],
+        commands: &[FamilyCommand {
+            command: "mdx-language-server",
+            arguments: STDIO,
+        }],
+    },
+    LanguageServerFamily {
+        id: "yaml",
+        languages: &["yaml"],
+        extensions: &["yaml", "yml"],
+        commands: &[FamilyCommand {
+            command: "yaml-language-server",
+            arguments: STDIO,
+        }],
+    },
+    LanguageServerFamily {
+        id: "json",
+        languages: &["json"],
+        extensions: &["json", "jsonc"],
+        commands: &[FamilyCommand {
+            command: "vscode-json-language-server",
+            arguments: STDIO,
+        }],
+    },
+    LanguageServerFamily {
+        id: "html",
+        languages: &["html"],
+        extensions: &["html", "htm"],
+        commands: &[FamilyCommand {
+            command: "vscode-html-language-server",
+            arguments: STDIO,
+        }],
+    },
+    LanguageServerFamily {
+        id: "css",
+        languages: &["css", "scss", "less"],
+        extensions: &["css", "scss", "less"],
+        commands: &[FamilyCommand {
+            command: "vscode-css-language-server",
+            arguments: STDIO,
+        }],
+    },
+];
+
+/// Collapse an indexer language name onto its family routing key; names outside
+/// every family pass through unchanged.
+pub fn language_key(language: &str) -> &str {
+    LANGUAGE_SERVER_FAMILIES
+        .iter()
+        .find(|family| family.languages.contains(&language))
+        .map_or(language, |family| family.id)
+}
+
+pub fn lsp_capability_matrix_sha256() -> String {
+    let digest = Sha256::digest(LSP_CAPABILITY_MATRIX_JSON.as_bytes());
+    format!("{digest:x}")
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LspCapabilityMatrix {
+    schema_version: String,
+    as_of_date: String,
+    task: String,
+    families: Vec<LspCapabilityFamilyRow>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LspCapabilityFamilyRow {
+    id: String,
+    language_key: String,
+    extensions: Vec<String>,
+    primary_command: LspCapabilityCommandRow,
+    fallback_commands: Vec<LspCapabilityCommandRow>,
+    probe_state: String,
+    push_diagnostics: bool,
+    multi_root: bool,
+    workspace_edits: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LspCapabilityCommandRow {
+    command: String,
+    arguments: Vec<String>,
+}
+
+/// Fail unless the published matrix v1 mirrors [`LANGUAGE_SERVER_FAMILIES`]
+/// row for row and keeps every not-yet capability column at its truthful
+/// pre-conformance value (P5-023 owns subsystem depth).
+pub fn validate_lsp_capability_matrix() -> Result<()> {
+    let matrix: LspCapabilityMatrix = serde_json::from_str(LSP_CAPABILITY_MATRIX_JSON)
+        .context("parsing lsp-capability-matrix-v1.json")?;
+    if matrix.schema_version != LSP_CAPABILITY_MATRIX_SCHEMA_VERSION {
+        bail!(
+            "LSP capability matrix declares schema {}; expected {}",
+            matrix.schema_version,
+            LSP_CAPABILITY_MATRIX_SCHEMA_VERSION
+        );
+    }
+    if matrix.as_of_date.is_empty() || matrix.task.is_empty() {
+        bail!("LSP capability matrix omitted asOfDate or task");
+    }
+    if matrix.families.len() != LANGUAGE_SERVER_FAMILIES.len() {
+        bail!(
+            "LSP capability matrix lists {} families; the wired table has {}",
+            matrix.families.len(),
+            LANGUAGE_SERVER_FAMILIES.len()
+        );
+    }
+    for (row, family) in matrix.families.iter().zip(LANGUAGE_SERVER_FAMILIES) {
+        if row.id != family.id {
+            bail!(
+                "LSP capability matrix family {} does not match wired family {}",
+                row.id,
+                family.id
+            );
+        }
+        if row.language_key != family.id {
+            bail!(
+                "LSP capability matrix family {} declares language key {}; routing requires the family id",
+                family.id,
+                row.language_key
+            );
+        }
+        if row.extensions != family.extensions {
+            bail!(
+                "LSP capability matrix extensions diverge from the wired table for family {}",
+                family.id
+            );
+        }
+        let candidates: Vec<&LspCapabilityCommandRow> = std::iter::once(&row.primary_command)
+            .chain(row.fallback_commands.iter())
+            .collect();
+        if candidates.len() != family.commands.len()
+            || candidates
+                .iter()
+                .zip(family.commands)
+                .any(|(candidate, wired)| {
+                    candidate.command != wired.command || candidate.arguments != wired.arguments
+                })
+        {
+            bail!(
+                "LSP capability matrix commands diverge from the wired table for family {}",
+                family.id
+            );
+        }
+        if row.probe_state != "unprobed" {
+            bail!(
+                "LSP capability matrix v1 must default probeState to unprobed for family {}",
+                family.id
+            );
+        }
+        if row.push_diagnostics || row.multi_root || row.workspace_edits {
+            bail!(
+                "LSP capability matrix v1 must keep pushDiagnostics, multiRoot, and workspaceEdits false for family {}",
+                family.id
+            );
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -725,57 +1039,24 @@ pub fn discover_workspace_servers(root: &Path, languages: &[String]) -> Result<V
         "uri": root_uri.clone(),
         "name": root.file_name().and_then(|value| value.to_str()).unwrap_or("workspace"),
     })];
-    let has = |values: &[&str]| {
-        languages
-            .iter()
-            .any(|language| values.contains(&language.as_str()))
-    };
     let mut specs = Vec::new();
-    if has(&["typescript", "tsx", "javascript", "jsx"]) {
-        if let Some(command) = find_executable("vtsls") {
-            specs.push(server_spec(
-                "typescript",
-                command,
-                vec!["--stdio".to_string()],
-                &root_uri,
-                &workspace_folders,
-            ));
-        } else if let Some(command) = find_executable("typescript-language-server") {
-            specs.push(server_spec(
-                "typescript",
-                command,
-                vec!["--stdio".to_string()],
-                &root_uri,
-                &workspace_folders,
-            ));
+    for family in LANGUAGE_SERVER_FAMILIES {
+        let present = family
+            .languages
+            .iter()
+            .any(|language| languages.iter().any(|candidate| candidate == language));
+        if !present {
+            continue;
         }
-    }
-    if has(&["python"]) {
-        if let Some(command) = find_executable("basedpyright-langserver") {
-            specs.push(server_spec(
-                "python",
-                command,
-                vec!["--stdio".to_string()],
-                &root_uri,
-                &workspace_folders,
-            ));
-        } else if let Some(command) = find_executable("pyright-langserver") {
-            specs.push(server_spec(
-                "python",
-                command,
-                vec!["--stdio".to_string()],
-                &root_uri,
-                &workspace_folders,
-            ));
-        }
-    }
-    if has(&["bash"])
-        && let Some(command) = find_executable("bash-language-server")
-    {
+        let Some((command, arguments)) = family.commands.iter().find_map(|candidate| {
+            find_executable(candidate.command).map(|path| (path, candidate.arguments))
+        }) else {
+            continue;
+        };
         specs.push(server_spec(
-            "bash",
+            family.id,
             command,
-            vec!["start".to_string()],
+            arguments.iter().map(ToString::to_string).collect(),
             &root_uri,
             &workspace_folders,
         ));
@@ -855,5 +1136,72 @@ mod tests {
         let request = json!({"jsonrpc":"2.0","id":7,"method":"workspace/configuration","params":{"items":[{},{}]}});
         let response = default_server_request_response(&request);
         assert_eq!(response["result"].as_array().map(Vec::len), Some(2));
+    }
+
+    #[test]
+    fn every_extension_maps_to_exactly_one_family() {
+        let mut owners: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        for family in LANGUAGE_SERVER_FAMILIES {
+            for extension in family.extensions {
+                if let Some(previous) = owners.insert(extension, family.id) {
+                    panic!(
+                        "extension {extension} is claimed by both {previous} and {}",
+                        family.id
+                    );
+                }
+                let sample = PathBuf::from(format!("sample.{extension}"));
+                let language = crate::index::language_for_path(&sample).unwrap_or_else(|| {
+                    panic!("indexer does not detect family extension {extension}")
+                });
+                assert!(
+                    family.languages.contains(&language),
+                    "extension {extension} indexes as {language}, outside family {}",
+                    family.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn family_languages_route_to_their_family_key_alone() {
+        let mut owners: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        for family in LANGUAGE_SERVER_FAMILIES {
+            for language in family.languages {
+                if let Some(previous) = owners.insert(language, family.id) {
+                    panic!(
+                        "language {language} is claimed by both {previous} and {}",
+                        family.id
+                    );
+                }
+                assert_eq!(language_key(language), family.id);
+            }
+        }
+        assert_eq!(language_key("toml"), "toml");
+        assert_eq!(language_key("markdown"), "markdown");
+        assert_eq!(language_key("sql"), "sql");
+    }
+
+    #[test]
+    fn capability_matrix_v1_matches_the_wired_family_table() {
+        assert_eq!(LANGUAGE_SERVER_FAMILIES.len(), 17);
+        validate_lsp_capability_matrix().expect("matrix v1 mirrors the wired family table");
+        let digest = lsp_capability_matrix_sha256();
+        assert_eq!(digest.len(), 64);
+        assert!(
+            digest
+                .chars()
+                .all(|character| character.is_ascii_hexdigit() && !character.is_ascii_uppercase())
+        );
+    }
+
+    #[test]
+    fn discovery_wires_nothing_without_matching_workspace_languages() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let empty = discover_workspace_servers(temp.path(), &[]).expect("empty workspace");
+        assert!(empty.is_empty());
+        let unmatched =
+            discover_workspace_servers(temp.path(), &["toml".to_string(), "sql".to_string()])
+                .expect("languages outside every family");
+        assert!(unmatched.is_empty());
     }
 }

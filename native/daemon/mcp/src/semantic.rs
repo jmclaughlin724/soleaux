@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use soleaux_intelligence::{
     index::RepositoryIndex,
-    lsp::{LspProbe, LspQuery, LspQueryResult, LspSupervisor, capability_property},
+    lsp::{LspProbe, LspQuery, LspQueryResult, LspSupervisor, capability_property, language_key},
 };
 use std::{
     collections::{BTreeSet, HashMap},
@@ -854,15 +854,6 @@ fn normalize_location(value: &Value, root: &Path) -> Result<Option<Value>> {
         "end_column": end.and_then(|value| value.get("character")).and_then(Value::as_u64).map(|value| value + 1),
         "uri": uri,
     })))
-}
-
-fn language_key(language: &str) -> &str {
-    match language {
-        "typescript" | "tsx" | "javascript" | "jsx" => "typescript",
-        "python" => "python",
-        "bash" => "bash",
-        other => other,
-    }
 }
 
 fn required_string<'a>(arguments: &'a Value, name: &str) -> Result<&'a str> {
