@@ -23,6 +23,8 @@ See [`governance/DOCUMENTATION-SYSTEM.md`](governance/DOCUMENTATION-SYSTEM.md).
 - [`../PHASE4-INDEPENDENT-VERIFICATION.json`](../PHASE4-INDEPENDENT-VERIFICATION.json)
 - [`audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md`](audits/TRANSCRIPT-TO-REPOSITORY-GAP-AUDIT-2026-08-04.md)
 - [`audits/TRANSCRIPT-GAP-REGISTRY.json`](audits/TRANSCRIPT-GAP-REGISTRY.json)
+- [`plans/PHASE5-IMPLEMENTATION-PLAN.md`](plans/PHASE5-IMPLEMENTATION-PLAN.md)
+- [`plans/PHASE5-DEPENDENCIES.json`](plans/PHASE5-DEPENDENCIES.json)
 
 Phase 4 is closed. Phase 5 is the active implementation phase. Phase 3 remains deferred as a claims gate.
 
@@ -39,7 +41,7 @@ Phase 4 is closed. Phase 5 is the active implementation phase. Phase 3 remains d
 - [`testing/TEST-STRATEGY.md`](testing/TEST-STRATEGY.md)
 - [`testing/TEST-MATRIX.md`](testing/TEST-MATRIX.md)
 - [`operations/EVIDENCE-AND-RECEIPTS.md`](operations/EVIDENCE-AND-RECEIPTS.md)
-- [`operations/BRANCH-CONSOLIDATION-2026-08-05.json`](operations/BRANCH-CONSOLIDATION-2026-08-05.json)
+- [`operations/BRANCH-CONSOLIDATION-2026-08-07.json`](operations/BRANCH-CONSOLIDATION-2026-08-07.json)
 
 ## Deferred product-proof experiment
 

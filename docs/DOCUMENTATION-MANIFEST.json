@@ -47,6 +47,8 @@
     "docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json",
   "docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json",
     "docs/operations/EVIDENCE-AND-RECEIPTS.md",
+  "docs/plans/PHASE5-DEPENDENCIES.json",
+  "docs/plans/PHASE5-IMPLEMENTATION-PLAN.md",
     "docs/release/RELEASE-GATES.md",
     "docs/release/ROLLOUT-PLAN.md",
     "docs/testing/TEST-MATRIX.md",

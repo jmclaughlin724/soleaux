@@ -26,14 +26,14 @@ Not allowed:
 
 Entry:
 
-- Phase 3 closed;
+- Phase 4 development-alpha receipt and independent verification (Phase 3 gates quantified claims, not the development alpha);
 - native source normalised in repository;
 - unsigned/signed development installer as defined;
 - install/doctor/uninstall smoke.
 
 Audience:
 
-- approved design partners.
+- approved design partners. Approval means: an owner-approved organization with granted repository access, recorded opt-in, a support channel, and a rollback contact (see [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](../plans/PHASE5-IMPLEMENTATION-PLAN.md)).
 
 Controls:
 

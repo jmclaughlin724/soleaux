@@ -37,6 +37,13 @@ The project is licensed under MIT.
 - Deleted three owner-approved fully merged branches, archived the two never-pushed local lineages as tags, and recorded the inventory in [`docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json`](docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json).
 - Persisted [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json).
 
+### Phase 5 — remaining work consolidated into an executable plan — 2026-08-07
+
+- Added [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) and [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json): per-task acceptance criteria, verified code entry states, waves, parallel-lane justification, and the machine-readable dependency graph for all remaining phases.
+- Registered the investigation-discovered pre-tasks P5-W1 (wire `soleaux-mcp` to `soleaux-state`; first `soleaux-vault` consumer) and P5-V1 (daemon-trusted admission receipt verifier, previously an unowned dependency of every external write path).
+- Repaired documentation drift: GAP-007 closure state and P5-006/011/012/013 gap mapping, superseded branch-report pointers, and the rollout-plan alpha entry; defined design-partner approval.
+- Upgraded the consistency checker from hardcoded next-task literals to three-way validation across `TASKS.md`, `PROJECT-STATUS.json`, and the dependency graph.
+
 ### Phase 5 — activated
 
 - Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.

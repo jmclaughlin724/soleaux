@@ -66,7 +66,9 @@ Evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json).
 
 P5-002 through P5-006 are closed on implementation merge `c51265a3927f3b163b9cac686e0572b47da48b8c` (PR #38) and remediation merge `de6c813ee9b8bd0cb441482b0debbf323c4ea133` (PR #40). The daemon now embeds the six-platform client capability matrix with pinned artifact verification, bounded signal-oracled probes, revision-guarded revalidation, and safe-mode read-only admission for every external client; the mutation-eligible set is empty pending a daemon-trusted receipt verifier.
 
-Evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json). The next open implementation task is **P5-007**.
+Evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json).
+
+The remaining Phase 5 work is consolidated in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) with machine-readable dependencies in [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json), including the registered pre-tasks P5-W1 (crate wiring) and P5-V1 (admission receipt verifier). The next open implementation task is **P5-W1**; P5-007 follows it.
 
 ## Locked invariants
 

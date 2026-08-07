@@ -1,0 +1,33 @@
+{
+  "nextOpen": "P5-W1",
+  "nodes": [
+    { "blockedBy": [], "id": "P5-W1", "lane": "lifecycle", "receipt": "P5-W1-CLOSURE-RECEIPT.json", "wave": 1 },
+    { "blockedBy": ["P5-W1"], "id": "P5-007", "lane": "lifecycle", "receipt": "P5-007-CLOSURE-RECEIPT.json", "wave": 1 },
+    { "blockedBy": [], "id": "P5-008", "lane": "materializer", "receipt": "P5-008-CLOSURE-RECEIPT.json", "wave": 1 },
+    { "blockedBy": [], "checkbox": "P5-009", "id": "P5-009a", "lane": "lsp", "receipt": "P5-009A-MATRIX-V1-RECEIPT.json", "wave": 1 },
+    { "blockedBy": [], "id": "P5-010", "lane": "build-tools", "receipt": "P5-010-CLOSURE-RECEIPT.json", "wave": 1 },
+    { "blockedBy": [], "id": "P5-021", "lane": "parsers", "receipt": "P5-021-CLOSURE-RECEIPT.json", "wave": 1 },
+    { "blockedBy": [], "id": "P5-022", "lane": "parsers", "receipt": "P5-022-CLOSURE-RECEIPT.json", "wave": 1 },
+    { "blockedBy": ["P5-007", "P5-008", "P5-009a", "P5-010"], "id": "P5-011", "lane": "lifecycle", "receipt": "P5-011-CLOSURE-RECEIPT.json", "wave": 2 },
+    { "blockedBy": ["P5-011"], "id": "P5-012", "lane": "lifecycle", "receipt": "P5-012-CLOSURE-RECEIPT.json", "wave": 2 },
+    { "blockedBy": ["P5-011", "P5-012"], "id": "P5-013", "lane": "lifecycle", "receipt": "PHASE5-CLOSURE-RECEIPT.json", "wave": 2 },
+    { "blockedBy": ["P5-W1", "P5-007"], "id": "P5-V1", "lane": "lifecycle", "receipt": "P5-V1-CLOSURE-RECEIPT.json", "wave": 3 },
+    { "blockedBy": ["P5-V1"], "id": "P5-014", "lane": "lifecycle", "receipt": "P5-014-CLOSURE-RECEIPT.json", "wave": 3 },
+    { "blockedBy": ["P5-007"], "id": "P5-015", "lane": "lifecycle", "receipt": "P5-015-CLOSURE-RECEIPT.json", "wave": 3 },
+    { "blockedBy": ["P5-V1"], "id": "P5-016", "lane": "lifecycle", "receipt": "P5-016-CLOSURE-RECEIPT.json", "wave": 3 },
+    { "blockedBy": ["P5-V1"], "id": "P5-017", "lane": "lifecycle", "receipt": "P5-017-CLOSURE-RECEIPT.json", "wave": 3 },
+    { "blockedBy": ["P5-W1", "P5-007"], "id": "P5-018", "lane": "lifecycle", "receipt": "P5-018-CLOSURE-RECEIPT.json", "wave": 4 },
+    { "blockedBy": ["P5-007", "P5-014"], "id": "P5-019", "lane": "lifecycle", "receipt": "P5-019-CLOSURE-RECEIPT.json", "wave": 4 },
+    { "blockedBy": ["P5-W1", "P5-007", "P5-014"], "id": "P5-020", "lane": "lifecycle", "receipt": "P5-020-CLOSURE-RECEIPT.json", "wave": 4 },
+    { "blockedBy": ["P5-009a"], "id": "P5-023", "lane": "lsp", "receipt": "P5-023-CLOSURE-RECEIPT.json", "wave": 5 },
+    { "blockedBy": ["P5-023"], "checkbox": "P5-009", "id": "P5-009b", "lane": "lsp", "receipt": "P5-009-CLOSURE-RECEIPT.json", "wave": 5 },
+    { "blockedBy": ["P5-010"], "id": "P5-024", "lane": "build-tools", "receipt": "P5-024-CLOSURE-RECEIPT.json", "wave": 5 },
+    { "blockedBy": ["P5-010", "P5-021"], "id": "P5-025", "lane": "build-tools", "receipt": "P5-025-CLOSURE-RECEIPT.json", "wave": 5 },
+    { "blockedBy": ["P5-008", "P5-021", "P5-022", "P5-024", "P5-025"], "id": "P5-026", "lane": "extensibility", "receipt": "P5-026-CLOSURE-RECEIPT.json", "wave": 6 },
+    { "blockedBy": ["P5-026"], "id": "P5-027", "lane": "extensibility", "receipt": "P5-027-CLOSURE-RECEIPT.json", "wave": 6 },
+    { "blockedBy": ["P5-027"], "id": "P5-028", "lane": "extensibility", "receipt": "P5-028-CLOSURE-RECEIPT.json", "wave": 6 },
+    { "blockedBy": ["P5-018"], "id": "P5-029", "lane": "extensibility", "optional": true, "receipt": "P5-029-CLOSURE-RECEIPT.json", "wave": 6 }
+  ],
+  "plan": "docs/plans/PHASE5-IMPLEMENTATION-PLAN.md",
+  "schemaVersion": "soleaux.plan-dependency-graph/v1"
+}

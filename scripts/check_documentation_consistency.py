@@ -174,8 +174,30 @@ for task in sorted(expected_p4):
 for task in ("P5-001", "P5-002", "P5-003", "P5-004", "P5-005", "P5-006"):
     if f"- [x] **{task}**" not in tasks_text:
         fail(f"closed Phase 5 task is unchecked: {task}")
-if "- [ ] **P5-007**" not in tasks_text:
-    fail("P5-007 must be the first open implementation task")
+
+deps = load_json("docs/plans/PHASE5-DEPENDENCIES.json")
+if deps.get("schemaVersion") != "soleaux.plan-dependency-graph/v1":
+    fail("phase 5 dependency graph schema drifted")
+known_node_ids = {str(node["id"]) for node in deps["nodes"]}
+for node in deps["nodes"]:
+    checkbox = str(node.get("checkbox", node["id"]))
+    if f"**{checkbox}**" not in tasks_text:
+        fail(f"dependency-graph task is missing from TASKS.md: {checkbox}")
+    for dependency in node.get("blockedBy", []):
+        if str(dependency) not in known_node_ids:
+            fail(f"dependency-graph edge references an unknown task: {dependency}")
+next_open = None
+for line in tasks_text.splitlines():
+    if line.startswith("- [ ] **P5-"):
+        next_open = line.split("**")[1]
+        break
+status_next = phase_by_number[5].get("currentTask")
+graph_next = deps.get("nextOpen")
+if next_open is None or not (next_open == status_next == graph_next):
+    fail(
+        "next-open task drifted: "
+        f"TASKS.md={next_open} PROJECT-STATUS={status_next} dependency-graph={graph_next}"
+    )
 
 required_markers = {
     "README.md": ["Phase 4", "Phase 5", "productionClaimAllowed"],
@@ -226,7 +248,7 @@ print(
             "schemaVersion": "soleaux.documentation-consistency/v3",
             "version": EXPECTED_VERSION,
             "currentPhase": EXPECTED_PHASE,
-            "nextTask": "P5-007",
+            "nextTask": next_open,
             "phase3Status": phase3["status"],
             "phase4Status": phase_by_number[4]["status"],
             "requiredDocuments": len(manifest["required"]),

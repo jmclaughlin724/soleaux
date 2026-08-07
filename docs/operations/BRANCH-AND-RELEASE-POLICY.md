@@ -6,7 +6,7 @@
 - Receipt-bearing history is merged without squash or force-push.
 - Fully merged short-lived branches are pruned after their evidence is durable.
 - Branches with unique commits are retained only as non-authoritative archival lineage until their commits are reviewed, merged, tagged, or explicitly superseded.
-- The current classification is recorded in `BRANCH-CONSOLIDATION-2026-08-05.json`.
+- The current classification is recorded in `BRANCH-CONSOLIDATION-2026-08-07.json`, which supersedes the 2026-08-05 report.
 
 ## Rules
 
