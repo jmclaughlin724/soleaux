@@ -43,6 +43,17 @@ fn protocol_is_closed_typed_and_versioned() {
     assert!(serde_json::from_value::<IpcRequest>(invalid).is_err());
 }
 
+#[test]
+fn daemon_boot_constructs_capability_policy_and_vault_key_store() {
+    let directory = tempdir().expect("tempdir");
+    let paths = fixture_paths(directory.path().to_path_buf());
+    let server = IpcServer::open(paths).expect("server");
+    assert!(server.capability_policy().grants().is_empty());
+    let key_store = format!("{:?}", server.vault_key_store());
+    assert!(key_store.contains("soleaux"));
+    assert!(key_store.contains("vault-master"));
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn same_user_ipc_supports_concurrent_clients_state_operations_and_shutdown() {

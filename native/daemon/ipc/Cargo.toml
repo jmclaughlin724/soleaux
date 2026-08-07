@@ -13,6 +13,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 soleaux-state = { path = "../state" }
+soleaux-vault = { path = "../vault" }
 tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true

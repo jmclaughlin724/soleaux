@@ -2,16 +2,22 @@ use crate::{DaemonStatus, IPC_SCHEMA_VERSION, IpcMethod, IpcRequest, IpcResponse
 use anyhow::{Context, Result, anyhow};
 use serde_json::json;
 use soleaux_state::StateStore;
+use soleaux_vault::{OsKeyStore, PolicyEngine};
 use std::{
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
+const VAULT_KEYCHAIN_SERVICE: &str = "soleaux";
+const VAULT_KEYCHAIN_ACCOUNT: &str = "vault-master";
+
 #[derive(Clone)]
 pub struct IpcServer {
     paths: SoleauxPaths,
     state: StateStore,
+    capability_policy: PolicyEngine,
+    vault_key_store: OsKeyStore,
     started_at_unix_ms: i64,
 }
 
@@ -19,15 +25,31 @@ impl IpcServer {
     pub fn open(paths: SoleauxPaths) -> Result<Self> {
         paths.create_directories()?;
         let state = StateStore::open(&paths.state_database)?;
+        // Deny-by-default until P5-020 orchestration issues reviewed grants.
+        let capability_policy = PolicyEngine::new();
+        // Handle only: key material is loaded or created on first vault use,
+        // never as a daemon-boot side effect.
+        let vault_key_store = OsKeyStore::new(VAULT_KEYCHAIN_SERVICE, VAULT_KEYCHAIN_ACCOUNT)
+            .context("constructing the daemon vault key store")?;
         Ok(Self {
             paths,
             state,
+            capability_policy,
+            vault_key_store,
             started_at_unix_ms: unix_ms(),
         })
     }
 
     pub fn paths(&self) -> &SoleauxPaths {
         &self.paths
+    }
+
+    pub fn capability_policy(&self) -> &PolicyEngine {
+        &self.capability_policy
+    }
+
+    pub fn vault_key_store(&self) -> &OsKeyStore {
+        &self.vault_key_store
     }
 
     #[cfg(unix)]
