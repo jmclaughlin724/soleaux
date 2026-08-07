@@ -54,9 +54,17 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("native/daemon/vault/src/keyring.rs")
-          text = path.read_text(encoding="utf-8")
-          old = '''use std::{
+          def replace_once(path: str, old: str, new: str, label: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "native/daemon/vault/src/keyring.rs",
+              '''use std::{
               collections::BTreeMap,
               fs,
               io::Write,
@@ -64,8 +72,8 @@ jobs:
               process::{Command, Stdio},
               sync::{Arc, Mutex},
           };
-          '''
-          new = '''use std::{
+          ''',
+              '''use std::{
               collections::BTreeMap,
               fs,
               path::{Path, PathBuf},
@@ -74,10 +82,75 @@ jobs:
           };
           #[cfg(target_os = "linux")]
           use std::{io::Write, process::Stdio};
-          '''
-          if text.count(old) != 1:
-              raise SystemExit("macOS keyring import normalization target drifted")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          ''',
+              "keyring platform imports",
+          )
+          replace_once(
+              "native/daemon/ipc/src/paths.rs",
+              '''        return Ok(user_home()?
+              .join("Library")
+              .join("Application Support")
+              .join("Soleaux"));
+          ''',
+              '''        Ok(user_home()?
+              .join("Library")
+              .join("Application Support")
+              .join("Soleaux"))
+          ''',
+              "macOS Soleaux home expression",
+          )
+          replace_once(
+              "native/daemon/ipc/src/paths.rs",
+              '''        return Ok(user_home()?
+              .join("Library")
+              .join("LaunchAgents")
+              .join("com.soleaux.daemon.plist"));
+          ''',
+              '''        Ok(user_home()?
+              .join("Library")
+              .join("LaunchAgents")
+              .join("com.soleaux.daemon.plist"))
+          ''',
+              "macOS LaunchAgent expression",
+          )
+          replace_once(
+              "native/daemon/ipc/src/service.rs",
+              '''        return Ok(format!(
+              "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<!DOCTYPE plist PUBLIC \\"-//Apple//DTD PLIST 1.0//EN\\" \\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\\">\\n<plist version=\\"1.0\\"><dict>\\n<key>Label</key><string>com.soleaux.daemon</string>\\n<key>ProgramArguments</key><array><string>{}</string><string>ipc</string><string>--endpoint</string><string>{}</string><string>--state-db</string><string>{}</string></array>\\n<key>RunAtLoad</key><true/>\\n<key>KeepAlive</key><true/>\\n<key>ProcessType</key><string>Interactive</string>\\n<key>StandardOutPath</key><string>{}</string>\\n<key>StandardErrorPath</key><string>{}</string>\\n</dict></plist>\\n",
+              xml_escape(&daemon),
+              xml_escape(&endpoint),
+              xml_escape(&state),
+              xml_escape(&log),
+              xml_escape(&log),
+          ));
+          ''',
+              '''        Ok(format!(
+              "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<!DOCTYPE plist PUBLIC \\"-//Apple//DTD PLIST 1.0//EN\\" \\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\\">\\n<plist version=\\"1.0\\"><dict>\\n<key>Label</key><string>com.soleaux.daemon</string>\\n<key>ProgramArguments</key><array><string>{}</string><string>ipc</string><string>--endpoint</string><string>{}</string><string>--state-db</string><string>{}</string></array>\\n<key>RunAtLoad</key><true/>\\n<key>KeepAlive</key><true/>\\n<key>ProcessType</key><string>Interactive</string>\\n<key>StandardOutPath</key><string>{}</string>\\n<key>StandardErrorPath</key><string>{}</string>\\n</dict></plist>\\n",
+              xml_escape(&daemon),
+              xml_escape(&endpoint),
+              xml_escape(&state),
+              xml_escape(&log),
+              xml_escape(&log),
+          ))
+          ''',
+              "macOS LaunchAgent manifest expression",
+          )
+          replace_once(
+              "native/daemon/ipc/src/service.rs",
+              '''        return Ok(());
+              ''',
+              '''        Ok(())
+              ''',
+              "macOS service start expression",
+          )
+          replace_once(
+              "native/daemon/ipc/src/service.rs",
+              '''        return Ok(());
+              ''',
+              '''        Ok(())
+              ''',
+              "macOS service stop expression",
+          )
           PY
           (cd native && cargo fmt --all)
           git diff --check
