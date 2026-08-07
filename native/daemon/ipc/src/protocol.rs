@@ -1,3 +1,4 @@
+use crate::admission::AdmissionReceipt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use soleaux_state::{
@@ -113,6 +114,8 @@ pub enum IpcMethod {
         client_id: Uuid,
         workspace_id: Uuid,
         access_mode: ClientAccessMode,
+        #[serde(default)]
+        admission_receipt: Option<AdmissionReceipt>,
         #[serde(default = "default_object")]
         capabilities: Value,
         #[serde(default = "default_object")]
@@ -120,6 +123,15 @@ pub enum IpcMethod {
     },
     ClientUnbindWorkspace {
         binding_id: Uuid,
+    },
+    AdmissionIssue {
+        client_id: Uuid,
+        workspace_id: Uuid,
+        probe_evidence_sha256: String,
+        ttl_ms: u64,
+    },
+    AdmissionVerify {
+        receipt: AdmissionReceipt,
     },
     SessionCreate {
         workspace_id: Uuid,

@@ -109,6 +109,7 @@ fn registry_binding_input(
         binding_state: "bound".to_string(),
         attached_at_unix_ms: now,
         last_seen_at_unix_ms: now,
+        admission: None,
         capabilities: json!({"context":true}),
         metadata: json!({"fixture":true}),
     };
@@ -633,6 +634,79 @@ fn registry_revives_native_identities_and_enforces_trust_and_compatibility() {
         ))
         .expect_err("unprobed client must remain read-only");
     assert!(format!("{error:#}").contains("verified client compatibility matrix"));
+}
+
+#[test]
+fn registry_binding_admission_elevates_until_expiry_then_downgrades() {
+    let directory = tempdir().expect("tempdir");
+    let store = StateStore::open(directory.path().join("admission.sqlite3")).expect("store");
+    let now = now_ms();
+    let workspace = store
+        .registry_register_workspace(registry_workspace_input(
+            "/fixtures/admitted-workspace",
+            WorkspaceTrustState::Trusted,
+            None,
+        ))
+        .expect("workspace")
+        .workspace;
+    let client = store
+        .registry_register_client(registry_client_input(
+            ClientKind::Adapter,
+            "admitted-adapter",
+            "Admitted adapter",
+            ClientCompatibilityState::Unprobed,
+            now + 60_000,
+            json!({"platform":"generic_mcp_host"}),
+        ))
+        .expect("client")
+        .client;
+    assert!(!client.payload.write_capable);
+
+    let admission = ClientBindingAdmission {
+        receipt_matrix_sha256: "a".repeat(64),
+        probe_evidence_sha256: "b".repeat(64),
+        issued_at_unix_ms: now,
+        expires_at_unix_ms: now + 250,
+        key_version: 1,
+    };
+
+    let mut expired_input =
+        registry_binding_input(client.id, workspace.id, ClientAccessMode::ReadWrite);
+    expired_input.payload.admission = Some(ClientBindingAdmission {
+        issued_at_unix_ms: now - 10_000,
+        expires_at_unix_ms: now - 5_000,
+        ..admission.clone()
+    });
+    let error = store
+        .registry_bind_client_workspace(expired_input)
+        .expect_err("an expired admission never elevates");
+    assert!(format!("{error:#}").contains("verified client compatibility matrix"));
+
+    let mut admitted_input =
+        registry_binding_input(client.id, workspace.id, ClientAccessMode::ReadWrite);
+    admitted_input.payload.admission = Some(admission.clone());
+    let binding = store
+        .registry_bind_client_workspace(admitted_input)
+        .expect("admitted read-write binding");
+    assert_eq!(binding.payload.access_mode, ClientAccessMode::ReadWrite);
+
+    let refreshed = store
+        .registry_heartbeat_client(client.id, 60_000, None)
+        .expect("heartbeat while admitted");
+    assert_eq!(
+        refreshed.bindings[0].payload.access_mode,
+        ClientAccessMode::ReadWrite
+    );
+
+    thread::sleep(Duration::from_millis(300));
+    let downgraded = store
+        .registry_heartbeat_client(client.id, 60_000, None)
+        .expect("heartbeat after admission expiry");
+    assert_eq!(
+        downgraded.bindings[0].payload.access_mode,
+        ClientAccessMode::ReadOnly
+    );
+    assert!(downgraded.bindings[0].payload.admission.is_some());
 }
 
 #[test]

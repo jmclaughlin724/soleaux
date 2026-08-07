@@ -290,3 +290,27 @@ fn delegated_capabilities_must_be_strictly_attenuated() {
     assert!(revoked);
     assert!(engine.grants().is_empty());
 }
+
+#[test]
+fn admission_keys_are_versioned_and_domain_separated_from_workspace_keys() {
+    let mut key_ring = KeyRing::generate().expect("key ring");
+    let workspace_id = Uuid::now_v7();
+    let admission_v1 = key_ring.derive_admission_key(1).expect("admission key");
+    assert_eq!(
+        admission_v1,
+        key_ring.derive_admission_key(1).expect("stable")
+    );
+    assert_ne!(
+        admission_v1,
+        key_ring
+            .derive_workspace_key(workspace_id, 1)
+            .expect("workspace key")
+    );
+    let rotated = key_ring.rotate().expect("rotate");
+    let admission_v2 = key_ring
+        .derive_admission_key(rotated)
+        .expect("rotated admission key");
+    assert_ne!(admission_v1, admission_v2);
+    assert_eq!(admission_v1, key_ring.derive_admission_key(1).expect("old"));
+    assert!(key_ring.derive_admission_key(99).is_err());
+}

@@ -870,6 +870,27 @@ impl CanonicalPayload for ClientRegistrationPayload {
     }
 }
 
+/// Daemon-recorded evidence that a read-write binding was admitted through a
+/// verified admission receipt rather than a verified internal client. Only the
+/// daemon constructs this after MAC verification; it never crosses the IPC
+/// boundary as caller input. The elevation lasts exactly until
+/// `expires_at_unix_ms`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientBindingAdmission {
+    pub receipt_matrix_sha256: String,
+    pub probe_evidence_sha256: String,
+    pub issued_at_unix_ms: i64,
+    pub expires_at_unix_ms: i64,
+    pub key_version: u32,
+}
+
+impl ClientBindingAdmission {
+    pub fn admits_write_at(&self, now_unix_ms: i64) -> bool {
+        self.issued_at_unix_ms <= now_unix_ms && self.expires_at_unix_ms > now_unix_ms
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientWorkspaceBindingPayload {
@@ -879,6 +900,8 @@ pub struct ClientWorkspaceBindingPayload {
     pub binding_state: String,
     pub attached_at_unix_ms: i64,
     pub last_seen_at_unix_ms: i64,
+    #[serde(default)]
+    pub admission: Option<ClientBindingAdmission>,
     #[serde(default)]
     pub capabilities: Value,
     #[serde(default)]
@@ -892,6 +915,18 @@ impl CanonicalPayload for ClientWorkspaceBindingPayload {
         require(&self.binding_state, "client workspace binding state")?;
         if self.attached_at_unix_ms < 0 || self.last_seen_at_unix_ms < 0 {
             bail!("client workspace binding times must be non-negative");
+        }
+        if let Some(admission) = &self.admission {
+            validate_hex_digest(&admission.receipt_matrix_sha256, "binding admission matrix")?;
+            validate_hex_digest(
+                &admission.probe_evidence_sha256,
+                "binding admission probe evidence",
+            )?;
+            if admission.issued_at_unix_ms < 0
+                || admission.expires_at_unix_ms <= admission.issued_at_unix_ms
+            {
+                bail!("binding admission expiry must follow its issuance time");
+            }
         }
         Ok(())
     }

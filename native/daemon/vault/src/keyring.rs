@@ -68,6 +68,20 @@ impl KeyRing {
         Ok(*blake3::keyed_hash(master, &context).as_bytes())
     }
 
+    /// Derive the daemon admission-receipt MAC key for one key-ring version.
+    /// Domain-separated from workspace keys so a receipt MAC never equals an
+    /// artifact key even for identical inputs.
+    pub fn derive_admission_key(&self, version: u32) -> Result<MasterKey> {
+        let master = self
+            .keys
+            .get(&version)
+            .with_context(|| format!("vault key version {version} is unavailable"))?;
+        let mut context = Vec::with_capacity(48);
+        context.extend_from_slice(b"soleaux.daemon.admission-receipt-mac/v1\0");
+        context.extend_from_slice(&version.to_le_bytes());
+        Ok(*blake3::keyed_hash(master, &context).as_bytes())
+    }
+
     pub fn remove_versions_before(&mut self, minimum_version: u32) -> Result<()> {
         if minimum_version > self.current_version {
             bail!("cannot remove the current vault key version");
@@ -119,7 +133,7 @@ impl KeyRing {
     }
 }
 
-pub trait KeyStore: Send + Sync {
+pub trait KeyStore: Send + Sync + std::fmt::Debug {
     fn load(&self) -> Result<Option<KeyRing>>;
     fn save(&self, key_ring: &KeyRing) -> Result<()>;
 }
