@@ -3,9 +3,8 @@
 
 from __future__ import annotations
 
-import contextlib
-
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -168,9 +167,7 @@ def run_signal(binary: str, argv: list[str]) -> dict[str, Any]:
         process.kill()
         fail("client probe output readers did not terminate")
 
-    output_limit_exceeded = bool(
-        stdout_state["limitExceeded"] or stderr_state["limitExceeded"]
-    )
+    output_limit_exceeded = bool(stdout_state["limitExceeded"] or stderr_state["limitExceeded"])
     return {
         "argv": [Path(binary).name, *argv],
         "exitCode": process.returncode,
@@ -194,9 +191,7 @@ def validate_signal(platform: str, signal: str, result: dict[str, Any]) -> None:
     expected = SIGNAL_EXPECTATIONS.get(platform, {}).get(signal)
     if expected is None:
         fail(f"no independent output assertion is registered for {platform}.{signal}")
-    combined = ANSI_PATTERN.sub(
-        "", f"{result['stdout']}\n{result['stderr']}"
-    ).casefold()
+    combined = ANSI_PATTERN.sub("", f"{result['stdout']}\n{result['stderr']}").casefold()
     missing = [token for token in expected if token.casefold() not in combined]
     result["expectedOutputTokens"] = list(expected)
     result["missingOutputTokens"] = missing

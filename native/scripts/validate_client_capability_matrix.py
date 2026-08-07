@@ -70,8 +70,7 @@ EXPECTED_PACKAGE_ARTIFACTS = {
 }
 EXPECTED_OPENCODE_ASSET = {
     "url": (
-        "https://github.com/anomalyco/opencode/releases/download/v1.18.14/"
-        "opencode-linux-x64.tar.gz"
+        "https://github.com/anomalyco/opencode/releases/download/v1.18.14/opencode-linux-x64.tar.gz"
     ),
     "sha256": "f23980ba2aebfbfa53948e55e213d3f2a53740fd7326553828e89ad27e970572",
 }
@@ -205,10 +204,7 @@ def validate_matrix(path: Path, selected_platform: str | None) -> dict[str, Any]
             if artifact != EXPECTED_PACKAGE_ARTIFACTS[platform_id]:
                 fail(f"{platform_id} package artifact provenance drifted")
             source_urls = {str(source.get("url", "")) for source in sources}
-            metadata_url = (
-                "https://registry.npmjs.org/"
-                f"{artifact['package']}/{artifact['version']}"
-            )
+            metadata_url = f"https://registry.npmjs.org/{artifact['package']}/{artifact['version']}"
             if metadata_url not in source_urls or artifact["tarball"] not in source_urls:
                 fail(f"{platform_id} exact package sources are incomplete")
         if platform_id == "opencode":
@@ -294,7 +290,11 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     arguments = parser.parse_args()
     matrix = arguments.matrix.resolve()
-    result = run_self_tests(matrix) if arguments.self_test else validate_matrix(matrix, arguments.platform)
+    result = (
+        run_self_tests(matrix)
+        if arguments.self_test
+        else validate_matrix(matrix, arguments.platform)
+    )
     encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if arguments.output:
         arguments.output.parent.mkdir(parents=True, exist_ok=True)

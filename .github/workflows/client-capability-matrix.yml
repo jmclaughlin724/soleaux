@@ -98,7 +98,10 @@ jobs:
             --platform claude_code --download-dir /tmp/claude-pack \
             --output /tmp/claude-artifact.json
           CLAUDE_ARCHIVE="$(python3 -c 'import json; print(json.load(open("/tmp/claude-artifact.json"))["artifactPath"])')"
-          npm install --global "$CLAUDE_ARCHIVE" --ignore-scripts
+          # The archive digest and NPM integrity were verified immediately above.
+          # Run its isolated postinstall to materialize the pinned native Linux binary.
+          npm install --global "$CLAUDE_ARCHIVE"
+          claude --version | tee /tmp/claude-installed-version.txt
           python3 native/scripts/probe_client_capabilities.py \
             --platform claude_code --binary claude \
             --output /tmp/claude-code.json
