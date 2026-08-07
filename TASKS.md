@@ -25,7 +25,7 @@ Rules:
 - [x] **BR-006** Merge the transcript gap audit and expanded executable registry through PR #11.
 - [x] **BR-007** Prune every fully merged short-lived branch and retain unique-commit branches only as documented non-authoritative archival lineage.
 
-Evidence: [`docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json`](docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json).
+Evidence: [`docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json`](docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json) (supersedes the 2026-08-05 report).
 
 ## Completed phases
 
@@ -155,7 +155,16 @@ Evidence:
 - [x] **P5-005** OpenCode HTTP/OpenAPI/SSE/plugin capability matrix.
 - [x] **P5-006** Cursor and generic MCP-host verification.
 
-P5-001 evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json). P5-002 through P5-006 evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json). The next open implementation task is P5-007.
+P5-001 evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json). P5-002 through P5-006 evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json).
+
+#### Consolidation pre-tasks (2026-08-07)
+
+Acceptance detail, entry state, and dependencies for every remaining Phase 5 task live in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) with edges in [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json).
+
+- [ ] **P5-W1** Wire `soleaux-mcp` to `soleaux-state` and give `soleaux-vault` its first daemon consumer.
+- [ ] **P5-V1** Daemon-trusted admission receipt verifier and reviewed lifecycle oracle for external client write admission.
+
+The next open implementation task is P5-W1.
 
 #### Canonical lifecycle, materializers, and real repositories
 

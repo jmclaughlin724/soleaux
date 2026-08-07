@@ -89,7 +89,7 @@ Evidence:
 
 ## Phase 5 — current
 
-P5-001 through P5-006 are closed. The next open task is **P5-007**, followed by the remaining Phase 5 lifecycle and intelligence work.
+P5-001 through P5-006 are closed. The next open task is **P5-W1**, then P5-007, per the acceptance detail, waves, and dependency graph in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md).
 
 ### Platform adapters
 

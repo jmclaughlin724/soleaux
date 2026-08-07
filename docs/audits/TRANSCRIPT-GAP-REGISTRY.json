@@ -1,5 +1,5 @@
 {
-  "asOfDate": "2026-08-05",
+  "asOfDate": "2026-08-07",
   "canonicalBranch": "main",
   "gaps": [
     {
@@ -95,6 +95,7 @@
       "summary": "Phase 4 implemented canonical ownership, persistence, migrations, leases, audit, retention, backup, restore, and repair. P5-001 closed the daemon-owned concurrent workspace/client registry and transactional attachment convergence. Phase 5 still owns full cross-client session/history/memory/handoff/run lifecycle and materialization.",
       "tasks": [
         "P5-001",
+        "P5-W1",
         "P5-007",
         "P5-008",
         "P5-018",
@@ -139,14 +140,23 @@
     },
     {
       "area": "platform-adapters",
+      "closedTasks": [
+        "P5-002",
+        "P5-003",
+        "P5-004",
+        "P5-005",
+        "P5-006"
+      ],
       "id": "GAP-007",
-      "status": "open",
-      "summary": "Implement and live-test Claude Code Agent SDK/SessionStore/hooks, Claude Desktop supported MCP/export-import boundaries, Codex generated app-server client, and OpenCode generated OpenAPI/SSE/plugin adapter with unknown-version safe mode.",
+      "status": "phase5_matrices_closed_adapters_open",
+      "summary": "P5-002 through P5-006 closed the six-platform client capability matrix with pinned artifact verification and safe-mode read-only admission. Phase 5 still owns the daemon-trusted admission receipt verifier and the deep adapters: Claude Code Agent SDK/SessionStore/hooks, Claude Desktop supported MCP/export-import boundaries, Codex generated app-server client, and OpenCode generated OpenAPI/SSE/plugin adapter with unknown-version safe mode.",
       "tasks": [
         "P5-002",
         "P5-003",
         "P5-004",
         "P5-005",
+        "P5-006",
+        "P5-V1",
         "P5-014",
         "P5-015",
         "P5-016",
@@ -279,6 +289,17 @@
       ]
     },
     {
+      "area": "beta-validation-and-receipt",
+      "id": "GAP-017",
+      "status": "open",
+      "summary": "Validate the anilize design-partner repository and two additional approved design partners, then close Phase 5 only with an exact beta receipt and independent verification. The design-partner approval definition lives in docs/plans/PHASE5-IMPLEMENTATION-PLAN.md.",
+      "tasks": [
+        "P5-011",
+        "P5-012",
+        "P5-013"
+      ]
+    },
+    {
       "area": "superseded-proposals",
       "id": "GAP-016",
       "status": "prohibited",
@@ -310,7 +331,10 @@
     "Phase 0-2 receipts and independent verification",
     "Phase 4 alpha receipt and independent verification",
     "merged PRs #4 through #34, including Phase 4 PR #32",
-    "merged PR #36 closing P5-001"
+    "merged PR #36 closing P5-001",
+    "merged PRs #38 and #40 closing P5-002 through P5-006 with security and provenance remediation",
+    "merged PR #41 synchronizing the P5-002 through P5-006 closure documentation",
+    "chatgpt-transcript-github-repo-build-2026-08-07.md and the 2026-08-07 consolidation investigation"
   ],
   "schemaVersion": "soleaux.transcript-gap-registry/v5"
 }
