@@ -502,6 +502,7 @@ async fn workspace_registry_converges_concurrent_client_types_and_survives_resta
                     } else {
                         ClientAccessMode::ReadOnly
                     },
+                    admission_receipt: None,
                     capabilities: json!({"context":true}),
                     metadata: json!({}),
                 }))
@@ -665,12 +666,170 @@ async fn registry_rejects_oversized_inputs_and_unverified_write_elevation() {
             client_id: desktop_id,
             workspace_id,
             access_mode: ClientAccessMode::ReadWrite,
+            admission_receipt: None,
             capabilities: json!({}),
             metadata: json!({}),
         }))
         .await
         .expect_err("unverified desktop must remain read-only");
     assert!(format!("{error:#}").contains("verified daemon-trusted client compatibility decision"));
+
+    client
+        .call(IpcRequest::new(IpcMethod::Shutdown))
+        .await
+        .expect("shutdown");
+    task.await.expect("server task").expect("server exit");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn admission_receipts_flow_over_ipc_and_gate_read_write_bindings() {
+    let directory = tempdir().expect("tempdir");
+    let paths = fixture_paths(directory.path().to_path_buf());
+    let workspace_path = directory.path().join("workspace");
+    fs::create_dir_all(&workspace_path).expect("workspace");
+    let key_store = soleaux_vault::FileKeyStore::new(directory.path().join("keys").join("ring"));
+    let server = IpcServer::open_with_key_store(paths.clone(), std::sync::Arc::new(key_store))
+        .expect("server");
+    let task = tokio::spawn(server.run());
+    for _ in 0..100 {
+        if paths.endpoint.exists() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert!(
+        paths.endpoint.exists(),
+        "admission IPC endpoint was not created"
+    );
+    let client = IpcClient::new(&paths.endpoint);
+
+    let workspace = client
+        .call(IpcRequest::new(IpcMethod::WorkspaceRegister {
+            path: workspace_path.to_string_lossy().to_string(),
+            display_name: None,
+            trust_state: WorkspaceTrustState::Trusted,
+            metadata: json!({}),
+        }))
+        .await
+        .expect("workspace")
+        .result
+        .expect("workspace result");
+    let workspace_id: uuid::Uuid =
+        serde_json::from_value(workspace["workspace"]["id"].clone()).expect("workspace id");
+
+    let external = client
+        .call(IpcRequest::new(IpcMethod::ClientRegister {
+            client_kind: ClientKind::Adapter,
+            instance_id: "admitted-fixture".to_string(),
+            display_name: "Admitted fixture".to_string(),
+            client_version: "mcp-2025-11-25".to_string(),
+            protocol_version: CLIENT_PROTOCOL_VERSION.to_string(),
+            ttl_ms: 60_000,
+            capabilities: json!({}),
+            metadata: json!({"platform":"generic_mcp_host"}),
+        }))
+        .await
+        .expect("external registration")
+        .result
+        .expect("external result");
+    assert_eq!(external["writeCapable"], false);
+    let client_id: uuid::Uuid =
+        serde_json::from_value(external["client"]["id"].clone()).expect("client id");
+
+    let denied = client
+        .call(IpcRequest::new(IpcMethod::ClientBindWorkspace {
+            client_id,
+            workspace_id,
+            access_mode: ClientAccessMode::ReadWrite,
+            admission_receipt: None,
+            capabilities: json!({}),
+            metadata: json!({}),
+        }))
+        .await
+        .expect_err("read-write without a receipt must stay denied");
+    assert!(format!("{denied:#}").contains("client_workspace_binding_failed"));
+
+    let refused = client
+        .call(IpcRequest::new(IpcMethod::AdmissionIssue {
+            client_id,
+            workspace_id,
+            probe_evidence_sha256: "not-a-digest".to_string(),
+            ttl_ms: 60_000,
+        }))
+        .await
+        .expect_err("malformed probe evidence must be refused");
+    assert!(format!("{refused:#}").contains("admission_operation_failed"));
+
+    let issued = client
+        .call(IpcRequest::new(IpcMethod::AdmissionIssue {
+            client_id,
+            workspace_id,
+            probe_evidence_sha256: "a".repeat(64),
+            ttl_ms: 60_000,
+        }))
+        .await
+        .expect("issue")
+        .result
+        .expect("issue result");
+    assert_eq!(issued["schemaVersion"], "soleaux.admission-issue/v1");
+    assert_eq!(issued["productionClaimAllowed"], false);
+    let receipt: AdmissionReceipt =
+        serde_json::from_value(issued["receipt"].clone()).expect("receipt");
+    assert_eq!(receipt.schema_version, ADMISSION_RECEIPT_SCHEMA_VERSION);
+
+    let verified = client
+        .call(IpcRequest::new(IpcMethod::AdmissionVerify {
+            receipt: receipt.clone(),
+        }))
+        .await
+        .expect("verify")
+        .result
+        .expect("verify result");
+    assert_eq!(verified["verified"], true);
+    assert_eq!(verified["platform"], "generic_mcp_host");
+
+    let mut forged = receipt.clone();
+    forged.expires_at_unix_ms += 60_000;
+    let rejected = client
+        .call(IpcRequest::new(IpcMethod::AdmissionVerify {
+            receipt: forged,
+        }))
+        .await
+        .expect_err("a tampered receipt must be rejected");
+    assert!(format!("{rejected:#}").contains("admission_operation_failed"));
+
+    let bound = client
+        .call(IpcRequest::new(IpcMethod::ClientBindWorkspace {
+            client_id,
+            workspace_id,
+            access_mode: ClientAccessMode::ReadWrite,
+            admission_receipt: Some(receipt),
+            capabilities: json!({}),
+            metadata: json!({}),
+        }))
+        .await
+        .expect("receipt-admitted binding")
+        .result
+        .expect("binding result");
+    assert_eq!(bound["binding"]["payload"]["accessMode"], "read_write");
+    assert_eq!(bound["admission"]["receiptVerified"], true);
+
+    let heartbeat = client
+        .call(IpcRequest::new(IpcMethod::ClientHeartbeat {
+            client_id,
+            ttl_ms: 60_000,
+            capabilities: None,
+        }))
+        .await
+        .expect("heartbeat")
+        .result
+        .expect("heartbeat result");
+    assert_eq!(heartbeat["writeCapable"], false);
+    assert_eq!(
+        heartbeat["bindings"][0]["payload"]["accessMode"], "read_write",
+        "an unexpired admission survives revalidation"
+    );
 
     client
         .call(IpcRequest::new(IpcMethod::Shutdown))

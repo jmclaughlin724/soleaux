@@ -1136,10 +1136,16 @@ pub(crate) fn registry_bind_client_workspace(
         if workspace_payload.trust_state != WorkspaceTrustState::Trusted {
             bail!("read-write binding requires a trusted workspace");
         }
-        if !client_payload.write_capable
-            || client_payload.compatibility_state != ClientCompatibilityState::Verified
-        {
-            bail!("read-write binding requires a verified client compatibility matrix");
+        let verified_internal = client_payload.write_capable
+            && client_payload.compatibility_state == ClientCompatibilityState::Verified;
+        let admitted = binding_payload
+            .admission
+            .as_ref()
+            .is_some_and(|admission| admission.admits_write_at(unix_ms()));
+        if !verified_internal && !admitted {
+            bail!(
+                "read-write binding requires a verified client compatibility matrix or an unexpired daemon-verified admission receipt"
+            );
         }
     }
     let mut current = input.clone();
@@ -1253,10 +1259,17 @@ fn refresh_client_bindings_tx(
         }
         let workspace_payload: WorkspacePayload = typed_payload(&workspace)?;
         let mut binding: ClientWorkspaceBindingPayload = typed_payload(&existing)?;
+        let verified_internal = client_payload.write_capable
+            && client_payload.compatibility_state == ClientCompatibilityState::Verified;
+        // A receipt admission keeps its read-write elevation exactly until the
+        // receipt expiry; the admission record stays behind for audit.
+        let admitted = binding
+            .admission
+            .as_ref()
+            .is_some_and(|admission| admission.admits_write_at(unix_ms()));
         if binding.access_mode == ClientAccessMode::ReadWrite
             && (workspace_payload.trust_state != WorkspaceTrustState::Trusted
-                || !client_payload.write_capable
-                || client_payload.compatibility_state != ClientCompatibilityState::Verified)
+                || (!verified_internal && !admitted))
         {
             binding.access_mode = ClientAccessMode::ReadOnly;
         }

@@ -2,10 +2,11 @@ use crate::{DaemonStatus, IPC_SCHEMA_VERSION, IpcMethod, IpcRequest, IpcResponse
 use anyhow::{Context, Result, anyhow};
 use serde_json::json;
 use soleaux_state::StateStore;
-use soleaux_vault::{OsKeyStore, PolicyEngine};
+use soleaux_vault::{KeyStore, OsKeyStore, PolicyEngine};
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -17,20 +18,30 @@ pub struct IpcServer {
     paths: SoleauxPaths,
     state: StateStore,
     capability_policy: PolicyEngine,
-    vault_key_store: OsKeyStore,
+    vault_key_store: Arc<dyn KeyStore>,
     started_at_unix_ms: i64,
 }
 
 impl IpcServer {
     pub fn open(paths: SoleauxPaths) -> Result<Self> {
+        // Handle only: key material is loaded or created on first vault or
+        // admission use, never as a daemon-boot side effect.
+        let vault_key_store = OsKeyStore::new(VAULT_KEYCHAIN_SERVICE, VAULT_KEYCHAIN_ACCOUNT)
+            .context("constructing the daemon vault key store")?;
+        Self::open_with_key_store(paths, Arc::new(vault_key_store))
+    }
+
+    /// Test seam: production boots always hold the OS keychain handle through
+    /// [`IpcServer::open`]; tests substitute memory or file key stores so the
+    /// OS keychain is never touched.
+    pub(crate) fn open_with_key_store(
+        paths: SoleauxPaths,
+        vault_key_store: Arc<dyn KeyStore>,
+    ) -> Result<Self> {
         paths.create_directories()?;
         let state = StateStore::open(&paths.state_database)?;
         // Deny-by-default until P5-020 orchestration issues reviewed grants.
         let capability_policy = PolicyEngine::new();
-        // Handle only: key material is loaded or created on first vault use,
-        // never as a daemon-boot side effect.
-        let vault_key_store = OsKeyStore::new(VAULT_KEYCHAIN_SERVICE, VAULT_KEYCHAIN_ACCOUNT)
-            .context("constructing the daemon vault key store")?;
         Ok(Self {
             paths,
             state,
@@ -48,7 +59,7 @@ impl IpcServer {
         &self.capability_policy
     }
 
-    pub fn vault_key_store(&self) -> &OsKeyStore {
+    pub fn vault_key_store(&self) -> &Arc<dyn KeyStore> {
         &self.vault_key_store
     }
 
@@ -182,18 +193,37 @@ impl IpcServer {
                 client_id,
                 workspace_id,
                 access_mode,
+                admission_receipt,
                 capabilities,
                 metadata,
             } => crate::registry::bind_client_workspace(
                 &self.state,
+                self.vault_key_store.as_ref(),
                 *client_id,
                 *workspace_id,
                 *access_mode,
+                admission_receipt.as_ref(),
                 capabilities.clone(),
                 metadata.clone(),
             ),
             IpcMethod::ClientUnbindWorkspace { binding_id } => {
                 crate::registry::unbind_client_workspace(&self.state, *binding_id)
+            }
+            IpcMethod::AdmissionIssue {
+                client_id,
+                workspace_id,
+                probe_evidence_sha256,
+                ttl_ms,
+            } => crate::admission::issue(
+                &self.state,
+                self.vault_key_store.as_ref(),
+                *client_id,
+                *workspace_id,
+                probe_evidence_sha256,
+                *ttl_ms,
+            ),
+            IpcMethod::AdmissionVerify { receipt } => {
+                crate::admission::verify(&self.state, self.vault_key_store.as_ref(), receipt)
             }
             IpcMethod::SessionCreate {
                 workspace_id,
@@ -364,6 +394,9 @@ fn error_code(method: &IpcMethod) -> &'static str {
         | IpcMethod::ClientDisconnect { .. } => "client_registry_failed",
         IpcMethod::ClientBindWorkspace { .. } | IpcMethod::ClientUnbindWorkspace { .. } => {
             "client_workspace_binding_failed"
+        }
+        IpcMethod::AdmissionIssue { .. } | IpcMethod::AdmissionVerify { .. } => {
+            "admission_operation_failed"
         }
         IpcMethod::SessionCreate { .. }
         | IpcMethod::SessionList { .. }

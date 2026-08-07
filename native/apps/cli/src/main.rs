@@ -776,6 +776,9 @@ async fn main() -> Result<()> {
                     client_id,
                     workspace_id,
                     access_mode,
+                    // Receipt-admitted external binds arrive through adapters
+                    // (P5-014+); the CLI itself binds on the internal path.
+                    admission_receipt: None,
                     capabilities: parse_json_argument(&capabilities, "--capabilities")?,
                     metadata: parse_json_argument(&metadata, "--metadata")?,
                 })

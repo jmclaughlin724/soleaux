@@ -103,6 +103,46 @@ pub fn client_capability_matrix_summary() -> Result<Value> {
     }))
 }
 
+/// One exact external matrix entry, resolved for admission-receipt issuance
+/// and verification. Resolution never grants write capability by itself: the
+/// internal Soleaux CLI is not a matrix platform, so it can never take a
+/// receipt, and unknown platforms, mismatched kinds, and unlisted versions
+/// fail closed.
+pub(crate) struct AdmissionMatrixEntry {
+    pub(crate) platform: String,
+    pub(crate) matrix_sha256: String,
+}
+
+pub(crate) fn admission_matrix_entry(
+    client_kind: ClientKind,
+    client_version: &str,
+    platform_id: &str,
+) -> Result<AdmissionMatrixEntry> {
+    let matrix = load_matrix()?;
+    validate_matrix(&matrix)?;
+    let platform = matrix
+        .platforms
+        .iter()
+        .find(|candidate| candidate.id == platform_id)
+        .with_context(|| {
+            format!("client platform {platform_id} is not present in the capability matrix")
+        })?;
+    if platform.client_kind != client_kind {
+        bail!("client kind does not match the capability matrix platform");
+    }
+    if !platform
+        .versions
+        .iter()
+        .any(|candidate| candidate.version == client_version)
+    {
+        bail!("client version {client_version} is not an exact capability matrix entry");
+    }
+    Ok(AdmissionMatrixEntry {
+        platform: platform.id.clone(),
+        matrix_sha256: client_capability_matrix_sha256(),
+    })
+}
+
 pub(crate) fn evaluate_client_compatibility(
     client_kind: ClientKind,
     client_version: &str,

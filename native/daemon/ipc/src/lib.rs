@@ -4,6 +4,7 @@
 //! same-user Unix socket and share the daemon-owned state boundary; unsupported transports fail
 //! closed rather than silently bypassing peer checks.
 
+mod admission;
 mod client;
 mod compatibility;
 mod paths;
@@ -15,6 +16,7 @@ mod session;
 #[cfg(unix)]
 mod unix;
 
+pub use admission::{ADMISSION_RECEIPT_SCHEMA_VERSION, AdmissionError, AdmissionReceipt};
 pub use client::IpcClient;
 pub use compatibility::{
     CLIENT_CAPABILITY_MATRIX_JSON, CLIENT_CAPABILITY_MATRIX_SCHEMA_VERSION,

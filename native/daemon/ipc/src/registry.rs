@@ -1,5 +1,6 @@
 use crate::{
     IPC_MAX_FRAME_BYTES,
+    admission::AdmissionReceipt,
     compatibility::{client_capability_matrix_summary, evaluate_client_compatibility},
 };
 use anyhow::{Context, Result, bail};
@@ -8,12 +9,13 @@ use serde_json::{Value, json};
 #[cfg(test)]
 use soleaux_state::ClientCompatibilityState;
 use soleaux_state::{
-    CanonicalEntityInput, ClientAccessMode, ClientKind, ClientRegistrationPayload,
-    ClientRegistrationResult, ClientWorkspaceBindingPayload, LOCKED_CONTEXT_PACKET_SHA256,
-    LOCKED_PROFILE_SHA256, PUBLIC_TOOL_CEILING, REGISTRY_JSON_FIELD_MAX_BYTES,
-    REGISTRY_PAGE_LIMIT_DEFAULT, REGISTRY_TEXT_FIELD_MAX_BYTES, StateStore, WorkspacePayload,
-    WorkspaceTrustState,
+    CanonicalEntityInput, ClientAccessMode, ClientBindingAdmission, ClientKind,
+    ClientRegistrationPayload, ClientRegistrationResult, ClientWorkspaceBindingPayload,
+    LOCKED_CONTEXT_PACKET_SHA256, LOCKED_PROFILE_SHA256, PUBLIC_TOOL_CEILING,
+    REGISTRY_JSON_FIELD_MAX_BYTES, REGISTRY_PAGE_LIMIT_DEFAULT, REGISTRY_TEXT_FIELD_MAX_BYTES,
+    StateStore, WorkspacePayload, WorkspaceTrustState,
 };
+use soleaux_vault::KeyStore;
 use std::{
     fs,
     path::Path,
@@ -312,21 +314,51 @@ pub(crate) fn disconnect_client(state: &StateStore, client_id: Uuid) -> Result<V
     }))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn bind_client_workspace(
     state: &StateStore,
+    admission_key_store: &dyn KeyStore,
     client_id: Uuid,
     workspace_id: Uuid,
     access_mode: ClientAccessMode,
+    admission_receipt: Option<&AdmissionReceipt>,
     capabilities: Value,
     metadata: Value,
 ) -> Result<Value> {
     validate_json_field(&capabilities, "binding capabilities")?;
     validate_json_field(&metadata, "binding metadata")?;
     let (_result, compatibility) = revalidate_client(state, client_id, None, None, false)?;
+    let mut admission = Value::Null;
+    let mut admitted_by_receipt = None;
     if access_mode == ClientAccessMode::ReadWrite && !compatibility.write_capable {
-        bail!(
-            "read-write binding requires a currently verified daemon-trusted client compatibility decision"
-        );
+        let Some(receipt) = admission_receipt else {
+            bail!(
+                "read-write binding requires a currently verified daemon-trusted client compatibility decision or a daemon-issued admission receipt"
+            );
+        };
+        crate::admission::verify_receipt(
+            state,
+            admission_key_store,
+            receipt,
+            client_id,
+            workspace_id,
+            unix_ms(),
+        )?;
+        admission = json!({
+            "receiptVerified":true,
+            "platform":receipt.platform,
+            "clientVersion":receipt.client_version,
+            "issuedAtUnixMs":receipt.issued_at_unix_ms,
+            "expiresAtUnixMs":receipt.expires_at_unix_ms,
+            "probeEvidenceSha256":receipt.probe_evidence_sha256,
+        });
+        admitted_by_receipt = Some(ClientBindingAdmission {
+            receipt_matrix_sha256: receipt.matrix_sha256.clone(),
+            probe_evidence_sha256: receipt.probe_evidence_sha256.clone(),
+            issued_at_unix_ms: receipt.issued_at_unix_ms,
+            expires_at_unix_ms: receipt.expires_at_unix_ms,
+            key_version: receipt.key_version,
+        });
     }
     let now = unix_ms();
     let native_id = format!("{client_id}:{workspace_id}");
@@ -337,6 +369,7 @@ pub(crate) fn bind_client_workspace(
         binding_state: "bound".to_string(),
         attached_at_unix_ms: now,
         last_seen_at_unix_ms: now,
+        admission: admitted_by_receipt,
         capabilities,
         metadata,
     };
@@ -352,6 +385,7 @@ pub(crate) fn bind_client_workspace(
     bounded_response(json!({
         "schemaVersion":"soleaux.client-workspace-binding/v1",
         "binding":record,
+        "admission":admission,
         "productionClaimAllowed":false,
     }))
 }
@@ -534,7 +568,7 @@ fn expiration(now: i64, ttl_ms: u64) -> Result<i64> {
         .context("client expiration time overflow")
 }
 
-fn unix_ms() -> i64 {
+pub(crate) fn unix_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -629,9 +663,11 @@ mod compatibility_regression_tests {
 
         let error = bind_client_workspace(
             &state,
+            &soleaux_vault::MemoryKeyStore::default(),
             stale.id,
             workspace_id,
             ClientAccessMode::ReadWrite,
+            None,
             json!({}),
             json!({}),
         )
@@ -646,5 +682,112 @@ mod compatibility_regression_tests {
             ClientCompatibilityState::Unprobed
         );
         assert!(!updated.payload.write_capable);
+    }
+
+    #[test]
+    fn read_write_binding_admits_only_daemon_issued_receipts() {
+        let directory = tempdir().expect("tempdir");
+        let workspace_path = directory.path().join("workspace");
+        let other_path = directory.path().join("other");
+        fs::create_dir_all(&workspace_path).expect("workspace");
+        fs::create_dir_all(&other_path).expect("other workspace");
+        let state = StateStore::open(directory.path().join("state.sqlite3")).expect("state");
+        let key_store = soleaux_vault::MemoryKeyStore::default();
+        let workspace_id = registered_workspace_id(&state, &workspace_path);
+        let other_workspace_id = registered_workspace_id(&state, &other_path);
+
+        let client = register_client(
+            &state,
+            ClientKind::Adapter,
+            "admitted-external".to_string(),
+            "admitted external".to_string(),
+            "mcp-2025-11-25".to_string(),
+            CLIENT_PROTOCOL_VERSION.to_string(),
+            60_000,
+            json!({}),
+            json!({"platform":"generic_mcp_host"}),
+        )
+        .expect("client registration");
+        assert_eq!(client["writeCapable"], false);
+        let client_id: Uuid =
+            serde_json::from_value(client["client"]["id"].clone()).expect("client id");
+
+        let denied = bind_client_workspace(
+            &state,
+            &key_store,
+            client_id,
+            workspace_id,
+            ClientAccessMode::ReadWrite,
+            None,
+            json!({}),
+            json!({}),
+        )
+        .expect_err("read-write without a receipt must stay denied");
+        assert!(format!("{denied:#}").contains("daemon-issued admission receipt"));
+
+        let issued = crate::admission::issue(
+            &state,
+            &key_store,
+            client_id,
+            workspace_id,
+            &"a".repeat(64),
+            60_000,
+        )
+        .expect("issue receipt");
+        let receipt: AdmissionReceipt =
+            serde_json::from_value(issued["receipt"].clone()).expect("receipt");
+
+        let wrong_workspace = bind_client_workspace(
+            &state,
+            &key_store,
+            client_id,
+            other_workspace_id,
+            ClientAccessMode::ReadWrite,
+            Some(&receipt),
+            json!({}),
+            json!({}),
+        )
+        .expect_err("a receipt for another workspace must be rejected");
+        assert!(format!("{wrong_workspace:#}").contains("does not name this workspace"));
+
+        let bound = bind_client_workspace(
+            &state,
+            &key_store,
+            client_id,
+            workspace_id,
+            ClientAccessMode::ReadWrite,
+            Some(&receipt),
+            json!({}),
+            json!({}),
+        )
+        .expect("read-write with a valid receipt");
+        assert_eq!(bound["binding"]["payload"]["accessMode"], "read_write");
+        assert_eq!(bound["admission"]["receiptVerified"], true);
+        assert_eq!(bound["admission"]["platform"], "generic_mcp_host");
+
+        let read_only = bind_client_workspace(
+            &state,
+            &key_store,
+            client_id,
+            other_workspace_id,
+            ClientAccessMode::ReadOnly,
+            None,
+            json!({}),
+            json!({}),
+        )
+        .expect("read-only binding never needs a receipt");
+        assert_eq!(read_only["admission"], Value::Null);
+    }
+
+    fn registered_workspace_id(state: &StateStore, path: &std::path::Path) -> Uuid {
+        let workspace = register_workspace(
+            state,
+            path.to_str().expect("utf8"),
+            None,
+            WorkspaceTrustState::Trusted,
+            json!({}),
+        )
+        .expect("workspace registration");
+        serde_json::from_value(workspace["workspace"]["id"].clone()).expect("workspace id")
     }
 }
