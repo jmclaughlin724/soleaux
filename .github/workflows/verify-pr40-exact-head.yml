@@ -1,0 +1,316 @@
+name: Verify PR40 exact product head
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  discover:
+    if: github.event.issue.pull_request && github.event.issue.number == 40 && github.event.comment.body == '/verify-pr40-exact-head'
+    runs-on: ubuntu-24.04
+    outputs:
+      source_commit: ${{ steps.pr.outputs.source_commit }}
+    steps:
+      - id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          source_commit="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/40" --jq '.head.sha')"
+          test -n "$source_commit"
+          echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$source_commit" > /tmp/SOURCE_COMMIT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr40-source-${{ github.run_id }}
+          path: /tmp/SOURCE_COMMIT
+          if-no-files-found: error
+
+  python:
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.source_commit }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+      - uses: astral-sh/setup-uv@v7
+      - name: Run complete repository and documentation gates
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ needs.discover.outputs.source_commit }}'
+          pnpm install --frozen-lockfile
+          uv sync --locked
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+          uv run --locked pyright
+          python3 scripts/check_documentation_consistency.py
+          uv run --locked pytest -q | tee /tmp/python.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr40-python-${{ github.run_id }}
+          path: /tmp/python.txt
+          if-no-files-found: warn
+
+  rust:
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.source_commit }}
+          fetch-depth: 0
+      - name: Install native prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - name: Run complete native gates
+        working-directory: native
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ needs.discover.outputs.source_commit }}'
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked | tee /tmp/rust.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr40-rust-${{ github.run_id }}
+          path: /tmp/rust.txt
+          if-no-files-found: warn
+
+  lifecycle:
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.source_commit }}
+          fetch-depth: 0
+      - name: Install native prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+      - uses: taiki-e/install-action@cargo-audit
+      - name: Build and exercise every release interface
+        working-directory: native
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ needs.discover.outputs.source_commit }}'
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --help | tee /tmp/soleaux-help.txt
+          ./target/release/soleaux --version | tee /tmp/soleaux-version.txt
+          ./target/release/soleauxd --help | tee /tmp/soleauxd-help.txt
+          ./target/release/soleauxd --version | tee /tmp/soleauxd-version.txt
+          python3 scripts/phase1_mcp_smoke.py target/release/soleaux . /tmp/phase1.json
+          python3 scripts/phase2_capability_smoke.py target/release/soleaux target/release/soleauxd . /tmp/phase2.json
+          python3 scripts/p5_registry_smoke.py target/release/soleaux target/release/soleauxd . /tmp/p5-registry.json
+          python3 scripts/p5_client_matrix_smoke.py target/release/soleaux target/release/soleauxd . /tmp/p5-client.json
+          cargo audit --deny warnings | tee /tmp/audit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr40-lifecycle-${{ github.run_id }}
+          path: |
+            /tmp/soleaux-help.txt
+            /tmp/soleaux-version.txt
+            /tmp/soleauxd-help.txt
+            /tmp/soleauxd-version.txt
+            /tmp/phase1.json
+            /tmp/phase2.json
+            /tmp/p5-registry.json
+            /tmp/p5-client.json
+            /tmp/audit.txt
+          if-no-files-found: warn
+
+  client-contract:
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.source_commit }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - name: Prove the closed matrix and adversarial probe behavior
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ needs.discover.outputs.source_commit }}'
+          uv sync --locked
+          python3 native/scripts/validate_client_capability_matrix.py --self-test --output /tmp/self-test.json
+          python3 native/scripts/validate_client_capability_matrix.py --output /tmp/matrix.json
+          uv run --locked pytest tests/test_client_capability_matrix.py -q | tee /tmp/client-tests.txt
+          test ! -e .ci/p5-client-review-fixes.py
+          test ! -e .ci/p5-client-wave2-hardening.py
+          test ! -e .github/workflows/p5-client-review-fixes.yml
+          test ! -e .github/workflows/p5-client-wave2-hardening.yml
+          test ! -e .github/workflows/p5-claude-package-integrity.yml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr40-client-contract-${{ github.run_id }}
+          path: |
+            /tmp/self-test.json
+            /tmp/matrix.json
+            /tmp/client-tests.txt
+          if-no-files-found: error
+
+  vendor:
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [claude_code, codex, opencode]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.source_commit }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        if: matrix.platform == 'claude_code' || matrix.platform == 'codex'
+        with:
+          node-version: '24'
+      - name: Verify the immutable platform artifact
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ needs.discover.outputs.source_commit }}'
+          python3 native/scripts/validate_client_capability_matrix.py \
+            --platform '${{ matrix.platform }}' --output /tmp/validation.json
+          python3 native/scripts/verify_pinned_client_artifact.py \
+            --platform '${{ matrix.platform }}' --download-dir /tmp/package \
+            --output /tmp/artifact.json
+          if [ '${{ matrix.platform }}' = claude_code ]; then
+            archive="$(python3 -c 'import json; print(json.load(open("/tmp/artifact.json"))["artifactPath"])')"
+            npm install --global "$archive"
+            claude --version | tee /tmp/installed-version.txt
+            python3 native/scripts/probe_client_capabilities.py \
+              --platform claude_code --binary claude --output /tmp/probe.json
+          elif [ '${{ matrix.platform }}' = codex ]; then
+            archive="$(python3 -c 'import json; print(json.load(open("/tmp/artifact.json"))["artifactPath"])')"
+            npm install --global "$archive" --ignore-scripts
+            python3 native/scripts/probe_client_capabilities.py \
+              --platform codex --binary codex --output /tmp/probe.json
+          else
+            archive="$(python3 -c 'import json; print(json.load(open("/tmp/artifact.json"))["artifactPath"])')"
+            mkdir -p /tmp/opencode
+            tar -xzf "$archive" -C /tmp/opencode
+            binary="$(find /tmp/opencode -type f -name opencode -print -quit)"
+            test -n "$binary"
+            chmod +x "$binary"
+            python3 native/scripts/probe_client_capabilities.py \
+              --platform opencode --binary "$binary" --output /tmp/probe.json
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr40-vendor-${{ matrix.platform }}-${{ github.run_id }}
+          path: |
+            /tmp/validation.json
+            /tmp/artifact.json
+            /tmp/probe.json
+            /tmp/installed-version.txt
+          if-no-files-found: warn
+
+  macos:
+    needs: discover
+    runs-on: macos-15
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.source_commit }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - name: Run exact macOS native matrix
+        working-directory: native
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ needs.discover.outputs.source_commit }}'
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          ./target/release/soleaux --version | tee /tmp/macos-soleaux-version.txt
+          ./target/release/soleauxd --version | tee /tmp/macos-soleauxd-version.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr40-macos-${{ github.run_id }}
+          path: |
+            /tmp/macos-soleaux-version.txt
+            /tmp/macos-soleauxd-version.txt
+          if-no-files-found: warn
+
+  aggregate:
+    needs: [discover, python, rust, lifecycle, client-contract, vendor, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pr40-*-${{ github.run_id }}
+          path: /tmp/evidence
+      - name: Bind all parallel evidence to the exact head
+        env:
+          SOURCE_COMMIT: ${{ needs.discover.outputs.source_commit }}
+        run: |
+          set -euo pipefail
+          find /tmp/evidence -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/SHA256SUMS
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = {
+              'schemaVersion': 'soleaux.pr40-exact-head-verification/v1',
+              'sourceCommit': os.environ['SOURCE_COMMIT'],
+              'workstreams': [
+                  'python', 'rust', 'lifecycle', 'client-contract',
+                  'claude-code', 'codex', 'opencode', 'macos'
+              ],
+              'publicToolCeiling': 12,
+              'productionClaimAllowed': False,
+              'status': 'pass',
+          }
+          Path('/tmp/RECEIPT.json').write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-pr40-exact-head-${{ github.run_id }}
+          path: |
+            /tmp/evidence
+            /tmp/SHA256SUMS
+            /tmp/RECEIPT.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,104 @@
+name: Publish final PR40 registry review fix
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: write
+
+jobs:
+  fix-test-publish:
+    if: github.event.issue.pull_request && github.event.issue.number == 40 && github.event.comment.body == '/run-pr40-final'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      TARGET_BRANCH: fix/p5-client-matrix-post-merge-remediation
+      EXPECTED_HEAD: cbe173fdfc1155ee156aa1e3ddf63e86700db681
+      PRIMARY_CODEMOD_COMMIT: 6fd4d0cd7ced0d90a0c4bee4626540bf877f2564
+      ASSERTION_CODEMOD_COMMIT: 34374be0d8848fb81cb0c91e958f9c314c5be941
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Verify exact source and materialize immutable codemods
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch origin main
+          for commit in "$PRIMARY_CODEMOD_COMMIT" "$ASSERTION_CODEMOD_COMMIT"; do
+            git cat-file -e "$commit^{commit}"
+          done
+          git show "$PRIMARY_CODEMOD_COMMIT:.ci/fix-pr40-registry-atomicity.py" > /tmp/fix-primary.py
+          git show "$ASSERTION_CODEMOD_COMMIT:.ci/fix-pr40-final-ipc-assertion.py" > /tmp/fix-assertion.py
+          python3 -m py_compile /tmp/fix-primary.py /tmp/fix-assertion.py
+          sha256sum /tmp/fix-primary.py /tmp/fix-assertion.py | tee /tmp/CODEMOD-SHA256SUMS
+
+      - name: Install native build prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake libclang-dev llvm-dev pkg-config protobuf-compiler python3-jsonschema
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply final source and run complete native gates
+        run: |
+          set -euo pipefail
+          python3 /tmp/fix-primary.py
+          python3 /tmp/fix-assertion.py
+          cd native
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test -p soleaux-state --all-features --locked registry_client_revalidation
+          cargo test -p soleaux-ipc --all-features --locked
+          cargo test --workspace --all-features --locked
+          cd ..
+          git diff --check
+
+      - name: Commit the exact validated five-file source
+        run: |
+          set -euo pipefail
+          files=(
+            native/daemon/ipc/src/compatibility.rs
+            native/daemon/ipc/src/registry.rs
+            native/daemon/ipc/src/tests.rs
+            native/daemon/state/src/database.rs
+            native/daemon/state/src/tests.rs
+          )
+          git add "${files[@]}"
+          git diff --cached --check
+          git diff --cached --name-only | sort > /tmp/CHANGED-FILES
+          printf '%s\n' "${files[@]}" | sort > /tmp/EXPECTED-FILES
+          diff -u /tmp/EXPECTED-FILES /tmp/CHANGED-FILES
+          git write-tree > /tmp/TESTED-TREE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(registry): serialize compatibility revalidation'
+          test "$(git rev-parse HEAD^{tree})" = "$(cat /tmp/TESTED-TREE)"
+          git rev-parse HEAD | tee /tmp/SOURCE-COMMIT
+          git rev-parse HEAD^{tree} | tee /tmp/SOURCE-TREE
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soleaux-pr40-final-registry-fix-${{ github.run_id }}
+          path: |
+            /tmp/CODEMOD-SHA256SUMS
+            /tmp/CHANGED-FILES
+            /tmp/TESTED-TREE
+            /tmp/SOURCE-COMMIT
+            /tmp/SOURCE-TREE
+          if-no-files-found: error
+          retention-days: 30
