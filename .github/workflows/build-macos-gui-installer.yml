@@ -48,6 +48,40 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt, clippy
 
+      - name: Apply deterministic macOS portability normalization
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("native/daemon/vault/src/keyring.rs")
+          text = path.read_text(encoding="utf-8")
+          old = '''use std::{
+              collections::BTreeMap,
+              fs,
+              io::Write,
+              path::{Path, PathBuf},
+              process::{Command, Stdio},
+              sync::{Arc, Mutex},
+          };
+          '''
+          new = '''use std::{
+              collections::BTreeMap,
+              fs,
+              path::{Path, PathBuf},
+              process::Command,
+              sync::{Arc, Mutex},
+          };
+          #[cfg(target_os = "linux")]
+          use std::{io::Write, process::Stdio};
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("macOS keyring import normalization target drifted")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          (cd native && cargo fmt --all)
+          git diff --check
+
       - name: Build verified Apple Silicon binaries
         working-directory: native
         run: |
@@ -69,7 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/build-macos-gui-installer.sh
-          SOURCE_COMMIT="$SOURCE_COMMIT" \
+          SOURCE_COMMIT="$SOURCE_COMMIT+macos-portability-normalization" \
             scripts/build-macos-gui-installer.sh \
             "$GITHUB_WORKSPACE" \
             "$GITHUB_WORKSPACE/native/target/release" \
