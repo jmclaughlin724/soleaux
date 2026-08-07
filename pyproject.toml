@@ -129,6 +129,7 @@ line-length = 100
 required-version = "==0.15.22"
 target-version = "py314"
 extend-exclude = [
+  "native/daemon/intelligence/tests/fixtures/damaged",
   "native/scripts/phase1_mcp_smoke.py",
   "native/scripts/phase2_capability_smoke.py",
 ]

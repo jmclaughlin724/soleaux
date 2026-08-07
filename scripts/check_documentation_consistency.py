@@ -74,8 +74,8 @@ if status.get("currentPhase", {}).get("status") != "in_progress":
 phase_by_number = {phase["number"]: phase for phase in status["phases"]}
 if phase_by_number[4]["status"] != "closed":
     fail("Phase 4 must be closed")
-if phase_by_number[3]["status"] != "deferred_reconciliation_required":
-    fail("Phase 3 must remain deferred")
+if phase_by_number[3]["status"] not in ("deferred_reconciliation_required", "frozen_ready"):
+    fail("Phase 3 must be deferred or explicitly frozen-ready")
 if status["publicMcp"]["hardCeiling"] != 12:
     fail("public ceiling drifted")
 if status["publicMcp"]["canonicalTools"] != CANONICAL_TOOLS:
@@ -145,7 +145,7 @@ if gaps["GAP-006"]["status"] != "closed":
     fail("CLI/service/IPC gap must be closed")
 
 phase3 = load_json("docs/experiments/phase3/STATUS.json")
-if phase3.get("status") != "deferred_reconciliation_required":
+if phase3.get("status") not in ("deferred_reconciliation_required", "frozen_ready"):
     fail("Phase 3 status drifted")
 if phase3.get("phase3Started") is not False:
     fail("Phase 3 must remain unstarted")
