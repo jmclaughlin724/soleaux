@@ -5,8 +5,9 @@
   "properties": {
     "arm": {
       "enum": [
-        "baseline",
-        "treatment"
+        "control_no_soleaux",
+        "historical_python",
+        "native_treatment"
       ]
     },
     "artifacts": {

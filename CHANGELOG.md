@@ -55,6 +55,11 @@ The project is licensed under MIT.
 - Merged PRs #46 and #47: the daemon-owned session/history service with a validated active/archived state machine enforced at every canonical write, typed IPC for sessions/turns/messages with bounded pages, race-free turn ordinals via the idempotency unique index, bounded lineage traversal, adapter-idempotent native-identity upserts, the memory.search session-scope canonical section (locked scope enum untouched), the `soleaux://sessions` MCP resources, and attach-only-if-exists canonical-state wiring in serve.
 - Persisted [`P5-007-CLOSURE-RECEIPT.json`](P5-007-CLOSURE-RECEIPT.json); the next open implementation task is P5-008.
 
+### Phase 3 prerequisites — measurement schema and checker unpin — 2026-08-07
+
+- Fixed the Phase 3 measurement schema's arm enum from the superseded two-arm design to the frozen three arms (`control_no_soleaux`, `historical_python`, `native_treatment`), so control-arm run records can validate.
+- Relaxed the consistency checker's Phase 3 pins to the closed set {deferred, frozen-ready}, making owner reactivation possible without editing the enforcement script; every other value still fails.
+
 ### Phase 5 — activated
 
 - Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.
