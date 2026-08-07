@@ -10,6 +10,7 @@ pub mod editor;
 pub mod envelope;
 pub mod gateway;
 pub mod http;
+pub mod materializer;
 pub mod memory;
 pub mod profile;
 pub mod provisioning;
@@ -241,6 +242,67 @@ impl PublicMcpServer {
 
     pub fn canonical_state(&self) -> Option<&StateStore> {
         self.canonical_state.as_ref()
+    }
+
+    /// Compile the P5-008 cross-host materialization plan for canonical
+    /// rules, skills, and agents. Daemon/service-level only: materialization
+    /// never appears in `tools/list` and never inflates the public catalog.
+    pub fn materialize_plan(
+        &self,
+        objects: &[materializer::MaterializeObject],
+        targets: &[materializer::TargetPlatform],
+    ) -> Result<materializer::MaterializePlan> {
+        materializer::compile_materialization(self.root(), objects, targets)
+    }
+
+    /// Apply a P5-008 materialization: compile, back up, atomically apply,
+    /// verify the native load digests, refresh the index and registry
+    /// projection, and persist `MaterializationPayload` records only when the
+    /// canonical state database is attached. `recordsPersisted` stays truthful
+    /// when it is not.
+    pub async fn materialize_apply(
+        &self,
+        objects: &[materializer::MaterializeObject],
+        targets: &[materializer::TargetPlatform],
+    ) -> Result<Value> {
+        let (plan, receipt) = materializer::apply_materialization(self.root(), objects, targets)?;
+        let mut warnings = Vec::new();
+        if let Err(error) = self.index.refresh().await {
+            warnings.push(format!(
+                "index refresh failed after materialization: {error:#}"
+            ));
+        }
+        if let Err(error) = self.refresh_registry_read_state() {
+            warnings.push(format!(
+                "registry refresh failed after materialization: {error:#}"
+            ));
+        }
+        let (records_persisted, records) = match self.canonical_state() {
+            Some(state) => {
+                let workspace_id = self.canonical_workspace_record().map(|record| record.id);
+                let records = materializer::persist_materialization_records(
+                    state,
+                    workspace_id,
+                    &plan,
+                    &receipt,
+                );
+                let persisted = !records.is_empty()
+                    && records
+                        .iter()
+                        .all(|record| record.materialization_id.is_some());
+                (persisted, records)
+            }
+            None => (false, Vec::new()),
+        };
+        Ok(json!({
+            "schemaVersion": "soleaux.materialization/v1",
+            "plan": plan,
+            "receipt": receipt,
+            "recordsPersisted": records_persisted,
+            "records": records,
+            "warnings": warnings,
+            "productionClaimAllowed": false,
+        }))
     }
 
     pub fn substitute_tool(mut self, replace: &str, with: &str) -> Result<Self> {

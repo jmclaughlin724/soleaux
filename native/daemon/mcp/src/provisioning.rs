@@ -514,7 +514,7 @@ fn rollback_reverts(changed: &[&PreparedRevert]) -> Result<()> {
     }
 }
 
-fn cleanup_backup_root(backup_root: &Path) -> Result<()> {
+pub(crate) fn cleanup_backup_root(backup_root: &Path) -> Result<()> {
     if backup_root.exists() {
         fs::remove_dir_all(backup_root)
             .with_context(|| format!("removing backup transaction {}", backup_root.display()))?;
@@ -522,7 +522,7 @@ fn cleanup_backup_root(backup_root: &Path) -> Result<()> {
     Ok(())
 }
 
-fn transaction_error(
+pub(crate) fn transaction_error(
     operation: &str,
     failure: anyhow::Error,
     rollback: Result<()>,
@@ -537,7 +537,7 @@ fn transaction_error(
     }
 }
 
-fn read_optional(path: &Path) -> Result<Option<Vec<u8>>> {
+pub(crate) fn read_optional(path: &Path) -> Result<Option<Vec<u8>>> {
     match fs::read(path) {
         Ok(bytes) => Ok(Some(bytes)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -664,7 +664,7 @@ fn action_for(
     })
 }
 
-fn canonical_root(root: &Path) -> Result<PathBuf> {
+pub(crate) fn canonical_root(root: &Path) -> Result<PathBuf> {
     let root = fs::canonicalize(root)?;
     if !root.is_dir() {
         bail!("workspace root is not a directory");
@@ -672,7 +672,7 @@ fn canonical_root(root: &Path) -> Result<PathBuf> {
     Ok(root)
 }
 
-fn admit(root: &Path, relative: &str) -> Result<PathBuf> {
+pub(crate) fn admit(root: &Path, relative: &str) -> Result<PathBuf> {
     validate_relative_path(relative)?;
     let target = root.join(relative);
     let parent = target.parent().context("provisioning path has no parent")?;
@@ -752,7 +752,7 @@ fn validate_relative_path(relative: &str) -> Result<()> {
     Ok(())
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = path.parent().context("provisioning path has no parent")?;
     fs::create_dir_all(parent)?;
     let temporary = parent.join(format!(
@@ -784,7 +784,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-fn unix_ms() -> u64 {
+pub(crate) fn unix_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
