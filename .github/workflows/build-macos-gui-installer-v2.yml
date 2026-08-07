@@ -1,0 +1,112 @@
+name: Build Soleaux macOS GUI installer v2
+
+on:
+  push:
+    branches:
+      - release/macos-gui-installer-0.4.0-dev.5
+    paths:
+      - scripts/build-macos-gui-installer.sh
+      - scripts/normalize-macos-portability.py
+      - .github/workflows/build-macos-gui-installer-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  SOURCE_COMMIT: 34c394efd01c9bb5348ba38e505317e6ca4da190
+
+jobs:
+  build-installer:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Verify exact source lineage and host architecture
+        run: |
+          set -euo pipefail
+          test "$(git merge-base HEAD "$SOURCE_COMMIT")" = "$SOURCE_COMMIT"
+          test "$(uname -m)" = "arm64"
+
+      - name: Install native prerequisites
+        run: |
+          set -euo pipefail
+          brew install cmake llvm pkg-config protobuf
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
+          echo "LLVM_CONFIG_PATH=$(brew --prefix llvm)/bin/llvm-config" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$(brew --prefix protobuf)/lib/pkgconfig:$(brew --prefix llvm)/lib/pkgconfig" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Apply exact macOS portability normalization
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/normalize-macos-portability.py
+          python3 scripts/normalize-macos-portability.py
+          (cd native && cargo fmt --all)
+          git diff --check
+
+      - name: Build and validate Apple Silicon binaries
+        working-directory: native
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked
+          cargo build --release --workspace --all-features --locked
+          file target/release/soleaux | grep -q 'arm64'
+          file target/release/soleauxd | grep -q 'arm64'
+          test "$(target/release/soleaux --version)" = "soleaux 0.4.0-dev.5"
+          test "$(target/release/soleauxd --version)" = "soleauxd 0.4.0-dev.5"
+          target/release/soleaux --help >/dev/null
+          target/release/soleauxd --help >/dev/null
+
+      - name: Build the double-clickable package
+        run: |
+          set -euo pipefail
+          chmod +x scripts/build-macos-gui-installer.sh
+          SOURCE_COMMIT="$SOURCE_COMMIT+macos-portability-normalization" \
+            scripts/build-macos-gui-installer.sh \
+            "$GITHUB_WORKSPACE" \
+            "$GITHUB_WORKSPACE/native/target/release" \
+            "$GITHUB_WORKSPACE/dist/macos-installer"
+
+      - name: Install-test and verify the DMG and PKG
+        run: |
+          set -euo pipefail
+          OUTPUT="$GITHUB_WORKSPACE/dist/macos-installer"
+          PKG="$OUTPUT/Soleaux-0.4.0-dev.5-macOS-Apple-Silicon.pkg"
+          DMG="$OUTPUT/Soleaux-0.4.0-dev.5-macOS-Apple-Silicon-Installer.dmg"
+          test -s "$PKG"
+          test -s "$DMG"
+          hdiutil verify "$DMG"
+          pkgutil --payload-files "$PKG" | grep -q 'usr/local/bin/soleaux'
+          pkgutil --payload-files "$PKG" | grep -q 'usr/local/bin/soleauxd'
+          pkgutil --payload-files "$PKG" | grep -q 'Applications/Uninstall Soleaux.app'
+          (cd "$OUTPUT" && shasum -a 256 -c SHA256SUMS)
+          sudo installer -pkg "$PKG" -target /
+          test "$(/usr/local/bin/soleaux --version)" = "soleaux 0.4.0-dev.5"
+          test "$(/usr/local/bin/soleauxd --version)" = "soleauxd 0.4.0-dev.5"
+          test -d '/Applications/Uninstall Soleaux.app'
+          sudo rm -f /usr/local/bin/soleaux /usr/local/bin/soleauxd
+          sudo rm -rf /usr/local/share/soleaux '/Applications/Uninstall Soleaux.app'
+          sudo pkgutil --forget com.soleaux.runtime >/dev/null 2>&1 || true
+
+      - name: Upload the user-ready macOS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soleaux-0.4.0-dev.5-macOS-Apple-Silicon-GUI-Installer
+          path: dist/macos-installer
+          if-no-files-found: error
+          retention-days: 30
