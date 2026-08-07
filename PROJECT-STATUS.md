@@ -68,7 +68,7 @@ P5-002 through P5-006 are closed on implementation merge `c51265a3927f3b163b9cac
 
 Evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json).
 
-The remaining Phase 5 work is consolidated in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) with machine-readable dependencies in [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json), including the registered pre-tasks P5-W1 (crate wiring) and P5-V1 (admission receipt verifier). The next open implementation task is **P5-W1**; P5-007 follows it.
+The remaining Phase 5 work is consolidated in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md) with machine-readable dependencies in [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json), including the registered pre-task P5-V1 (admission receipt verifier). P5-W1 crate wiring is closed on merge `82beb7940b290c9c390b20e70d2ef33bb847beb6` (PR #44); evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The next open implementation task is **P5-007**.
 
 ## Locked invariants
 
