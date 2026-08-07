@@ -23,11 +23,12 @@ soleaux serve .
 
 Phase 4 is closed. The default branch now contains the native correctness wave, canonical state and recovery, encrypted artifact vault and policy, stable operations CLI, per-user daemon and typed local IPC, and a reproducible unsigned development-alpha package. The alpha was tested through clean installation, daemon launch and restart, doctor, backup, export, repair, offline restore, and state-preserving uninstall.
 
-P5-001 is also closed: the daemon-owned workspace/client registry, restart persistence, trust and compatibility safe mode, bounded IPC responses, and transactional attach/revert convergence passed Linux and macOS gates. The next task is P5-002.
+P5-001 is also closed: the daemon-owned workspace/client registry, restart persistence, trust and compatibility safe mode, bounded IPC responses, and transactional attach/revert convergence passed Linux and macOS gates. P5-002 through P5-006 are closed as well: the six-platform client capability matrix, pinned artifact verification, and safe-mode read-only admission landed through PRs #38 and #40. The next task is P5-007.
 
 Evidence:
 
 - [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json)
+- [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json)
 - [`PHASE4-CLOSURE-RECEIPT.json`](PHASE4-CLOSURE-RECEIPT.json)
 - [`PHASE4-ALPHA-CLOSURE-RECEIPT.json`](PHASE4-ALPHA-CLOSURE-RECEIPT.json)
 - [`PHASE4-INDEPENDENT-VERIFICATION.json`](PHASE4-INDEPENDENT-VERIFICATION.json)

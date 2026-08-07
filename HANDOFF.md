@@ -10,8 +10,9 @@ Read in this order:
 6. [`PHASE4-CLOSURE-RECEIPT.json`](PHASE4-CLOSURE-RECEIPT.json)
 7. [`PHASE4-INDEPENDENT-VERIFICATION.json`](PHASE4-INDEPENDENT-VERIFICATION.json)
 8. [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json)
-9. [`docs/audits/TRANSCRIPT-GAP-REGISTRY.json`](docs/audits/TRANSCRIPT-GAP-REGISTRY.json)
-10. the locked MCP and Context Packet contracts.
+9. [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json)
+10. [`docs/audits/TRANSCRIPT-GAP-REGISTRY.json`](docs/audits/TRANSCRIPT-GAP-REGISTRY.json)
+11. the locked MCP and Context Packet contracts.
 
 ## Current state
 
@@ -35,11 +36,11 @@ Phase 4 is complete. Do not reimplement P4-001 through P4-026. The merged native
 
 ## Exact next work
 
-1. **P5-002 through P5-006** — execute live capability and version matrices for Claude Code, Claude Desktop, Codex, OpenCode, Cursor, and generic MCP hosts.
-3. **P5-007 through P5-020** — complete sessions/history, materializers, memory lifecycle, signed handoffs, and durable runs/subagents.
-4. **P5-021 through P5-029** — complete intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.
-5. Validate `anilize` and two additional approved design partners.
-6. Close Phase 5 only with an exact beta receipt and independent verification.
+1. **P5-007 through P5-013** — complete canonical sessions/history, materializers, the real LSP/Turborepo/Next.js matrices, design-partner validation, and the Phase 5 beta receipt.
+2. **P5-014 through P5-020** — complete deep adapters, memory lifecycle, signed handoffs, and durable runs/subagents.
+3. **P5-021 through P5-029** — complete intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.
+4. Validate `anilize` and two additional approved design partners.
+5. Close Phase 5 only with an exact beta receipt and independent verification.
 
 Phase 3 remains deferred. Reactivate it only when an efficacy claim is requested, and freeze all three arms before the first live call.
 
@@ -54,4 +55,4 @@ Phase 3 remains deferred. Reactivate it only when an efficacy claim is requested
 - unknown client/provider/LSP versions enter safe or read-only mode;
 - preserve exact evidence and branch-consolidation reports.
 
-Use the stop format in `AGENTS.md` only when a hard contract or evidence condition is actually violated. P5-001 is closed and must not be reimplemented. Continue with P5-002 and proceed top-down.
+Use the stop format in `AGENTS.md` only when a hard contract or evidence condition is actually violated. P5-001 through P5-006 are closed and must not be reimplemented. Continue with P5-007 and proceed top-down.

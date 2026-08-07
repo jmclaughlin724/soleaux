@@ -149,13 +149,13 @@ Evidence:
 #### Service and platform matrices
 
 - [x] **P5-001** Installable per-user service/workspace registry across concurrent CLI/desktop/editor/adapter clients.
-- [ ] **P5-002** Claude Code capability probe and version matrix.
-- [ ] **P5-003** Claude Desktop supported connector/export-import capability matrix.
-- [ ] **P5-004** Codex CLI/desktop app-server capability and schema matrix.
-- [ ] **P5-005** OpenCode HTTP/OpenAPI/SSE/plugin capability matrix.
-- [ ] **P5-006** Cursor and generic MCP-host verification.
+- [x] **P5-002** Claude Code capability probe and version matrix.
+- [x] **P5-003** Claude Desktop supported connector/export-import capability matrix.
+- [x] **P5-004** Codex CLI/desktop app-server capability and schema matrix.
+- [x] **P5-005** OpenCode HTTP/OpenAPI/SSE/plugin capability matrix.
+- [x] **P5-006** Cursor and generic MCP-host verification.
 
-P5-001 evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json). The next open implementation task is P5-002.
+P5-001 evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json). P5-002 through P5-006 evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json). The next open implementation task is P5-007.
 
 #### Canonical lifecycle, materializers, and real repositories
 

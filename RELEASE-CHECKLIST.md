@@ -62,11 +62,11 @@ Evidence:
 ## Phase 5 beta gate — open
 
 - [x] Installed service/workspace registry converges across concurrent client classes. Evidence: `P5-001-CLOSURE-RECEIPT.json`.
-- [ ] Claude Code matrix green.
-- [ ] Claude Desktop supported boundary matrix green.
-- [ ] Codex CLI/Desktop app-server matrix green.
-- [ ] OpenCode OpenAPI/SSE/plugin matrix green.
-- [ ] Cursor and generic MCP-host matrix green.
+- [x] Claude Code matrix green. Evidence: `P5-002-P5-006-CLOSURE-RECEIPT.json`.
+- [x] Claude Desktop supported boundary matrix green. Evidence: `P5-002-P5-006-CLOSURE-RECEIPT.json`.
+- [x] Codex CLI/Desktop app-server matrix green. Evidence: `P5-002-P5-006-CLOSURE-RECEIPT.json`.
+- [x] OpenCode OpenAPI/SSE/plugin matrix green. Evidence: `P5-002-P5-006-CLOSURE-RECEIPT.json`.
+- [x] Cursor and generic MCP-host matrix green. Evidence: `P5-002-P5-006-CLOSURE-RECEIPT.json`.
 - [ ] Canonical session/history lifecycle green.
 - [ ] Memory lifecycle and compaction survival green.
 - [ ] Signed handoffs and destination-native lineage green.

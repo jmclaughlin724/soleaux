@@ -64,7 +64,7 @@ Optional providers replace one slot and never append.
 
 Phase 4 is closed. Phase 5 is the active implementation phase.
 
-P5-001 is closed. Execute P5-002 through P5-029 top-down unless a dependency requires a documented parallel workstream. Phase 3 remains deferred and does not block implementation; it must be frozen and completed before quantified efficacy claims or a reviewed change to `productionClaimAllowed`.
+P5-001 through P5-006 are closed. Execute P5-007 through P5-029 top-down unless a dependency requires a documented parallel workstream. Phase 3 remains deferred and does not block implementation; it must be frozen and completed before quantified efficacy claims or a reviewed change to `productionClaimAllowed`.
 
 ## Native requirements
 

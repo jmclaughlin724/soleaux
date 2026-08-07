@@ -1,0 +1,74 @@
+{
+  "capabilities": [
+    "machine-readable six-platform client capability matrix embedded by the daemon with a published SHA-256 digest",
+    "pinned npm artifact verification for Claude Code 2.1.223 and Codex 0.146.1 with shasum and integrity checks",
+    "SHA-256-pinned OpenCode 1.18.14 Linux release asset verification",
+    "documentation-contract surfaces for Claude Desktop and Cursor with permanently read-only admission",
+    "generic MCP host fixture conformance: initialize, tools/list, context.compile, registry registration, read-write binding rejection, and the exact twelve-tool ceiling",
+    "bounded, hashed, signal-oracled binary probes with archival evidence separated from compact registration proof",
+    "fail-closed matrix validation of tasks, versions, official sources, client kinds, and locked invariants",
+    "safe-mode read-only admission for every external client with an empty mutation-eligible set",
+    "revision-guarded client revalidation rejecting stale concurrent updates inside the writer transaction",
+    "heartbeat responses returning the client-scoped bindings produced by the atomic refresh",
+    "removal of the temporary comment- and push-triggered PR40 repair automation from the default branch"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-07",
+  "externalRuntimeWriteAdmission": "disabled_until_daemon_trusted_receipt_verifier",
+  "implementationMergeCommit": "c51265a3927f3b163b9cac686e0572b47da48b8c",
+  "implementationPullRequest": 38,
+  "matrixContract": "native/contracts/client-capability-matrix-v1.json",
+  "matrixSha256": "c786a22ced34aea92b82cf2e4b0cd3882ade211755cc1c99cdbc9b8882d83969",
+  "mutationEligible": [],
+  "nextTask": "P5-007",
+  "platforms": [
+    "claude_code",
+    "claude_desktop",
+    "codex",
+    "opencode",
+    "cursor",
+    "generic_mcp_host"
+  ],
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "remediationHeadCommit": "c105b914066052c638d389332ecf3e318045de76",
+  "remediationMergeCommit": "de6c813ee9b8bd0cb441482b0debbf323c4ea133",
+  "remediationPullRequest": 40,
+  "reviewThreadsResolved": 6,
+  "schemaVersion": "soleaux.phase5-task-group-receipt/v1",
+  "status": "closed",
+  "supersededPullRequest": 39,
+  "tasks": [
+    "P5-002",
+    "P5-003",
+    "P5-004",
+    "P5-005",
+    "P5-006"
+  ],
+  "tests": {
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": "pass",
+    "clientCapabilityMatrixSmoke": "pass",
+    "clippyWarningsDenied": "pass",
+    "pyright": "pass",
+    "python": {
+      "failed": 0,
+      "passed": 955,
+      "skipped": 17
+    },
+    "releaseBuild": "pass",
+    "ruff": "pass",
+    "rustfmt": "pass"
+  },
+  "workflowRuns": {
+    "ci": 31209110878,
+    "clientCapabilityMatrix": 31209110579,
+    "documentationConsistency": 31209110700,
+    "native": 31209110734,
+    "postMergeCi": 31210030228,
+    "postMergeClientCapabilityMatrix": 31210030772,
+    "postMergeDocumentationConsistency": 31210030428,
+    "postMergeNative": 31210030830
+  }
+}

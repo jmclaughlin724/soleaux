@@ -29,6 +29,14 @@ The project is licensed under MIT.
 - Passed the complete Python conformance suite, full native Rust gates, Linux/macOS lifecycle smokes, and Cargo audit while retaining ceiling 12 and `productionClaimAllowed=false`.
 - Persisted [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json).
 
+### Phase 5 — P5-002 through P5-006 client capability matrices closed — 2026-08-07
+
+- Merged PR #38's six-platform client capability matrix (Claude Code, Claude Desktop, Codex, OpenCode, Cursor, and the generic MCP host fixture) with pinned artifact verification and bounded signal-oracled probes.
+- Merged PR #40's security and provenance remediation: revision-guarded client revalidation, client-scoped heartbeat bindings, verified Claude native-binary installation, and removal of the temporary PR40 repair automation.
+- Kept every external client read-only with an empty mutation-eligible set pending a daemon-trusted receipt verifier.
+- Deleted three owner-approved fully merged branches, archived the two never-pushed local lineages as tags, and recorded the inventory in [`docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json`](docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json).
+- Persisted [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json).
+
 ### Phase 5 — activated
 
 - Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.

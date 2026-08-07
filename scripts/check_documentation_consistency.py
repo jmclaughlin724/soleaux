@@ -100,6 +100,19 @@ if p5_001.get("status") != "closed" or p5_001.get("task") != "P5-001":
     fail("P5-001 receipt is not closed")
 if p5_001.get("productionClaimAllowed") is not False or p5_001.get("publicToolCeiling") != 12:
     fail("P5-001 receipt changed a locked invariant")
+p5_matrix = load_json("P5-002-P5-006-CLOSURE-RECEIPT.json")
+if p5_matrix.get("status") != "closed" or p5_matrix.get("tasks") != [
+    "P5-002",
+    "P5-003",
+    "P5-004",
+    "P5-005",
+    "P5-006",
+]:
+    fail("P5-002 through P5-006 receipt is not closed")
+if p5_matrix.get("productionClaimAllowed") is not False or p5_matrix.get("publicToolCeiling") != 12:
+    fail("client matrix receipt changed a locked invariant")
+if p5_matrix.get("mutationEligible") != []:
+    fail("client matrix receipt cannot mark an external client mutation eligible")
 for value in (phase4, alpha, independent):
     if value.get("productionClaimAllowed") is not False:
         fail("Phase 4 evidence changed the production claim")
@@ -110,11 +123,15 @@ expected_p4 = {f"P4-{number:03d}" for number in range(1, 27)}
 if set(phase4.get("closedTasks", [])) != expected_p4:
     fail("Phase 4 closure task set is incomplete")
 
-branch_report = load_json("docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json")
-if branch_report.get("status") != "pass":
-    fail("branch consolidation did not pass")
-if branch_report.get("canonicalBranch") != "main":
-    fail("branch consolidation canonical branch drifted")
+for report_path in (
+    "docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json",
+    "docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json",
+):
+    branch_report = load_json(report_path)
+    if branch_report.get("status") != "pass":
+        fail(f"branch consolidation did not pass: {report_path}")
+    if branch_report.get("canonicalBranch") != "main":
+        fail(f"branch consolidation canonical branch drifted: {report_path}")
 
 gap = load_json("docs/audits/TRANSCRIPT-GAP-REGISTRY.json")
 if gap.get("schemaVersion") != "soleaux.transcript-gap-registry/v5":
@@ -154,10 +171,11 @@ if len(task_ids) != len(set(task_ids)):
 for task in sorted(expected_p4):
     if f"- [x] **{task}**" not in tasks_text:
         fail(f"closed Phase 4 task is unchecked: {task}")
-if "- [x] **P5-001**" not in tasks_text:
-    fail("P5-001 must be closed")
-if "- [ ] **P5-002**" not in tasks_text:
-    fail("P5-002 must be the first open implementation task")
+for task in ("P5-001", "P5-002", "P5-003", "P5-004", "P5-005", "P5-006"):
+    if f"- [x] **{task}**" not in tasks_text:
+        fail(f"closed Phase 5 task is unchecked: {task}")
+if "- [ ] **P5-007**" not in tasks_text:
+    fail("P5-007 must be the first open implementation task")
 
 required_markers = {
     "README.md": ["Phase 4", "Phase 5", "productionClaimAllowed"],
@@ -166,8 +184,8 @@ required_markers = {
         "Phase 5:                     IN PROGRESS",
     ],
     "ROADMAP.md": ["current_phase=5", "Phase 4 — closed", "Phase 5 — current"],
-    "TASKS.md": ["current_phase=5", "## Current phase", "P5-001", "P5-002"],
-    "HANDOFF.md": ["Phase 4:                     CLOSED", "P5-001", "P5-002"],
+    "TASKS.md": ["current_phase=5", "## Current phase", "P5-001", "P5-007"],
+    "HANDOFF.md": ["Phase 4:                     CLOSED", "P5-001", "P5-007"],
     "AGENTS.md": [
         "Phase 4 is closed",
         "Phase 5 is the active implementation phase",
@@ -208,7 +226,7 @@ print(
             "schemaVersion": "soleaux.documentation-consistency/v3",
             "version": EXPECTED_VERSION,
             "currentPhase": EXPECTED_PHASE,
-            "nextTask": "P5-002",
+            "nextTask": "P5-007",
             "phase3Status": phase3["status"],
             "phase4Status": phase_by_number[4]["status"],
             "requiredDocuments": len(manifest["required"]),

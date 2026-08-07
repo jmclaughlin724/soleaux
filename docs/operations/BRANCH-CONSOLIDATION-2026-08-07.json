@@ -1,0 +1,63 @@
+{
+  "archivedLocalLineageTags": [
+    {
+      "commit": "7de5f9272166dbb6eaa01f7cbb5ce89372d11d1a",
+      "content": "deterministic dashboard static-export gating",
+      "tag": "archive/local-soleaux-up-0.4.0-dev.5"
+    },
+    {
+      "commit": "4a953d8be16dac50e1918d90cfcbce3ac22eb929",
+      "content": "soleaux up one-command run path, telemetry daemon adoption into the native cargo workspace, and workspace build hardening",
+      "tag": "archive/local-soleaux-up-v2-0.4.0-dev.5"
+    }
+  ],
+  "asOfDate": "2026-08-07",
+  "basedOnMain": "de6c813ee9b8bd0cb441482b0debbf323c4ea133",
+  "canonicalBranch": "main",
+  "candidateReintroductions": [
+    "soleaux up one-command run path: changes the stable P4-014 CLI contract, so it requires its own reviewed phase task, gates, and receipt",
+    "telemetry daemon adoption into the native cargo workspace: an architecture decision to schedule with Phase 5/6 operational work"
+  ],
+  "deletedFullyMergedBranches": [
+    "agent/p5-002-p5-006-client-capability-matrices",
+    "fix/p5-client-capability-review-closure",
+    "fix/p5-client-matrix-post-merge-remediation"
+  ],
+  "deletionAuthorization": "Owner-approved by name on 2026-08-07 after each tip was verified as an ancestor of main through the GitHub compare API.",
+  "notes": [
+    "release/macos-gui-installer-0.4.0-dev.5 is parked intentionally for reuse at P6-006.",
+    "The per-external-gate GitHub issues described in the 2026-08-07 session transcript do not exist; the only repository issue is the closed test issue #31.",
+    "The superseded comment- and push-triggered PR40 repair automation was removed from the default branch through PR #40."
+  ],
+  "policy": "Delete only branch tips proven ancestors of main; retain every branch with unique commits as non-authoritative archival lineage.",
+  "priorReport": "docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json",
+  "productionClaimAllowed": false,
+  "retainedUniqueCommitBranches": [
+    "audit/transcript-gap-plan-0.4.0-dev.5",
+    "audit/transcript-gap-plan-v4-0.4.0-dev.5",
+    "audit/transcript-gap-plan-v5-0.4.0-dev.5",
+    "audit/transcript-reconciliation-v2-0.4.0-dev.5",
+    "automation/p5-client-review-closure",
+    "automation/pr38-parallel-review-closure",
+    "automation/pr38-remediation-final",
+    "automation/pr38-source-export",
+    "bootstrap/p4-023-after-provisioning",
+    "docs/transcript-gap-reconciliation-final-0.4.0-dev.5",
+    "feat/canonical-state-p4-010-p4-012-0.4.0-dev.5",
+    "feat/encrypted-vault-policy-p4-013-0.4.0-dev.5",
+    "feat/phase4-durable-alpha-foundation-0.4.0-dev.5",
+    "feat/service-cli-p4-014-p4-015-0.4.0-dev.5",
+    "fix/atomic-preview-claim-p4-026-0.4.0-dev.5",
+    "fix/atomic-preview-claim-p4-026-main-0.4.0-dev.5",
+    "fix/mcp-input-schema-validation-0.4.0-dev.5",
+    "fix/truthful-continuations-p4-023-0.4.0-dev.5",
+    "fix/typed-postgres-validation-p4-024-0.4.0-dev.5",
+    "fix/typed-postgres-validation-p4-024-clean-0.4.0-dev.5",
+    "fix/typed-postgres-validation-p4-024-main-0.4.0-dev.5",
+    "ops/finish-phase4-foundation-20260805",
+    "release/macos-gui-installer-0.4.0-dev.5",
+    "release/unsigned-alpha-p4-007-p4-009-0.4.0-dev.5"
+  ],
+  "schemaVersion": "soleaux.branch-consolidation/v1",
+  "status": "pass"
+}

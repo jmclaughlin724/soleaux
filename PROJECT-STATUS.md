@@ -2,7 +2,7 @@
 
 <!-- soleaux-docs:status current_phase=5 phase2=closed phase3=deferred_reconciliation_required phase4=closed phase5=in_progress version=0.4.0-dev.5 production_claim_allowed=false -->
 
-**As of:** 2026-08-05
+**As of:** 2026-08-07
 **Machine-readable owner:** [`PROJECT-STATUS.json`](PROJECT-STATUS.json)
 
 ## Executive state
@@ -62,7 +62,11 @@ The closed implementation includes:
 
 P5-001 is closed on product source `1744424444d08d6ee380dc40c948db86a626ee04` and merge `f231b86f581b7f3d5d081ed4b8d235a72758342a`. The daemon-owned registry now converges canonical workspace identity, CLI/desktop/editor/adapter registrations, leases, trust and compatibility restrictions, restart persistence, bounded IPC pages and mutation summaries, and transactional attach/revert behavior across Linux and macOS.
 
-Evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json). The next open implementation task is **P5-002**.
+Evidence: [`P5-001-CLOSURE-RECEIPT.json`](P5-001-CLOSURE-RECEIPT.json).
+
+P5-002 through P5-006 are closed on implementation merge `c51265a3927f3b163b9cac686e0572b47da48b8c` (PR #38) and remediation merge `de6c813ee9b8bd0cb441482b0debbf323c4ea133` (PR #40). The daemon now embeds the six-platform client capability matrix with pinned artifact verification, bounded signal-oracled probes, revision-guarded revalidation, and safe-mode read-only admission for every external client; the mutation-eligible set is empty pending a daemon-trusted receipt verifier.
+
+Evidence: [`P5-002-P5-006-CLOSURE-RECEIPT.json`](P5-002-P5-006-CLOSURE-RECEIPT.json). The next open implementation task is **P5-007**.
 
 ## Locked invariants
 
@@ -135,7 +139,7 @@ The same authenticated model/client, tasks, budgets, sampling, protocol, retries
 
 ## Branch state
 
-`main` is the sole implementation and status authority. Fully merged short-lived branches were pruned. Branches with unique commits were retained as non-authoritative archival lineage and are enumerated in [`docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json`](docs/operations/BRANCH-CONSOLIDATION-2026-08-05.json).
+`main` is the sole implementation and status authority. Fully merged short-lived branches were pruned. Branches with unique commits were retained as non-authoritative archival lineage and are enumerated in [`docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json`](docs/operations/BRANCH-CONSOLIDATION-2026-08-07.json), which supersedes the 2026-08-05 report and also records the archived never-pushed local lineage tags.
 
 ## Update rule
 
