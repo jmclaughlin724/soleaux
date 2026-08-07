@@ -460,6 +460,69 @@ impl StateStore {
             .collect()
     }
 
+    pub fn session_page(
+        &self,
+        workspace_id: Option<Uuid>,
+        include_archived: bool,
+        cursor: Option<Uuid>,
+        limit: usize,
+    ) -> Result<SessionRegistryPage> {
+        let connection = self.reader()?;
+        let page =
+            database::session_page(&connection, workspace_id, include_archived, cursor, limit)?;
+        Ok(SessionRegistryPage {
+            items: page
+                .items
+                .into_iter()
+                .map(typed_record)
+                .collect::<Result<Vec<_>>>()?,
+            next_cursor: page.next_cursor,
+            truncated: page.truncated,
+        })
+    }
+
+    pub fn child_page<T: CanonicalPayload>(
+        &self,
+        parent_id: Uuid,
+        cursor: Option<Uuid>,
+        limit: usize,
+    ) -> Result<(Vec<CanonicalRecord<T>>, Option<Uuid>, bool)> {
+        let connection = self.reader()?;
+        let page = database::entity_child_page(&connection, parent_id, T::KIND, cursor, limit)?;
+        Ok((
+            page.items
+                .into_iter()
+                .map(typed_record)
+                .collect::<Result<Vec<_>>>()?,
+            page.next_cursor,
+            page.truncated,
+        ))
+    }
+
+    pub fn turn_page(
+        &self,
+        session_id: Uuid,
+        after_ordinal: Option<u64>,
+        limit: usize,
+    ) -> Result<TurnPage> {
+        let connection = self.reader()?;
+        let (items, next_ordinal, truncated) =
+            database::turn_page(&connection, session_id, after_ordinal, limit)?;
+        Ok(TurnPage {
+            items: items
+                .into_iter()
+                .map(typed_record)
+                .collect::<Result<Vec<_>>>()?,
+            next_ordinal,
+            truncated,
+        })
+    }
+
+    pub fn next_turn_ordinal(&self, session_id: Uuid) -> Result<u64> {
+        let connection = self.reader()?;
+        database::next_turn_ordinal(&connection, session_id)
+    }
+
     pub fn link(&self, input: EntityLinkInput) -> Result<EntityLinkRecord> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.writer

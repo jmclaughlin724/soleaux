@@ -121,6 +121,84 @@ pub enum IpcMethod {
     ClientUnbindWorkspace {
         binding_id: Uuid,
     },
+    SessionCreate {
+        workspace_id: Uuid,
+        platform: String,
+        #[serde(default)]
+        native_session_id: Option<String>,
+        title: String,
+        #[serde(default = "default_object")]
+        repository_ref: Value,
+        #[serde(default)]
+        model: Option<String>,
+        #[serde(default = "default_object")]
+        metadata: Value,
+    },
+    SessionList {
+        #[serde(default)]
+        workspace_id: Option<Uuid>,
+        #[serde(default)]
+        include_archived: bool,
+        #[serde(default)]
+        cursor: Option<Uuid>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+    },
+    SessionRead {
+        session_id: Uuid,
+        #[serde(default)]
+        after_ordinal: Option<u64>,
+        #[serde(default = "default_registry_limit")]
+        turn_limit: usize,
+    },
+    SessionArchive {
+        session_id: Uuid,
+    },
+    SessionResume {
+        session_id: Uuid,
+    },
+    SessionFork {
+        session_id: Uuid,
+        #[serde(default)]
+        title: Option<String>,
+    },
+    SessionLineage {
+        session_id: Uuid,
+    },
+    TurnAppend {
+        session_id: Uuid,
+        actor: String,
+        #[serde(default)]
+        native_turn_id: Option<String>,
+        #[serde(default = "default_object")]
+        usage: Value,
+        #[serde(default = "default_object")]
+        metadata: Value,
+    },
+    TurnList {
+        session_id: Uuid,
+        #[serde(default)]
+        after_ordinal: Option<u64>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+    },
+    MessageAppend {
+        turn_id: Uuid,
+        role: String,
+        #[serde(default)]
+        native_message_id: Option<String>,
+        #[serde(default)]
+        model: Option<String>,
+        #[serde(default = "default_object")]
+        metadata: Value,
+    },
+    MessageList {
+        turn_id: Uuid,
+        #[serde(default)]
+        cursor: Option<Uuid>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+    },
     Shutdown,
 }
 

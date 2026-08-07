@@ -195,6 +195,93 @@ impl IpcServer {
             IpcMethod::ClientUnbindWorkspace { binding_id } => {
                 crate::registry::unbind_client_workspace(&self.state, *binding_id)
             }
+            IpcMethod::SessionCreate {
+                workspace_id,
+                platform,
+                native_session_id,
+                title,
+                repository_ref,
+                model,
+                metadata,
+            } => crate::session::create_session(
+                &self.state,
+                *workspace_id,
+                platform,
+                native_session_id.clone(),
+                title,
+                repository_ref.clone(),
+                model.clone(),
+                metadata.clone(),
+            ),
+            IpcMethod::SessionList {
+                workspace_id,
+                include_archived,
+                cursor,
+                limit,
+            } => crate::session::list_sessions(
+                &self.state,
+                *workspace_id,
+                *include_archived,
+                *cursor,
+                *limit,
+            ),
+            IpcMethod::SessionRead {
+                session_id,
+                after_ordinal,
+                turn_limit,
+            } => {
+                crate::session::read_session(&self.state, *session_id, *after_ordinal, *turn_limit)
+            }
+            IpcMethod::SessionArchive { session_id } => {
+                crate::session::archive_session(&self.state, *session_id)
+            }
+            IpcMethod::SessionResume { session_id } => {
+                crate::session::resume_session(&self.state, *session_id)
+            }
+            IpcMethod::SessionFork { session_id, title } => {
+                crate::session::fork_session(&self.state, *session_id, title.clone())
+            }
+            IpcMethod::SessionLineage { session_id } => {
+                crate::session::session_lineage(&self.state, *session_id)
+            }
+            IpcMethod::TurnAppend {
+                session_id,
+                actor,
+                native_turn_id,
+                usage,
+                metadata,
+            } => crate::session::append_turn(
+                &self.state,
+                *session_id,
+                actor,
+                native_turn_id.clone(),
+                usage.clone(),
+                metadata.clone(),
+            ),
+            IpcMethod::TurnList {
+                session_id,
+                after_ordinal,
+                limit,
+            } => crate::session::list_turns(&self.state, *session_id, *after_ordinal, *limit),
+            IpcMethod::MessageAppend {
+                turn_id,
+                role,
+                native_message_id,
+                model,
+                metadata,
+            } => crate::session::append_message(
+                &self.state,
+                *turn_id,
+                role,
+                native_message_id.clone(),
+                model.clone(),
+                metadata.clone(),
+            ),
+            IpcMethod::MessageList {
+                turn_id,
+                cursor,
+                limit,
+            } => crate::session::list_messages(&self.state, *turn_id, *cursor, *limit),
             IpcMethod::Shutdown => Ok(json!({"shutdown":true})),
         };
         match result {
@@ -278,6 +365,17 @@ fn error_code(method: &IpcMethod) -> &'static str {
         IpcMethod::ClientBindWorkspace { .. } | IpcMethod::ClientUnbindWorkspace { .. } => {
             "client_workspace_binding_failed"
         }
+        IpcMethod::SessionCreate { .. }
+        | IpcMethod::SessionList { .. }
+        | IpcMethod::SessionRead { .. }
+        | IpcMethod::SessionArchive { .. }
+        | IpcMethod::SessionResume { .. }
+        | IpcMethod::SessionFork { .. }
+        | IpcMethod::SessionLineage { .. }
+        | IpcMethod::TurnAppend { .. }
+        | IpcMethod::TurnList { .. }
+        | IpcMethod::MessageAppend { .. }
+        | IpcMethod::MessageList { .. } => "session_operation_failed",
         IpcMethod::Ping | IpcMethod::Status | IpcMethod::Shutdown => "daemon_operation_failed",
     }
 }
