@@ -41,7 +41,9 @@ use soleaux_intelligence::{
     turborepo::{load_graph, packages_for_path, search_scope},
 };
 use soleaux_redaction::redact_text;
-use soleaux_state::StateStore;
+use soleaux_state::{
+    CanonicalRecord, REGISTRY_PAGE_LIMIT_MAX, SessionPayload, StateStore, WorkspacePayload,
+};
 use soleaux_storage::{IndexedFileRecord, Store, SymbolHit, SymbolRecord};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -580,7 +582,7 @@ impl PublicMcpServer {
             .and_then(Value::as_u64)
             .unwrap_or(20)
             .clamp(1, 200) as usize;
-        let page = search_memory(
+        let mut page = search_memory(
             self.root(),
             self.workspace_id(),
             query,
@@ -588,6 +590,12 @@ impl PublicMcpServer {
             limit,
             arguments.get("cursor").and_then(Value::as_str),
         )?;
+        // The locked profile pins the scope enum, so the explicit canonical
+        // mode rides the existing `session` scope as a bounded, separately
+        // labeled section outside the filesystem snapshot cursor.
+        if scopes.is_empty() || scopes.iter().any(|scope| scope == "session") {
+            page.data["canonicalSessions"] = self.canonical_sessions_section(query);
+        }
         let mut metadata = SuccessMetadata::repository("memory.search", "soleaux-native-memory");
         metadata.trust = if page.attached {
             "retrieved_code_data"
@@ -1173,10 +1181,177 @@ impl PublicMcpServer {
         Ok(())
     }
 
+    fn canonical_workspace_record(&self) -> Option<CanonicalRecord<WorkspacePayload>> {
+        let state = self.canonical_state.as_ref()?;
+        let root = self.root.to_string_lossy();
+        let workspaces = state.list_all::<WorkspacePayload>(256, false).ok()?;
+        workspaces
+            .into_iter()
+            .find(|record| record.payload.canonical_path == root)
+    }
+
+    fn canonical_sessions_section(&self, query: &str) -> Value {
+        const HIT_LIMIT: usize = 24;
+        const SCAN_PAGE_LIMIT: usize = 3;
+        let Some(state) = self.canonical_state.as_ref() else {
+            return json!({
+                "attached": false,
+                "workspaceRegistered": false,
+                "hits": [],
+                "truncated": false,
+            });
+        };
+        let Some(workspace) = self.canonical_workspace_record() else {
+            return json!({
+                "attached": true,
+                "workspaceRegistered": false,
+                "hits": [],
+                "truncated": false,
+            });
+        };
+        let needle = query.trim().to_ascii_lowercase();
+        let mut hits = Vec::new();
+        let mut cursor = None;
+        let mut truncated = false;
+        let mut remaining_pages = SCAN_PAGE_LIMIT;
+        loop {
+            if remaining_pages == 0 {
+                truncated = true;
+                break;
+            }
+            remaining_pages -= 1;
+            let page =
+                match state.session_page(Some(workspace.id), true, cursor, REGISTRY_PAGE_LIMIT_MAX)
+                {
+                    Ok(page) => page,
+                    Err(_) => {
+                        return json!({
+                            "attached": true,
+                            "workspaceRegistered": true,
+                            "hits": [],
+                            "truncated": false,
+                            "unavailable": true,
+                        });
+                    }
+                };
+            for record in &page.items {
+                let payload = &record.payload;
+                let haystack = format!(
+                    "{} {} {} {}",
+                    payload.title,
+                    payload.platform,
+                    payload.model.as_deref().unwrap_or_default(),
+                    payload.native_session_id.as_deref().unwrap_or_default()
+                )
+                .to_ascii_lowercase();
+                if !haystack.contains(&needle) {
+                    continue;
+                }
+                if hits.len() >= HIT_LIMIT {
+                    truncated = true;
+                    break;
+                }
+                hits.push(json!({
+                    "sessionId": record.id,
+                    "title": payload.title,
+                    "platform": payload.platform,
+                    "sessionState": payload.session_state,
+                    "model": payload.model,
+                    "uri": format!("soleaux://sessions/{}", record.id),
+                }));
+            }
+            if truncated || !page.truncated {
+                break;
+            }
+            match page.next_cursor {
+                Some(next) => cursor = Some(next),
+                None => break,
+            }
+        }
+        json!({
+            "attached": true,
+            "workspaceRegistered": true,
+            "hits": hits,
+            "truncated": truncated,
+        })
+    }
+
+    fn sessions_resource(&self) -> Value {
+        let base = json!({
+            "schemaVersion": "soleaux.sessions-resource/v1",
+            "productionClaimAllowed": false,
+        });
+        let Some(state) = self.canonical_state.as_ref() else {
+            let mut value = base;
+            value["attached"] = json!(false);
+            value["workspaceRegistered"] = json!(false);
+            value["sessions"] = json!([]);
+            return value;
+        };
+        let Some(workspace) = self.canonical_workspace_record() else {
+            let mut value = base;
+            value["attached"] = json!(true);
+            value["workspaceRegistered"] = json!(false);
+            value["sessions"] = json!([]);
+            return value;
+        };
+        match state.session_page(Some(workspace.id), true, None, REGISTRY_PAGE_LIMIT_MAX) {
+            Ok(page) => json!({
+                "schemaVersion": "soleaux.sessions-resource/v1",
+                "attached": true,
+                "workspaceRegistered": true,
+                "workspaceId": workspace.id,
+                "sessions": page.items,
+                "nextCursor": page.next_cursor,
+                "truncated": page.truncated,
+                "productionClaimAllowed": false,
+            }),
+            Err(_) => json!({
+                "schemaVersion": "soleaux.sessions-resource/v1",
+                "attached": true,
+                "workspaceRegistered": true,
+                "sessions": [],
+                "unavailable": true,
+                "productionClaimAllowed": false,
+            }),
+        }
+    }
+
+    fn session_resource(&self, session_id: Uuid) -> Result<Value> {
+        let state = self
+            .canonical_state
+            .as_ref()
+            .context("canonical state is not attached")?;
+        let workspace = self
+            .canonical_workspace_record()
+            .context("workspace is not registered in canonical state")?;
+        let session = state
+            .get::<SessionPayload>(session_id)?
+            .context("session does not exist")?;
+        if session.workspace_id != Some(workspace.id) {
+            bail!("session does not belong to this workspace");
+        }
+        let turns = state.turn_page(session_id, None, REGISTRY_PAGE_LIMIT_MAX)?;
+        Ok(json!({
+            "schemaVersion": "soleaux.session-resource/v1",
+            "session": session,
+            "turns": turns.items,
+            "nextOrdinal": turns.next_ordinal,
+            "turnsTruncated": turns.truncated,
+            "productionClaimAllowed": false,
+        }))
+    }
+
     async fn read_resource(&self, uri: &str) -> Result<Value> {
         let value = match uri {
             "soleaux://status" => self.health(),
             "soleaux://about" => self.about(),
+            "soleaux://sessions" => self.sessions_resource(),
+            uri if uri.starts_with("soleaux://sessions/") => {
+                let raw = uri.trim_start_matches("soleaux://sessions/");
+                let session_id: Uuid = raw.parse().context("invalid session resource id")?;
+                self.session_resource(session_id)?
+            }
             "soleaux://contracts/unified-mcp-profile-v2" => {
                 serde_json::from_str(profile::PROFILE_MANIFEST_JSON)?
             }
@@ -1237,6 +1412,23 @@ impl PublicMcpServer {
         let (status, media_type, sha256, error) = match uri {
             "soleaux://status" => resolved_resource(&self.health())?,
             "soleaux://about" => resolved_resource(&self.about())?,
+            "soleaux://sessions" => resolved_resource(&self.sessions_resource())?,
+            uri if uri.starts_with("soleaux://sessions/") => {
+                match uri
+                    .trim_start_matches("soleaux://sessions/")
+                    .parse::<Uuid>()
+                    .ok()
+                    .and_then(|session_id| self.session_resource(session_id).ok())
+                {
+                    Some(value) => resolved_resource(&value)?,
+                    None => (
+                        "unavailable".to_string(),
+                        None,
+                        None,
+                        Some("Session resource is unavailable for this workspace.".to_string()),
+                    ),
+                }
+            }
             "soleaux://contracts/unified-mcp-profile-v2" => resolved_resource(
                 &serde_json::from_str::<Value>(profile::PROFILE_MANIFEST_JSON)?,
             )?,
@@ -1968,6 +2160,7 @@ fn resource_definitions() -> Vec<Value> {
     vec![
         json!({"uri":"soleaux://status","name":"Soleaux status","description":"Native server, profile, and index health","mimeType":"application/json"}),
         json!({"uri":"soleaux://about","name":"About Soleaux","description":"Product and contract identity","mimeType":"application/json"}),
+        json!({"uri":"soleaux://sessions","name":"Canonical sessions","description":"Bounded daemon-owned session history for this workspace; soleaux://sessions/{id} reads one session with its first turn page","mimeType":"application/json"}),
         json!({"uri":"soleaux://contracts/unified-mcp-profile-v2","name":"Unified MCP profile v2","description":"Binding twelve-slot public profile","mimeType":"application/json"}),
         json!({"uri":"soleaux://contracts/context-packet-v2","name":"Context packet v2 schema","description":"Binding compiled-context schema","mimeType":"application/json"}),
     ]
@@ -2292,6 +2485,119 @@ mod tests {
         drop(StateStore::open(&canonical).expect("create canonical state"));
         let server = server.with_canonical_state(&canonical).expect("attach");
         assert!(server.canonical_state().is_some());
+    }
+
+    #[tokio::test]
+    async fn canonical_session_reads_serve_memory_mode_and_resources() {
+        use soleaux_state::{
+            CanonicalEntityInput, SESSION_STATE_ACTIVE, WorkspacePayload, WorkspaceTrustState,
+        };
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = fs::canonicalize(temp.path()).expect("root");
+        let state_path = temp.path().join("canonical.sqlite3");
+        {
+            let state = StateStore::open(&state_path).expect("state");
+            let workspace_id = Uuid::now_v7();
+            let mut workspace = CanonicalEntityInput::active(WorkspacePayload {
+                canonical_path: root.to_string_lossy().to_string(),
+                path_hash: blake3::hash(root.to_string_lossy().as_bytes())
+                    .to_hex()
+                    .to_string(),
+                display_name: "Fixture".to_string(),
+                trust_state: WorkspaceTrustState::Trusted,
+                profile_digest: profile::PROFILE_MANIFEST_SHA256.to_string(),
+                context_digest: profile::CONTEXT_SCHEMA_SHA256.to_string(),
+                public_tool_ceiling: 12,
+                production_claim_allowed: false,
+                metadata: json!({}),
+            });
+            workspace.id = Some(workspace_id);
+            state.put(workspace).expect("workspace");
+
+            let session_id = Uuid::now_v7();
+            let mut session = CanonicalEntityInput::active(SessionPayload {
+                platform: "claude_code".to_string(),
+                native_session_id: None,
+                title: "Alpha search target".to_string(),
+                parent_session_id: None,
+                lineage_root_id: session_id,
+                session_state: SESSION_STATE_ACTIVE.to_string(),
+                repository_ref: json!({}),
+                model: None,
+                metadata: json!({}),
+            });
+            session.id = Some(session_id);
+            session.workspace_id = Some(workspace_id);
+            state.put(session).expect("session");
+        }
+
+        let server = PublicMcpServer::with_store(&root, temp.path().join("index.sqlite3"))
+            .expect("server")
+            .with_canonical_state(&state_path)
+            .expect("attach");
+
+        let envelope = server
+            .call_async(
+                "memory.search",
+                &json!({"query": "alpha", "scopes": ["session"]}),
+            )
+            .await
+            .expect("memory search");
+        let value = serde_json::to_value(&envelope).expect("envelope");
+        let section = &value["data"]["canonicalSessions"];
+        assert_eq!(section["attached"], true);
+        assert_eq!(section["workspaceRegistered"], true);
+        assert_eq!(section["hits"].as_array().expect("hits").len(), 1);
+        assert_eq!(section["hits"][0]["title"], "Alpha search target");
+
+        let listed = server
+            .handle_json_rpc_async(&json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "resources/read",
+                "params": {"uri": "soleaux://sessions"}
+            }))
+            .await
+            .expect("sessions resource");
+        let text = listed["result"]["contents"][0]["text"]
+            .as_str()
+            .expect("resource text");
+        let sessions: Value = serde_json::from_str(text).expect("resource json");
+        assert_eq!(sessions["workspaceRegistered"], true);
+        assert_eq!(sessions["sessions"].as_array().expect("sessions").len(), 1);
+        let session_uri = format!(
+            "soleaux://sessions/{}",
+            sessions["sessions"][0]["id"].as_str().expect("session id")
+        );
+
+        let detail = server
+            .handle_json_rpc_async(&json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "resources/read",
+                "params": {"uri": session_uri}
+            }))
+            .await
+            .expect("session resource");
+        let text = detail["result"]["contents"][0]["text"]
+            .as_str()
+            .expect("detail text");
+        let detail: Value = serde_json::from_str(text).expect("detail json");
+        assert_eq!(detail["session"]["payload"]["title"], "Alpha search target");
+        assert_eq!(detail["turns"].as_array().expect("turns").len(), 0);
+
+        let detached = PublicMcpServer::with_store(&root, temp.path().join("index2.sqlite3"))
+            .expect("detached server");
+        let envelope = detached
+            .call_async(
+                "memory.search",
+                &json!({"query": "alpha", "scopes": ["session"]}),
+            )
+            .await
+            .expect("detached memory search");
+        let value = serde_json::to_value(&envelope).expect("detached envelope");
+        assert_eq!(value["data"]["canonicalSessions"]["attached"], false);
     }
 
     #[test]
