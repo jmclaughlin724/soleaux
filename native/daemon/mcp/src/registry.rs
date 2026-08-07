@@ -325,21 +325,32 @@ pub fn scan_registry(root: &Path, index: &RepositoryIndex) -> Result<RegistrySna
             continue;
         }
         if let Some(domain) = classify_registry_path(&relative) {
-            let content = fs::read_to_string(&canonical).unwrap_or_default();
-            let bounded = utf8_prefix(&content, MAX_ENTRY_CONTENT_BYTES);
+            let raw = fs::read_to_string(&canonical).unwrap_or_default();
+            // Echo prevention (P5-008): materializer output never re-enters
+            // the registry scan as a source object.
+            let Some(source) = crate::materializer::registry_source_view(&raw) else {
+                continue;
+            };
+            let materialized_regions_excluded = matches!(source, std::borrow::Cow::Owned(_));
+            let content = source.as_ref();
+            let bounded = utf8_prefix(content, MAX_ENTRY_CONTENT_BYTES);
             let digest = sha256_hex(content.as_bytes());
             entries.push(RegistryEntry {
                 id: format!("{domain}:{relative}"),
                 domain: domain.to_string(),
                 name: registry_name(&relative),
-                summary: first_meaningful_line(&content)
+                summary: first_meaningful_line(content)
                     .unwrap_or_else(|| format!("Soleaux {domain} registry object")),
                 version: digest[..12].to_string(),
                 digest,
                 available: true,
                 path: Some(relative.clone()),
                 content: Some(bounded),
-                metadata: json!({"byte_length":metadata.len(),"source":"repository"}),
+                metadata: json!({
+                    "byte_length":metadata.len(),
+                    "source":"repository",
+                    "materialized_regions_excluded":materialized_regions_excluded,
+                }),
             });
         }
     }
@@ -648,24 +659,30 @@ fn scan_external_catalogs(workspace_root: &Path) -> Result<Vec<RegistryEntry>> {
                 "rules" => "rules",
                 _ => continue,
             };
-            let content = fs::read_to_string(&canonical).unwrap_or_default();
+            let raw = fs::read_to_string(&canonical).unwrap_or_default();
+            let Some(source) = crate::materializer::registry_source_view(&raw) else {
+                continue;
+            };
+            let materialized_regions_excluded = matches!(source, std::borrow::Cow::Owned(_));
+            let content = source.as_ref();
             let digest = sha256_hex(content.as_bytes());
             output.push(RegistryEntry {
                 id: format!("{domain}:{scope}:{relative}"),
                 domain: domain.to_string(),
                 name: registry_name(&relative),
-                summary: first_meaningful_line(&content)
+                summary: first_meaningful_line(content)
                     .unwrap_or_else(|| format!("Soleaux {scope} {domain} registry object")),
                 version: digest[..12].to_string(),
                 digest,
                 available: true,
                 path: Some(canonical.to_string_lossy().to_string()),
-                content: Some(utf8_prefix(&content, MAX_ENTRY_CONTENT_BYTES)),
+                content: Some(utf8_prefix(content, MAX_ENTRY_CONTENT_BYTES)),
                 metadata: json!({
                     "byte_length":metadata.len(),
                     "scope":scope,
                     "source":"soleaux_catalog",
                     "root_tool_inflation":false,
+                    "materialized_regions_excluded":materialized_regions_excluded,
                 }),
             });
         }
