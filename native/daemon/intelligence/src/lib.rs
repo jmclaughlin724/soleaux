@@ -11,6 +11,7 @@ pub mod governance;
 pub mod index;
 pub mod lsp;
 pub mod nextjs;
+pub mod turbo_next_matrix;
 pub mod turborepo;
 
 use anyhow::{Context, Result, bail};

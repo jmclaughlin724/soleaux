@@ -1,0 +1,287 @@
+{
+  "asOfDate": "2026-08-07",
+  "devtoolsIntegration": false,
+  "devtoolsIntegrationTask": "P5-025",
+  "documentedCliProbeTask": "P5-024",
+  "documentedCliProbed": false,
+  "repositoryLayouts": [
+    {
+      "id": "package_json_workspaces_array",
+      "precedence": 1,
+      "selector": "workspaces",
+      "shape": "array_of_globs",
+      "source": "package.json"
+    },
+    {
+      "id": "package_json_workspaces_object",
+      "precedence": 2,
+      "selector": "workspaces.packages",
+      "shape": "object_with_packages_array",
+      "source": "package.json"
+    },
+    {
+      "coexistingSectionsIgnored": [
+        "allowBuilds",
+        "auditConfig",
+        "autoInstallPeers",
+        "catalog",
+        "catalogMode",
+        "overrides",
+        "preferSymlinkedExecutables"
+      ],
+      "id": "pnpm_workspace_packages_section",
+      "precedence": 3,
+      "selector": "packages",
+      "shape": "top_level_block_list",
+      "source": "pnpm-workspace.yaml"
+    },
+    {
+      "globs": [
+        "apps/*",
+        "packages/*"
+      ],
+      "id": "default_globs",
+      "precedence": 4,
+      "selector": null,
+      "shape": "builtin_fallback",
+      "source": "builtin"
+    }
+  ],
+  "schemaVersion": "soleaux.turbo-next-matrix/v1",
+  "task": "P5-010",
+  "tools": [
+    {
+      "configuration": {
+        "boundariesKey": "boundaries",
+        "files": [
+          "turbo.json"
+        ],
+        "taskKeys": [
+          "tasks",
+          "pipeline"
+        ]
+      },
+      "displayName": "Turborepo",
+      "id": "turborepo",
+      "provider": "static-workspace+turbo-json",
+      "stableMajorsVerifiedFromLockfiles": [
+        2
+      ],
+      "versionPolicy": "exact",
+      "versions": [
+        {
+          "evidence": [
+            {
+              "key": "turbo",
+              "path": "pnpm-workspace.yaml",
+              "type": "pnpm_catalog_pin"
+            },
+            {
+              "integrity": "sha512-07Y/C7OUp23l4P92PJoYtFNbHjLhftrZH5Ce7dbczS4kX2Re+wtbXvZLoxn/pUtzgsQaRCBaRuZPJp4zmAn0WQ==",
+              "key": "turbo@2.10.5",
+              "path": "pnpm-lock.yaml",
+              "type": "pnpm_lockfile_snapshot"
+            },
+            {
+              "key": "turbo",
+              "path": "package.json",
+              "type": "workspace_dependency_catalog_reference"
+            }
+          ],
+          "major": 2,
+          "releaseChannel": "stable",
+          "version": "2.10.5"
+        }
+      ]
+    },
+    {
+      "applicationDiscovery": {
+        "containers": [
+          ".",
+          "apps/*",
+          "packages/*"
+        ],
+        "directPathIndexing": true,
+        "note": "workspace packages outside apps/* and packages/* (for example telemetry/*) are indexed by direct application path"
+      },
+      "displayName": "Next.js",
+      "fileExtensions": [
+        "js",
+        "jsx",
+        "ts",
+        "tsx",
+        "mjs",
+        "mts"
+      ],
+      "id": "nextjs",
+      "provider": "soleaux-static-next-provider",
+      "routeKinds": [
+        {
+          "detection": "file_convention",
+          "fileStems": [
+            "page"
+          ],
+          "kind": "page",
+          "methodsDetected": [],
+          "routers": [
+            "app",
+            "pages"
+          ]
+        },
+        {
+          "detection": "file_convention_plus_exported_method_scan",
+          "fileStems": [
+            "route"
+          ],
+          "kind": "route_handler",
+          "methodDetectionMode": "string_match_until_P5-025",
+          "methodsDetected": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD",
+            "OPTIONS"
+          ],
+          "routers": [
+            "app"
+          ]
+        },
+        {
+          "detection": "file_convention",
+          "fileStems": [
+            "sitemap",
+            "robots",
+            "manifest"
+          ],
+          "kind": "metadata_route",
+          "methodsDetected": [],
+          "routers": [
+            "app"
+          ]
+        },
+        {
+          "detection": "file_convention",
+          "fileStems": [],
+          "kind": "api_route",
+          "methodsDetected": [],
+          "pathPrefix": "api/",
+          "routers": [
+            "pages"
+          ]
+        }
+      ],
+      "segmentNormalization": [
+        {
+          "input": "(group)",
+          "output": "dropped",
+          "semantics": "route_group"
+        },
+        {
+          "input": "@slot",
+          "output": "dropped",
+          "semantics": "parallel_route_slot"
+        },
+        {
+          "input": "(.)segment",
+          "output": "segment",
+          "semantics": "interception_marker_stripped"
+        },
+        {
+          "input": "(..)segment",
+          "output": "segment",
+          "semantics": "interception_marker_stripped"
+        },
+        {
+          "input": "(..)(..)segment",
+          "output": "segment",
+          "semantics": "interception_marker_stripped"
+        },
+        {
+          "input": "(...)segment",
+          "output": "segment",
+          "semantics": "interception_marker_stripped"
+        },
+        {
+          "input": "[param]",
+          "output": ":param",
+          "semantics": "dynamic_segment"
+        },
+        {
+          "input": "[...param]",
+          "output": "*param",
+          "semantics": "catch_all_segment"
+        },
+        {
+          "input": "[[...param]]",
+          "output": "*param?",
+          "semantics": "optional_catch_all_segment"
+        },
+        {
+          "input": "index",
+          "output": "collapsed_into_parent_path",
+          "router": "pages",
+          "semantics": "index_route"
+        },
+        {
+          "input": "_prefixed_file",
+          "output": "ignored",
+          "router": "pages",
+          "semantics": "private_file_convention"
+        }
+      ],
+      "stableMajorsVerifiedFromLockfiles": [],
+      "stableVersionNote": "no stable Next.js release is present in this repository's lockfile; the pinned preview is the only lockfile-verifiable version and no network probe was performed",
+      "versionPolicy": "exact",
+      "versions": [
+        {
+          "evidence": [
+            {
+              "key": "next",
+              "path": "pnpm-workspace.yaml",
+              "type": "pnpm_catalog_pin"
+            },
+            {
+              "integrity": "sha512-mNUH6FJz/oB0htRV2wBPeXXU+bT3+ZCrTtGkZe1YTRdV0qmsx3P8ajMAKfVQI/dTQ/Me9IOAVjfEHfeoFGmPtQ==",
+              "key": "next@16.3.0-preview.6",
+              "path": "pnpm-lock.yaml",
+              "type": "pnpm_lockfile_snapshot"
+            },
+            {
+              "key": "next",
+              "path": "telemetry/dashboard/package.json",
+              "type": "workspace_dependency_catalog_reference"
+            }
+          ],
+          "major": 16,
+          "releaseChannel": "preview",
+          "version": "16.3.0-preview.6"
+        }
+      ]
+    }
+  ],
+  "validationRepositories": [
+    {
+      "expectedTasks": [
+        "check:ci",
+        "test:unit",
+        "typecheck"
+      ],
+      "expectedWorkspaceGlobs": [
+        ".",
+        "docs",
+        "telemetry/*"
+      ],
+      "id": "soleaux",
+      "kind": "real_repository_self_validation",
+      "nextApplications": [
+        "telemetry/dashboard"
+      ],
+      "path": ".",
+      "turboConfiguration": "turbo.json",
+      "workspaceSource": "pnpm-workspace.yaml"
+    }
+  ],
+  "versionEvidencePolicy": "repository_lockfile_and_catalog_only_no_network"
+}
