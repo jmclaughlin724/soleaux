@@ -749,6 +749,40 @@ pub(crate) fn session_page(
     Ok(serialized_id_page(items, limit))
 }
 
+pub(crate) fn memory_claim_page(
+    connection: &Connection,
+    workspace_id: Option<Uuid>,
+    scope: Option<&str>,
+    memory_state: Option<&str>,
+    cursor: Option<Uuid>,
+    limit: usize,
+) -> Result<SerializedRegistryPage> {
+    let workspace = workspace_key(workspace_id);
+    let cursor_key = cursor.map(|value| value.to_string()).unwrap_or_default();
+    let sql = format!(
+        "{ENTITY_SELECT} WHERE kind = ?1 AND workspace_key = ?2
+         AND tombstoned_at_unix_ms IS NULL
+         AND (?3 = '' OR json_extract(payload_json, '$.scope') = ?3)
+         AND (?4 = '' OR json_extract(payload_json, '$.memoryState') = ?4)
+         AND (?5 = '' OR id > ?5)
+         ORDER BY id LIMIT ?6"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let rows = statement.query_map(
+        params![
+            EntityKind::MemoryClaim.as_str(),
+            workspace,
+            scope.unwrap_or_default(),
+            memory_state.unwrap_or_default(),
+            cursor_key,
+            i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX)
+        ],
+        entity_from_row,
+    )?;
+    let items = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(serialized_id_page(items, limit))
+}
+
 pub(crate) fn entity_child_page(
     connection: &Connection,
     parent_id: Uuid,

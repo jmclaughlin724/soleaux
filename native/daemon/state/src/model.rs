@@ -384,6 +384,7 @@ pub struct MemoryClaimPayload {
     pub claim_type: String,
     pub subject: String,
     pub content: String,
+    pub scope: String,
     pub memory_state: String,
     pub confidence: f64,
     #[serde(default)]
@@ -403,11 +404,63 @@ impl CanonicalPayload for MemoryClaimPayload {
         require(&self.claim_type, "claim type")?;
         require(&self.subject, "memory subject")?;
         require(&self.content, "memory content")?;
-        require(&self.memory_state, "memory state")?;
+        validate_memory_scope(&self.scope)?;
+        validate_memory_state(&self.memory_state)?;
         if !(0.0..=1.0).contains(&self.confidence) {
             bail!("memory confidence must be between zero and one");
         }
         Ok(())
+    }
+}
+
+pub const MEMORY_STATE_PROPOSED: &str = "proposed";
+pub const MEMORY_STATE_VALIDATED: &str = "validated";
+pub const MEMORY_STATE_ACTIVE: &str = "active";
+pub const MEMORY_STATE_SUPERSEDED: &str = "superseded";
+pub const MEMORY_STATE_TOMBSTONED: &str = "tombstoned";
+pub const MEMORY_STATE_REJECTED: &str = "rejected";
+
+/// Memory claims live inside the three locked `memory.search` scopes; the
+/// public scope enum cannot grow without a reviewed contract change.
+pub const MEMORY_SCOPES: [&str; 3] = ["compiled_context", "session", "team"];
+
+pub fn validate_memory_scope(value: &str) -> Result<()> {
+    if MEMORY_SCOPES.contains(&value) {
+        return Ok(());
+    }
+    bail!("unsupported memory scope: {value}")
+}
+
+pub fn validate_memory_state(value: &str) -> Result<()> {
+    if [
+        MEMORY_STATE_PROPOSED,
+        MEMORY_STATE_VALIDATED,
+        MEMORY_STATE_ACTIVE,
+        MEMORY_STATE_SUPERSEDED,
+        MEMORY_STATE_TOMBSTONED,
+        MEMORY_STATE_REJECTED,
+    ]
+    .contains(&value)
+    {
+        return Ok(());
+    }
+    bail!("unsupported memory state: {value}")
+}
+
+/// Proposed→Validated→Active is the only forward path; rejection ends a claim
+/// before activation, and an active claim ends only as superseded or
+/// tombstoned. Superseded, tombstoned, and rejected are terminal.
+pub fn validate_memory_transition(from: &str, to: &str) -> Result<()> {
+    validate_memory_state(from)?;
+    validate_memory_state(to)?;
+    match (from, to) {
+        (MEMORY_STATE_PROPOSED, MEMORY_STATE_VALIDATED)
+        | (MEMORY_STATE_PROPOSED, MEMORY_STATE_REJECTED)
+        | (MEMORY_STATE_VALIDATED, MEMORY_STATE_ACTIVE)
+        | (MEMORY_STATE_VALIDATED, MEMORY_STATE_REJECTED)
+        | (MEMORY_STATE_ACTIVE, MEMORY_STATE_SUPERSEDED)
+        | (MEMORY_STATE_ACTIVE, MEMORY_STATE_TOMBSTONED) => Ok(()),
+        _ => bail!("unsupported memory transition: {from} -> {to}"),
     }
 }
 
@@ -970,6 +1023,14 @@ pub struct ClientWorkspaceBindingRegistryPage {
 #[serde(rename_all = "camelCase")]
 pub struct SessionRegistryPage {
     pub items: Vec<CanonicalRecord<SessionPayload>>,
+    pub next_cursor: Option<Uuid>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryClaimPage {
+    pub items: Vec<CanonicalRecord<MemoryClaimPayload>>,
     pub next_cursor: Option<Uuid>,
     pub truncated: bool,
 }

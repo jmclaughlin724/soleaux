@@ -105,6 +105,17 @@ pub async fn registry_call(method: IpcMethod) -> Result<Value> {
     ipc_result(&paths, method).await
 }
 
+/// Canonical-state operations owned by the daemon; the CLI never opens the
+/// state database directly for them.
+pub async fn daemon_call(method: IpcMethod) -> Result<Value> {
+    let paths = SoleauxPaths::resolve()?;
+    let status = service_status(&paths).await?;
+    if !status.running || !paths.endpoint.exists() {
+        bail!("the Soleaux per-user service must be running for daemon canonical-state operations");
+    }
+    ipc_result(&paths, method).await
+}
+
 pub async fn apply_and_register_attach(root: &Path) -> Result<Value> {
     let (canonical, path, display_name) = canonical_workspace_registration(root)?;
     let manifest_path = canonical.join(".soleaux/backups/latest.json");
