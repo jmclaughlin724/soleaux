@@ -1,0 +1,44 @@
+{
+  "capabilities": [
+    "memory lifecycle state machine (proposed→validated→active→superseded/tombstoned/rejected, terminals closed) with transition guards enforced at every canonical write, including native upserts",
+    "required memory scope validated against the locked scope set; expiry refusal on transitions",
+    "capability-gated propose/correct/validate/supersede/tombstone/list/export/import over daemon IPC and CLI behind the deny-by-default policy engine — never root tools; tombstone requires explicit confirmation and entity-tombstones for retention purge",
+    "conflict writer producing ConflictPayload records with conflicts_with links for contradicting active claims (bounded scan, truncation reported); session provenance with lineage links",
+    "idempotent export/import keyed on original id and payload hash; compaction survival proven through apply_retention, purge_tombstones, and repair with the audit chain valid",
+    "memory.search entity-backed canonicalClaims section joining active claims through the locked scopes — additive response section, locked scope enum untouched, attach-only-if-exists",
+    "capability_policy_mut grant seam reserved as the P5-020 issuance point"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-07",
+  "implementationPullRequests": [
+    {
+      "headCommit": "36a903cb7c90d81534d8ee209c7cc7d3a7fd872e",
+      "mergeCommit": "966ead1ca0834affd7cefda04efb25fbd313b602",
+      "pullRequest": 57,
+      "workflowRuns": {
+        "ci": 31230885153,
+        "clientCapabilityMatrix": 31230885108,
+        "native": 31230885114
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-018",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 168
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

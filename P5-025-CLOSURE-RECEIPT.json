@@ -1,0 +1,43 @@
+{
+  "capabilities": [
+    "real Oxc route/action/boundary extraction with exact byte spans: HTTP-method exports across declaration/specifier/re-export forms (type-only excluded), segment-config literals, module- and function-scope use-server actions, boundary default-export and use-client facts",
+    "string matching removed from the live path; the verbatim legacy detectors retained as regression oracles; a parser panic degrades to the labeled degraded-textual-scan",
+    "matrix version gate resolving catalog: pins via upward pnpm-workspace walk; unknown Next versions degrade to safe mode",
+    "cross-app route reconciliation for multi-app repositories (conflicting and disjoint routes)",
+    "capability-driven DevTools integration seeded from the registered next-devtools-mcp gateway backend: spawn-free truthful probe, init to nextjs_index to advertised runtime calls through explicit gateway invocation only; the bounded tool never spawns; runtime_evidence_attached flips only through actual attachment",
+    "matrix devtoolsIntegration stays false — runtime attachment is per-invocation evidence, never a static claim"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-08",
+  "implementationPullRequests": [
+    {
+      "headCommit": "b4cbc1c644e76ecdf3bc050d811fbe40cdb96384",
+      "mergeCommit": "7eca95e670eecc60103e076da0fe2b1443346f7c",
+      "pullRequest": 63,
+      "workflowRuns": {
+        "ci": 31240244321,
+        "clientCapabilityMatrix": 31240244310,
+        "native": 31240244289
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-025",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 219
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

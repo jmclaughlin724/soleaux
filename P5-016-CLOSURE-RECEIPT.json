@@ -1,0 +1,43 @@
+{
+  "capabilities": [
+    "all 39 per-message JSON Schemas plus combined schema files vendored from openai/codex at tag rust-v0.146.1 with a digest manifest; hand-derived wire types validated against the vendored schemas in tests; the build never touches the network",
+    "stdio JSON-RPC client: thread lifecycle (start/resume/fork/list/read/archive/compact), turns (start/steer/interrupt), approval round-trips, durable AdapterCursor positions, supervised reconnect with resubscription",
+    "safe mode refuses every mutating method locally with a typed error — policy is checked before transport state so refusals are deterministic — and answers approvals with cancel",
+    "a new thread reporting a foreign CLI version permanently downgrades the client (VersionDrift); vendor-native stores are never written",
+    "workspaces stay read-only to external clients until a daemon-issued admission receipt verifies, independent of adapter mode",
+    "standalone soleaux-adapter-codex workspace crate registered beside the opencode adapter"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-08",
+  "implementationPullRequests": [
+    {
+      "headCommit": "0978cfd8cdda2e755fbdd3f4b231b8f1f51c0171",
+      "mergeCommit": "271fa25b52d49e05e7bd790b27065af1fafcfe96",
+      "pullRequest": 61,
+      "workflowRuns": {
+        "ci": 31239874942,
+        "clientCapabilityMatrix": 31239874940,
+        "native": 31239874952
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-016",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 210
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

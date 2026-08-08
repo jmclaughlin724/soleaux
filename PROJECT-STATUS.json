@@ -182,7 +182,13 @@
         "P5-008",
         "P5-010",
         "P5-021",
-        "P5-011"
+        "P5-011",
+        "P5-016",
+        "P5-017",
+        "P5-018",
+        "P5-024",
+        "P5-025",
+        "P5-023"
       ],
       "currentTask": "P5-009",
       "name": "Adapters, lifecycle, intelligence depth, and extensibility",
@@ -194,7 +200,13 @@
         "P5-007-CLOSURE-RECEIPT.json",
         "P5-008-CLOSURE-RECEIPT.json",
         "P5-010-CLOSURE-RECEIPT.json",
-        "P5-021-CLOSURE-RECEIPT.json"
+        "P5-021-CLOSURE-RECEIPT.json",
+        "P5-016-CLOSURE-RECEIPT.json",
+        "P5-017-CLOSURE-RECEIPT.json",
+        "P5-018-CLOSURE-RECEIPT.json",
+        "P5-024-CLOSURE-RECEIPT.json",
+        "P5-025-CLOSURE-RECEIPT.json",
+        "P5-023-CLOSURE-RECEIPT.json"
       ],
       "status": "in_progress"
     },
