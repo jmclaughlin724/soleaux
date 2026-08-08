@@ -806,11 +806,13 @@ fn registry_binding_admission_elevates_until_expiry_then_downgrades() {
         .client;
     assert!(!client.payload.write_capable);
 
+    // The validity window must comfortably cover the store calls between bind
+    // and the first heartbeat on a slow CI runner; a 250 ms budget raced them.
     let admission = ClientBindingAdmission {
         receipt_matrix_sha256: "a".repeat(64),
         probe_evidence_sha256: "b".repeat(64),
         issued_at_unix_ms: now,
-        expires_at_unix_ms: now + 250,
+        expires_at_unix_ms: now + 2_500,
         key_version: 1,
     };
 
@@ -842,7 +844,7 @@ fn registry_binding_admission_elevates_until_expiry_then_downgrades() {
         ClientAccessMode::ReadWrite
     );
 
-    thread::sleep(Duration::from_millis(300));
+    thread::sleep(Duration::from_millis(2_600));
     let downgraded = store
         .registry_heartbeat_client(client.id, 60_000, None)
         .expect("heartbeat after admission expiry");

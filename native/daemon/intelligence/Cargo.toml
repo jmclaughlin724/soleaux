@@ -10,6 +10,7 @@ description = "Native Soleaux repository intelligence: Oxc, Tree-sitter, Postgre
 anyhow.workspace = true
 ignore.workspace = true
 blake3.workspace = true
+libcst.workspace = true
 glob.workspace = true
 dashmap.workspace = true
 moka.workspace = true
