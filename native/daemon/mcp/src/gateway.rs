@@ -294,12 +294,14 @@ pub async fn invoke(
     }
 }
 
-async fn invoke_stdio(
+fn spawn_backend(
     root: &Path,
     backend: &GatewayBackend,
-    tool: &str,
-    arguments: Value,
-) -> Result<GatewayInvocation> {
+) -> Result<(
+    tokio::process::Child,
+    tokio::process::ChildStdin,
+    tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+)> {
     let program = backend.command.first().context("empty gateway command")?;
     let mut command = Command::new(program);
     command.args(&backend.command[1..]);
@@ -326,7 +328,7 @@ async fn invoke_stdio(
         .kill_on_drop(true)
         .spawn()
         .with_context(|| format!("starting gateway backend {}", backend.name))?;
-    let mut stdin = child
+    let stdin = child
         .stdin
         .take()
         .context("gateway backend stdin unavailable")?;
@@ -334,7 +336,17 @@ async fn invoke_stdio(
         .stdout
         .take()
         .context("gateway backend stdout unavailable")?;
-    let mut reader = BufReader::new(stdout).lines();
+    let reader = BufReader::new(stdout).lines();
+    Ok((child, stdin, reader))
+}
+
+async fn invoke_stdio(
+    root: &Path,
+    backend: &GatewayBackend,
+    tool: &str,
+    arguments: Value,
+) -> Result<GatewayInvocation> {
+    let (mut child, mut stdin, mut reader) = spawn_backend(root, backend)?;
 
     write_json_line(
         &mut stdin,
@@ -371,6 +383,124 @@ async fn invoke_stdio(
         response: response.get("result").cloned().unwrap_or(Value::Null),
         transport: GatewayTransport::Stdio,
     })
+}
+
+/// One persistent stdio MCP session against a configured gateway backend:
+/// `initialize` → `notifications/initialized` → `tools/list`, then explicit
+/// calls restricted to the advertised tool names. Request ids are sequential
+/// from 1 so a scripted conformance backend can respond deterministically.
+pub struct GatewaySession {
+    backend: GatewayBackend,
+    child: tokio::process::Child,
+    stdin: tokio::process::ChildStdin,
+    reader: tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+    next_id: u64,
+    advertised_tools: Vec<String>,
+}
+
+impl GatewaySession {
+    pub async fn open(root: &Path, backend_name: &str) -> Result<Self> {
+        validate_identifier(backend_name, "backend")?;
+        let backend = discover_backends(root)?
+            .into_iter()
+            .find(|backend| backend.name == backend_name)
+            .with_context(|| format!("unknown gateway backend {backend_name}"))?;
+        if !backend.enabled {
+            bail!("gateway backend {backend_name} is disabled");
+        }
+        if backend.transport != GatewayTransport::Stdio {
+            bail!("gateway capability sessions require a stdio backend");
+        }
+        if backend.auth != "none" && !credential_present(backend_name)? {
+            bail!("gateway backend {backend_name} requires CLI-mediated login");
+        }
+        let (child, mut stdin, mut reader) = spawn_backend(root, &backend)?;
+        write_json_line(
+            &mut stdin,
+            &json!({
+                "jsonrpc":"2.0","id":1,"method":"initialize",
+                "params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"Soleaux Gateway","version":env!("CARGO_PKG_VERSION")}}
+            }),
+        )
+        .await?;
+        let initialized = read_response(&mut reader, 1).await?;
+        if initialized.get("error").is_some() {
+            bail!("gateway backend initialize failed: {initialized}");
+        }
+        write_json_line(
+            &mut stdin,
+            &json!({"jsonrpc":"2.0","method":"notifications/initialized","params":{}}),
+        )
+        .await?;
+        write_json_line(
+            &mut stdin,
+            &json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
+        )
+        .await?;
+        let listed = read_response(&mut reader, 2).await?;
+        if let Some(error) = listed.get("error") {
+            bail!("gateway backend tools/list failed: {error}");
+        }
+        let advertised_tools = listed
+            .pointer("/result/tools")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect();
+        Ok(Self {
+            backend,
+            child,
+            stdin,
+            reader,
+            next_id: 3,
+            advertised_tools,
+        })
+    }
+
+    pub fn backend(&self) -> &GatewayBackend {
+        &self.backend
+    }
+
+    pub fn advertised_tools(&self) -> &[String] {
+        &self.advertised_tools
+    }
+
+    pub fn advertises(&self, tool: &str) -> bool {
+        self.advertised_tools.iter().any(|name| name == tool)
+    }
+
+    /// Call one advertised tool. Refuses tools the backend did not advertise:
+    /// capability discovery, not assumption, decides what may be invoked.
+    pub async fn call(&mut self, tool: &str, arguments: Value) -> Result<Value> {
+        if !self.advertises(tool) {
+            bail!(
+                "gateway backend {} does not advertise the {tool} tool",
+                self.backend.name
+            );
+        }
+        let id = self.next_id;
+        self.next_id += 1;
+        write_json_line(
+            &mut self.stdin,
+            &json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":tool,"arguments":arguments}}),
+        )
+        .await?;
+        let response = read_response(&mut self.reader, id).await?;
+        if let Some(error) = response.get("error") {
+            bail!("gateway backend tool failed: {error}");
+        }
+        Ok(response.get("result").cloned().unwrap_or(Value::Null))
+    }
+
+    pub async fn close(self) {
+        let Self {
+            stdin, mut child, ..
+        } = self;
+        drop(stdin);
+        let _ = timeout(Duration::from_secs(2), child.wait()).await;
+    }
 }
 
 async fn write_json_line(stdin: &mut tokio::process::ChildStdin, value: &Value) -> Result<()> {

@@ -7,6 +7,7 @@ use soleaux_ipc::IpcMethod;
 use soleaux_mcp::{
     PublicMcpServer,
     gateway::{backend_status, clear_credential, invoke, store_credential},
+    nextjs_devtools,
     provisioning::{adopt_plan, apply_adopt, attach_plan},
 };
 use soleaux_state::{
@@ -165,6 +166,12 @@ enum McpCommand {
         tool: String,
         #[arg(long, default_value = "{}")]
         arguments: String,
+        #[arg(default_value = ".")]
+        repo: PathBuf,
+    },
+    /// Capability-probe the registered next-devtools backend and, when
+    /// capable, run init → nextjs_index and attach runtime evidence.
+    NextRuntime {
         #[arg(default_value = ".")]
         repo: PathBuf,
     },
@@ -657,6 +664,10 @@ async fn main() -> Result<()> {
                     bail!("--arguments must be a JSON object");
                 }
                 print_json(invoke(&repo, &name, &tool, arguments).await?)
+            }
+            McpCommand::NextRuntime { repo } => {
+                let (index, devtools) = nextjs_devtools::runtime_report(&repo).await?;
+                print_json(json!({"index":index,"devtools":devtools}))
             }
         },
         SoleauxCommand::Catalog { command } => match command {
