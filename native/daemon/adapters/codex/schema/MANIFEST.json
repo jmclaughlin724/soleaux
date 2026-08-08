@@ -1,0 +1,244 @@
+{
+ "fileCount": 39,
+ "files": [
+  {
+   "bytes": 2657,
+   "path": "json/ApplyPatchApprovalParams.json",
+   "sha256": "179d91081c3c84d0f79fc544a3d6d423f280c0f9d93512cdd0344c80e09b99a3",
+   "upstreamGitBlobSha": "d1174a05b0d3fa4829e4c5b7d288efa3e480aeb5"
+  },
+  {
+   "bytes": 3989,
+   "path": "json/ApplyPatchApprovalResponse.json",
+   "sha256": "7157060306bb48d56d1544be17c104abf571722123cfe3ad72746f98f84e95dc",
+   "upstreamGitBlobSha": "c47cf09f2dbaf4e4ea06b34c99ac93e54af96bb6"
+  },
+  {
+   "bytes": 118,
+   "path": "json/AttestationGenerateParams.json",
+   "sha256": "b85df8f169cfbca98724df3a5f7550fc4649fa69b23f5160aafdb52e027133a8",
+   "upstreamGitBlobSha": "310552bb7d6bfcf783760247b609093cd706deef"
+  },
+  {
+   "bytes": 277,
+   "path": "json/AttestationGenerateResponse.json",
+   "sha256": "2eb86b2a37bca01a8cb5d0822f28cf13d46dd106c8b1d38e7ba097e436b5ab30",
+   "upstreamGitBlobSha": "e6bd59ec250cea56222ad92f4f6238c7b6249ddb"
+  },
+  {
+   "bytes": 971,
+   "path": "json/ChatgptAuthTokensRefreshParams.json",
+   "sha256": "03b7a734b8b3180d9cb477b33564385d29b22a2528165a614891f13849060503",
+   "upstreamGitBlobSha": "8b320fd673d8bdc88e18334c77027518f1b0c31b"
+  },
+  {
+   "bytes": 406,
+   "path": "json/ChatgptAuthTokensRefreshResponse.json",
+   "sha256": "06d6b30436fc962d80b5d7920f8f323de12a052214d9148c5f0dfbaedd5eec6c",
+   "upstreamGitBlobSha": "6d88e784c539abd315ec3baeb7cafd62dd33feec"
+  },
+  {
+   "bytes": 431,
+   "path": "json/ClientNotification.json",
+   "sha256": "706cf248d75027c84a3c63348d0ed507182e8eba40069dd17541793de029145a",
+   "upstreamGitBlobSha": "dde0b31fbd67a09f6ea0b2b133e17d7f00cfc26a"
+  },
+  {
+   "bytes": 177487,
+   "path": "json/ClientRequest.json",
+   "sha256": "176700239f2322dd1420e23137ac2d4b9350e5c6c1e3dc51f35a243722166865",
+   "upstreamGitBlobSha": "8588a3406957a0fea3e9f82e15c8bcbe933053da"
+  },
+  {
+   "bytes": 15425,
+   "path": "json/CommandExecutionRequestApprovalParams.json",
+   "sha256": "a149fbb111613983861de15bd3d4254a5d1ffe2738dd7b0e2eb5f8ce2d2f7e45",
+   "upstreamGitBlobSha": "da480a296eb249b1d3de93490d98efbad4ec122e"
+  },
+  {
+   "bytes": 3202,
+   "path": "json/CommandExecutionRequestApprovalResponse.json",
+   "sha256": "6d0767113e22f311381809b6b236b0dde2b99b01992879c26bf7b1ea0e003cb7",
+   "upstreamGitBlobSha": "0b7986fba92365c35553aa19c5b8dc24926ba02f"
+  },
+  {
+   "bytes": 519,
+   "path": "json/DynamicToolCallParams.json",
+   "sha256": "401bba20cfbd95762bef0467d840430c46be53369093ad9f26425ba757e34efc",
+   "upstreamGitBlobSha": "991733da668fcf969d8338de5752552d8b1d9713"
+  },
+  {
+   "bytes": 2010,
+   "path": "json/DynamicToolCallResponse.json",
+   "sha256": "abb082cad67f11fcc98ba75f2eff75d7d1723af0c657655329b83ff160451a02",
+   "upstreamGitBlobSha": "47de6cb30e9d403533d10a0329e6fca8e8030aec"
+  },
+  {
+   "bytes": 3768,
+   "path": "json/ExecCommandApprovalParams.json",
+   "sha256": "653116614df1aa5011c3cc399cf79bae6b9eb28c1d527df27275abf61ceb1365",
+   "upstreamGitBlobSha": "43f85d21ae89620e8036b1f7db8c7d15fc174e8d"
+  },
+  {
+   "bytes": 3990,
+   "path": "json/ExecCommandApprovalResponse.json",
+   "sha256": "ab2d399e9b3ff769fd32e54160a96bd13158247f73e1b08a0c1175f291b2487a",
+   "upstreamGitBlobSha": "7a78661926bf00dc5e47b91d0f34b9ea92a9465d"
+  },
+  {
+   "bytes": 968,
+   "path": "json/FileChangeRequestApprovalParams.json",
+   "sha256": "13848b26814c286ad6425a20d01c1691c86790e1f9e2529399677a8a22fe0d18",
+   "upstreamGitBlobSha": "f17388aa53a4b63d802c4475780246560f850196"
+  },
+  {
+   "bytes": 1158,
+   "path": "json/FileChangeRequestApprovalResponse.json",
+   "sha256": "b95b03ee6be674e25cee2e863cc135a28620e1070addd2f34685aadee27cde08",
+   "upstreamGitBlobSha": "f20035e3d7a668c894323583272cb661e8ff254c"
+  },
+  {
+   "bytes": 413,
+   "path": "json/FuzzyFileSearchParams.json",
+   "sha256": "0291dbb87a7c3d8ef7f7cdf8d5d61f929deabab8c0ea79f064da95984d7d5f4f",
+   "upstreamGitBlobSha": "3a72939de4351da9e9e811b956f40d5edef3e7bc"
+  },
+  {
+   "bytes": 1332,
+   "path": "json/FuzzyFileSearchResponse.json",
+   "sha256": "4984c3dba591e240407c39531d41c6b499c4816017de70a3371c7d6fa2d0951f",
+   "upstreamGitBlobSha": "3c91a79c69754256e51f76b302b587424b11b346"
+  },
+  {
+   "bytes": 244,
+   "path": "json/FuzzyFileSearchSessionCompletedNotification.json",
+   "sha256": "d3af2e301142ac0cb2462d95b052162ff4f25d83f9c1b21e319d5ce9c860d401",
+   "upstreamGitBlobSha": "c8924e77caf0b5bec6819b6d0437504195a358f1"
+  },
+  {
+   "bytes": 1474,
+   "path": "json/FuzzyFileSearchSessionUpdatedNotification.json",
+   "sha256": "b8626521028e0c68611c57d458f27dbc9bf8be542e804865ae0d14acd78cf2e6",
+   "upstreamGitBlobSha": "b69ad9b288f6746c65b34108029f8ee879807d64"
+  },
+  {
+   "bytes": 893,
+   "path": "json/JSONRPCError.json",
+   "sha256": "d7ea353d4875ae204625da5a00a1ecb5afc69101d5778b9acc253a49f8932992",
+   "upstreamGitBlobSha": "6db5d1a7fa557a813332561218b00224209ec553"
+  },
+  {
+   "bytes": 314,
+   "path": "json/JSONRPCErrorError.json",
+   "sha256": "12cc5cd5d9df9246defa609c472375020fe5250f3aeabd7d529076cecd9f541e",
+   "upstreamGitBlobSha": "932ef33c9a7bd762b90d0153b791f7cbdfaf3c70"
+  },
+  {
+   "bytes": 2888,
+   "path": "json/JSONRPCMessage.json",
+   "sha256": "6da4cc373a7ccd01f5608ad4496eeb4d44b6a9b0d3158e85ed66b59f3c0b5114",
+   "upstreamGitBlobSha": "27b78b90c9293a83fa747b370152cf9539132b97"
+  },
+  {
+   "bytes": 303,
+   "path": "json/JSONRPCNotification.json",
+   "sha256": "c2b43f26880db331393fe09f34bdd76dfeb4dc30d8418d1c26e18db166d6c8c8",
+   "upstreamGitBlobSha": "2ddd61a8ca7b59008f9bb94b53094ae37179e26e"
+  },
+  {
+   "bytes": 1093,
+   "path": "json/JSONRPCRequest.json",
+   "sha256": "31bd6f360b2dd8a7ceaf682708105d40d38cb0b9d0821357a04da67028438f73",
+   "upstreamGitBlobSha": "e4ea7c206b070b5d2bead96a4a9ee5430dc17567"
+  },
+  {
+   "bytes": 520,
+   "path": "json/JSONRPCResponse.json",
+   "sha256": "4796738c04c74288213a08fb8d820c7b4df19e0977cdcd35b65ffcb43cfc93ab",
+   "upstreamGitBlobSha": "9f1ec2954852de4787547f1c96ebb532a911a149"
+  },
+  {
+   "bytes": 13251,
+   "path": "json/McpServerElicitationRequestParams.json",
+   "sha256": "d056440b1c92d660364b671a39156b87dac4ab6537178499289d4b7204743c61",
+   "upstreamGitBlobSha": "3fc697133078cc70665c41371c96d42af8f232a8"
+  },
+  {
+   "bytes": 741,
+   "path": "json/McpServerElicitationRequestResponse.json",
+   "sha256": "792a012fdfe53ac211575a6c37ffbd492be848d15cb313d1bb4b534ade1f54ac",
+   "upstreamGitBlobSha": "13390a06cfcf5987f366fe38bb63543179fb769e"
+  },
+  {
+   "bytes": 7719,
+   "path": "json/PermissionsRequestApprovalParams.json",
+   "sha256": "c6d165e1b0c65d5dcf1e099b4c226c7e4dad79fe2b88b03621a1fc6c1d3c86c2",
+   "upstreamGitBlobSha": "73329310c8133e8449dec98a32816debd717fb3a"
+  },
+  {
+   "bytes": 7068,
+   "path": "json/PermissionsRequestApprovalResponse.json",
+   "sha256": "23f3f24e9dbf35db3e0b85703f0d934da5a1cff3cbb611fba8bcd41f3b4a04b0",
+   "upstreamGitBlobSha": "a21e00a19aab4340f6175e4711d94e3e1975585d"
+  },
+  {
+   "bytes": 197,
+   "path": "json/RequestId.json",
+   "sha256": "9c72d59a306d827113020c6d31a14c326d55210d9bd6954f825196a52009f1c7",
+   "upstreamGitBlobSha": "d0fa43db8245f5a609abeec93d309a6e9bd9ff2f"
+  },
+  {
+   "bytes": 173775,
+   "path": "json/ServerNotification.json",
+   "sha256": "61341f7cc0730e6b0c4f59be97d18acec190fa87aa7551ae03d1abfef0536311",
+   "upstreamGitBlobSha": "636a2433c2983395d7b04ec283fa381ec15e3c29"
+  },
+  {
+   "bytes": 49058,
+   "path": "json/ServerRequest.json",
+   "sha256": "27ce8a1fc4b9326911f7c42379ff9fa661eee70060a7a2af942813247625d887",
+   "upstreamGitBlobSha": "971dde2498cd92a1bc9edc3429229c941085d3d1"
+  },
+  {
+   "bytes": 1977,
+   "path": "json/ToolRequestUserInputParams.json",
+   "sha256": "92eaf7d546447dd1ff9fd3da0550f52a0d8898e4dee271f18722af63afb4ce2e",
+   "upstreamGitBlobSha": "947371fd1056a1f3e14f98d749b6c9ce321b461c"
+  },
+  {
+   "bytes": 793,
+   "path": "json/ToolRequestUserInputResponse.json",
+   "sha256": "5073b245f741fa8ce62ec52e4dd1809b7831f9c4284c279a78abc9b171f8e3f2",
+   "upstreamGitBlobSha": "3fd6fbc3354a6c01f3769e3dfbb2876d6f84b9e7"
+  },
+  {
+   "bytes": 590478,
+   "path": "json/codex_app_server_protocol.schemas.json",
+   "sha256": "67ae808285b4bf822e76396a343132924e42b56aa41cf63f7a8e865f96e3a223",
+   "upstreamGitBlobSha": "e8e7d35692173d5cc83872a97fd452620397b7a9"
+  },
+  {
+   "bytes": 498606,
+   "path": "json/codex_app_server_protocol.v2.schemas.json",
+   "sha256": "d70eb346991306c3cc767edf4c090ba7e264332dcbe101536ea45ab80d193590",
+   "upstreamGitBlobSha": "3e9ea9793252e490c333bab27504c9978a9b1002"
+  },
+  {
+   "bytes": 1864,
+   "path": "json/v1/InitializeParams.json",
+   "sha256": "9847230b80060e6cf39c1dae613e423d640302f3244166929750ddbe9e2b16a4",
+   "upstreamGitBlobSha": "75f0860ddda5343333b6860f6f1d908cc954783e"
+  },
+  {
+   "bytes": 1286,
+   "path": "json/v1/InitializeResponse.json",
+   "sha256": "62ad689c2cb6379913c1d72749cfd8de5089d35760214123518eb92eef11acc9",
+   "upstreamGitBlobSha": "1de65f82f4df9fa810fbda3ff199eca49430a29f"
+  }
+ ],
+ "pinnedCodexVersion": "0.146.1",
+ "schemaVersion": "soleaux.codex-vendored-schema-manifest/v1",
+ "source": "https://github.com/openai/codex",
+ "sourcePath": "codex-rs/app-server-protocol/schema/json",
+ "tag": "rust-v0.146.1"
+}

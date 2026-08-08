@@ -12,6 +12,7 @@ pub mod gateway;
 pub mod http;
 pub mod materializer;
 pub mod memory;
+pub mod nextjs_devtools;
 pub mod profile;
 pub mod provisioning;
 pub mod registry;
@@ -43,7 +44,8 @@ use soleaux_intelligence::{
 };
 use soleaux_redaction::redact_text;
 use soleaux_state::{
-    CanonicalRecord, REGISTRY_PAGE_LIMIT_MAX, SessionPayload, StateStore, WorkspacePayload,
+    CanonicalRecord, MEMORY_SCOPES, MEMORY_STATE_ACTIVE, REGISTRY_PAGE_LIMIT_MAX, SessionPayload,
+    StateStore, WorkspacePayload,
 };
 use soleaux_storage::{IndexedFileRecord, Store, SymbolHit, SymbolRecord};
 use std::{
@@ -475,7 +477,7 @@ impl PublicMcpServer {
             "restart_lsp" => self.call_restart_lsp(arguments, started).await,
             OPTIONAL_POSTGRES => self.call_postgres(arguments, started),
             OPTIONAL_TURBOREPO => self.call_turborepo(arguments, started),
-            OPTIONAL_NEXTJS => self.call_nextjs(started),
+            OPTIONAL_NEXTJS => self.call_nextjs(arguments, started),
             _ => bail!("tool is not active in the binding Soleaux public profile: {name}"),
         }
     }
@@ -658,6 +660,9 @@ impl PublicMcpServer {
         if scopes.is_empty() || scopes.iter().any(|scope| scope == "session") {
             page.data["canonicalSessions"] = self.canonical_sessions_section(query);
         }
+        // P5-018 entity-backed mode: active canonical memory claims join the
+        // same locked filesystem scopes as a separately labeled section.
+        page.data["canonicalClaims"] = self.canonical_claims_section(query, &scopes);
         let mut metadata = SuccessMetadata::repository("memory.search", "soleaux-native-memory");
         metadata.trust = if page.attached {
             "retrieved_code_data"
@@ -1083,17 +1088,55 @@ impl PublicMcpServer {
         ))
     }
 
-    fn call_nextjs(&self, started: Instant) -> Result<ToolEnvelopeV2> {
-        let route_index = index_nextjs(self.root())?;
+    fn call_nextjs(&self, arguments: &Value, started: Instant) -> Result<ToolEnvelopeV2> {
+        let include_runtime = arguments
+            .get("include_runtime")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let app_root_filter = arguments
+            .get("app_root")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let mut route_index = index_nextjs(self.root())?;
+        if let Some(filter) = &app_root_filter {
+            route_index
+                .applications
+                .retain(|application| application == filter);
+            route_index.routes.retain(|route| &route.app_root == filter);
+            route_index
+                .server_actions
+                .retain(|action| &action.app_root == filter);
+            route_index
+                .boundaries
+                .retain(|boundary| &boundary.app_root == filter);
+            route_index
+                .version_gates
+                .retain(|gate| &gate.app_root == filter);
+            route_index
+                .cross_app_routes
+                .retain(|entry| entry.apps.iter().any(|app| app == filter));
+        }
+        // The bounded public tool never spawns the backend: the runtime block
+        // carries the spawn-free capability probe and its recorded reason.
+        // Attachment happens only through the explicit gateway flow
+        // (`nextjs_devtools::attach_runtime_evidence`).
+        let runtime = if include_runtime {
+            let capability = nextjs_devtools::probe_devtools(self.root(), &route_index);
+            json!({
+                "attached": route_index.runtime_evidence_attached,
+                "capability_driven": true,
+                "universal_get_routes_assumed": false,
+                "probe": capability,
+                "attachment_policy": "explicit-gateway-invocation-only",
+            })
+        } else {
+            Value::Null
+        };
         let data = json!({
             "applications": route_index.applications,
             "routes": route_index.routes,
             "server_actions": route_index.server_actions,
-            "runtime": {
-                "attached": route_index.runtime_evidence_attached,
-                "capability_driven": true,
-                "universal_get_routes_assumed": false,
-            },
+            "runtime": runtime,
             "provider": route_index.provider,
         });
         let mut metadata =
@@ -1328,6 +1371,109 @@ impl PublicMcpServer {
             match page.next_cursor {
                 Some(next) => cursor = Some(next),
                 None => break,
+            }
+        }
+        json!({
+            "attached": true,
+            "workspaceRegistered": true,
+            "hits": hits,
+            "truncated": truncated,
+        })
+    }
+
+    /// Bounded entity-backed memory hits: active canonical claims whose scope
+    /// is one of the requested locked scopes and whose type, subject, or
+    /// content matches the query. Attach-only-if-exists, like every canonical
+    /// read on this server.
+    fn canonical_claims_section(&self, query: &str, scopes: &[String]) -> Value {
+        const HIT_LIMIT: usize = 24;
+        const SCAN_PAGE_LIMIT: usize = 3;
+        let Some(state) = self.canonical_state.as_ref() else {
+            return json!({
+                "attached": false,
+                "workspaceRegistered": false,
+                "hits": [],
+                "truncated": false,
+            });
+        };
+        let Some(workspace) = self.canonical_workspace_record() else {
+            return json!({
+                "attached": true,
+                "workspaceRegistered": false,
+                "hits": [],
+                "truncated": false,
+            });
+        };
+        let selected: Vec<&str> = if scopes.is_empty() {
+            MEMORY_SCOPES.to_vec()
+        } else {
+            MEMORY_SCOPES
+                .iter()
+                .copied()
+                .filter(|scope| scopes.iter().any(|requested| requested == scope))
+                .collect()
+        };
+        let needle = query.trim().to_ascii_lowercase();
+        let mut hits = Vec::new();
+        let mut truncated = false;
+        'scopes: for scope in selected {
+            let mut cursor = None;
+            for page_index in 0..SCAN_PAGE_LIMIT {
+                let page = match state.memory_claim_page(
+                    Some(workspace.id),
+                    Some(scope),
+                    Some(MEMORY_STATE_ACTIVE),
+                    cursor,
+                    REGISTRY_PAGE_LIMIT_MAX,
+                ) {
+                    Ok(page) => page,
+                    Err(_) => {
+                        return json!({
+                            "attached": true,
+                            "workspaceRegistered": true,
+                            "hits": [],
+                            "truncated": false,
+                            "unavailable": true,
+                        });
+                    }
+                };
+                for record in &page.items {
+                    let payload = &record.payload;
+                    let haystack = format!(
+                        "{} {} {}",
+                        payload.claim_type, payload.subject, payload.content
+                    )
+                    .to_ascii_lowercase();
+                    if !haystack.contains(&needle) {
+                        continue;
+                    }
+                    if hits.len() >= HIT_LIMIT {
+                        truncated = true;
+                        break 'scopes;
+                    }
+                    hits.push(json!({
+                        "claimId": record.id,
+                        "scope": payload.scope,
+                        "claimType": payload.claim_type,
+                        "subject": payload.subject,
+                        "content": payload.content,
+                        "memoryState": payload.memory_state,
+                        "confidence": payload.confidence,
+                        "sourceSessionId": payload.source_session_id,
+                    }));
+                }
+                if !page.truncated {
+                    break;
+                }
+                match page.next_cursor {
+                    Some(next) => {
+                        if page_index + 1 == SCAN_PAGE_LIMIT {
+                            truncated = true;
+                        }
+                        cursor = Some(next);
+                    }
+                    None => break,
+                }
             }
         }
         json!({
@@ -2662,6 +2808,107 @@ mod tests {
         assert_eq!(value["data"]["canonicalSessions"]["attached"], false);
     }
 
+    #[tokio::test]
+    async fn canonical_claims_join_memory_search_through_the_locked_scopes() {
+        use soleaux_state::{
+            CanonicalEntityInput, MEMORY_STATE_PROPOSED, MemoryClaimPayload, WorkspacePayload,
+            WorkspaceTrustState,
+        };
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = fs::canonicalize(temp.path()).expect("root");
+        let state_path = temp.path().join("canonical.sqlite3");
+        {
+            let state = StateStore::open(&state_path).expect("state");
+            let workspace_id = Uuid::now_v7();
+            let mut workspace = CanonicalEntityInput::active(WorkspacePayload {
+                canonical_path: root.to_string_lossy().to_string(),
+                path_hash: blake3::hash(root.to_string_lossy().as_bytes())
+                    .to_hex()
+                    .to_string(),
+                display_name: "Fixture".to_string(),
+                trust_state: WorkspaceTrustState::Trusted,
+                profile_digest: profile::PROFILE_MANIFEST_SHA256.to_string(),
+                context_digest: profile::CONTEXT_SCHEMA_SHA256.to_string(),
+                public_tool_ceiling: 12,
+                production_claim_allowed: false,
+                metadata: json!({}),
+            });
+            workspace.id = Some(workspace_id);
+            state.put(workspace).expect("workspace");
+
+            for (scope, state_value, subject) in [
+                ("team", MEMORY_STATE_ACTIVE, "alpha decision"),
+                ("team", MEMORY_STATE_PROPOSED, "alpha proposal"),
+                ("session", MEMORY_STATE_ACTIVE, "alpha session note"),
+            ] {
+                let mut claim = CanonicalEntityInput::active(MemoryClaimPayload {
+                    claim_type: "decision".to_string(),
+                    subject: subject.to_string(),
+                    content: format!("{subject} content"),
+                    scope: scope.to_string(),
+                    memory_state: state_value.to_string(),
+                    confidence: 0.9,
+                    evidence_uris: Vec::new(),
+                    supersedes_id: None,
+                    source_session_id: None,
+                    metadata: json!({}),
+                });
+                claim.state = state_value.to_string();
+                claim.workspace_id = Some(workspace_id);
+                state.put(claim).expect("claim");
+            }
+        }
+
+        let server = PublicMcpServer::with_store(&root, temp.path().join("index.sqlite3"))
+            .expect("server")
+            .with_canonical_state(&state_path)
+            .expect("attach");
+
+        let envelope = server
+            .call_async(
+                "memory.search",
+                &json!({"query": "alpha", "scopes": ["team"]}),
+            )
+            .await
+            .expect("memory search");
+        let value = serde_json::to_value(&envelope).expect("envelope");
+        let section = &value["data"]["canonicalClaims"];
+        assert_eq!(section["attached"], true);
+        assert_eq!(section["workspaceRegistered"], true);
+        let hits = section["hits"].as_array().expect("hits");
+        assert_eq!(
+            hits.len(),
+            1,
+            "only active claims in the requested scope may surface"
+        );
+        assert_eq!(hits[0]["subject"], "alpha decision");
+        assert_eq!(hits[0]["scope"], "team");
+        assert_eq!(hits[0]["memoryState"], "active");
+
+        let envelope = server
+            .call_async("memory.search", &json!({"query": "alpha"}))
+            .await
+            .expect("all scope search");
+        let value = serde_json::to_value(&envelope).expect("envelope");
+        let hits = value["data"]["canonicalClaims"]["hits"]
+            .as_array()
+            .expect("hits");
+        assert_eq!(hits.len(), 2, "the default scope set joins every scope");
+
+        let detached = PublicMcpServer::with_store(&root, temp.path().join("index2.sqlite3"))
+            .expect("detached server");
+        let envelope = detached
+            .call_async(
+                "memory.search",
+                &json!({"query": "alpha", "scopes": ["team"]}),
+            )
+            .await
+            .expect("detached memory search");
+        let value = serde_json::to_value(&envelope).expect("detached envelope");
+        assert_eq!(value["data"]["canonicalClaims"]["attached"], false);
+    }
+
     #[test]
     fn locked_tool_input_schemas_are_supported_and_closed() {
         for definition in all_tool_definitions().values() {
@@ -3123,6 +3370,61 @@ mod tests {
         assert_eq!(names.len(), 12);
         assert_eq!(names[11], OPTIONAL_POSTGRES);
         assert!(!names.contains(&"restart_lsp".to_string()));
+    }
+
+    #[tokio::test]
+    async fn next_get_routes_reports_the_spawn_free_probe_and_honors_include_runtime() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("app/api/items")).expect("dirs");
+        fs::write(temp.path().join("next.config.mjs"), "export default {};").expect("config");
+        fs::write(
+            temp.path().join("app/api/items/route.ts"),
+            "export async function GET() { return new Response(); }",
+        )
+        .expect("handler");
+        fs::write(
+            temp.path().join("app/page.tsx"),
+            "export default function Page() { return null; }",
+        )
+        .expect("page");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server")
+            .substitute_tool("restart_lsp", OPTIONAL_NEXTJS)
+            .expect("substitution");
+        server.prepare().await.expect("prepare");
+        let envelope = server
+            .call_async(OPTIONAL_NEXTJS, &json!({}))
+            .await
+            .expect("next routes");
+        assert_eq!(envelope.status, "ok");
+        let runtime = envelope.data.get("runtime").expect("runtime block");
+        assert_eq!(runtime.get("attached"), Some(&json!(false)));
+        assert_eq!(runtime.get("capability_driven"), Some(&json!(true)));
+        let probe = runtime.get("probe").expect("probe");
+        assert_eq!(probe.get("registered"), Some(&json!(false)));
+        assert!(
+            probe
+                .get("reason")
+                .and_then(Value::as_str)
+                .is_some_and(|reason| reason.contains("not registered")),
+            "the degradation reason must be recorded: {probe}"
+        );
+        let routes = envelope
+            .data
+            .get("routes")
+            .and_then(Value::as_array)
+            .expect("routes");
+        assert!(routes.iter().any(|route| {
+            route.get("kind") == Some(&json!("route_handler"))
+                && route.get("methods") == Some(&json!(["GET"]))
+                && route.get("extractionEngine") == Some(&json!("oxc-ast"))
+        }));
+
+        let without_runtime = server
+            .call_async(OPTIONAL_NEXTJS, &json!({"include_runtime": false}))
+            .await
+            .expect("next routes without runtime");
+        assert_eq!(without_runtime.data.get("runtime"), Some(&Value::Null));
     }
 
     #[tokio::test]

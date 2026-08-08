@@ -7,10 +7,11 @@ use soleaux_ipc::IpcMethod;
 use soleaux_mcp::{
     PublicMcpServer,
     gateway::{backend_status, clear_credential, invoke, store_credential},
+    nextjs_devtools,
     provisioning::{adopt_plan, apply_adopt, attach_plan},
 };
 use soleaux_state::{
-    ClientAccessMode, ClientKind, REGISTRY_PAGE_LIMIT_DEFAULT, WorkspaceTrustState,
+    ClientAccessMode, ClientKind, REGISTRY_PAGE_LIMIT_DEFAULT, Sensitivity, WorkspaceTrustState,
 };
 use std::{
     env, fs,
@@ -110,6 +111,11 @@ enum SoleauxCommand {
         #[command(subcommand)]
         command: HandoffCommand,
     },
+    /// Capability-gated canonical memory claim lifecycle operations.
+    Memory {
+        #[command(subcommand)]
+        command: MemoryCommand,
+    },
     /// Back up daemon-owned canonical state.
     Backup { destination: PathBuf },
     /// Restore daemon-owned canonical state while the service is stopped.
@@ -160,6 +166,12 @@ enum McpCommand {
         tool: String,
         #[arg(long, default_value = "{}")]
         arguments: String,
+        #[arg(default_value = ".")]
+        repo: PathBuf,
+    },
+    /// Capability-probe the registered next-devtools backend and, when
+    /// capable, run init → nextjs_index and attach runtime evidence.
+    NextRuntime {
         #[arg(default_value = ".")]
         repo: PathBuf,
     },
@@ -359,6 +371,112 @@ enum ClientRegistryCommand {
 }
 
 #[derive(Debug, Subcommand)]
+enum MemoryCommand {
+    /// Propose a memory claim; it enters the lifecycle as `proposed`.
+    Propose {
+        #[arg(long)]
+        workspace_id: uuid::Uuid,
+        #[arg(long)]
+        actor: String,
+        #[arg(long)]
+        scope: String,
+        #[arg(long)]
+        claim_type: String,
+        #[arg(long)]
+        subject: String,
+        #[arg(long)]
+        content: String,
+        #[arg(long, default_value_t = 0.5)]
+        confidence: f64,
+        #[arg(long = "evidence-uri")]
+        evidence_uris: Vec<String>,
+        #[arg(long)]
+        supersedes_id: Option<uuid::Uuid>,
+        #[arg(long)]
+        source_session_id: Option<uuid::Uuid>,
+        #[arg(long, default_value = "internal", value_parser = parse_sensitivity)]
+        sensitivity: Sensitivity,
+        #[arg(long)]
+        expires_at_unix_ms: Option<i64>,
+        #[arg(long, default_value = "{}")]
+        metadata: String,
+    },
+    /// List one bounded page of memory claims.
+    List {
+        #[arg(long)]
+        workspace_id: Option<uuid::Uuid>,
+        #[arg(long)]
+        scope: Option<String>,
+        #[arg(long = "state")]
+        memory_state: Option<String>,
+        #[arg(long)]
+        cursor: Option<uuid::Uuid>,
+        #[arg(long, default_value_t = REGISTRY_PAGE_LIMIT_DEFAULT)]
+        limit: usize,
+    },
+    /// Advance a claim to validated or active, or reject it.
+    Validate {
+        claim_id: uuid::Uuid,
+        #[arg(long)]
+        actor: String,
+        #[arg(long)]
+        disposition: String,
+    },
+    /// Correct a non-terminal claim's content, confidence, or evidence.
+    Correct {
+        claim_id: uuid::Uuid,
+        #[arg(long)]
+        actor: String,
+        #[arg(long)]
+        content: Option<String>,
+        #[arg(long)]
+        confidence: Option<f64>,
+        #[arg(long = "evidence-uri")]
+        evidence_uris: Vec<String>,
+        #[arg(long)]
+        metadata: Option<String>,
+    },
+    /// Mark an active claim superseded by a validated or active replacement.
+    Supersede {
+        claim_id: uuid::Uuid,
+        #[arg(long)]
+        actor: String,
+        #[arg(long)]
+        replacement_id: uuid::Uuid,
+    },
+    /// Tombstone an active claim; retention purges it later.
+    Tombstone {
+        claim_id: uuid::Uuid,
+        #[arg(long)]
+        actor: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Export one bounded page of claims as a portable document.
+    Export {
+        #[arg(long)]
+        workspace_id: uuid::Uuid,
+        #[arg(long)]
+        scope: Option<String>,
+        #[arg(long)]
+        cursor: Option<uuid::Uuid>,
+        #[arg(long, default_value_t = REGISTRY_PAGE_LIMIT_DEFAULT)]
+        limit: usize,
+    },
+    /// Import a previously exported claim document into a workspace.
+    Import {
+        #[arg(long)]
+        workspace_id: uuid::Uuid,
+        #[arg(long)]
+        actor: String,
+        /// Path to a soleaux.memory-export/v1 JSON document.
+        document: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum HandoffCommand {
     Create {
         #[arg(long)]
@@ -477,6 +595,10 @@ fn parse_trust_state(value: &str) -> std::result::Result<WorkspaceTrustState, St
     WorkspaceTrustState::parse(value).map_err(|error| error.to_string())
 }
 
+fn parse_sensitivity(value: &str) -> std::result::Result<Sensitivity, String> {
+    Sensitivity::parse(value).map_err(|error| error.to_string())
+}
+
 fn parse_json_argument(value: &str, label: &str) -> Result<Value> {
     serde_json::from_str(value).with_context(|| format!("{label} must be valid JSON"))
 }
@@ -542,6 +664,10 @@ async fn main() -> Result<()> {
                     bail!("--arguments must be a JSON object");
                 }
                 print_json(invoke(&repo, &name, &tool, arguments).await?)
+            }
+            McpCommand::NextRuntime { repo } => {
+                let (index, devtools) = nextjs_devtools::runtime_report(&repo).await?;
+                print_json(json!({"index":index,"devtools":devtools}))
             }
         },
         SoleauxCommand::Catalog { command } => match command {
@@ -819,6 +945,156 @@ async fn main() -> Result<()> {
                     git_state,
                     code_state,
                 )?)
+            }
+        },
+        SoleauxCommand::Memory { command } => match command {
+            MemoryCommand::Propose {
+                workspace_id,
+                actor,
+                scope,
+                claim_type,
+                subject,
+                content,
+                confidence,
+                evidence_uris,
+                supersedes_id,
+                source_session_id,
+                sensitivity,
+                expires_at_unix_ms,
+                metadata,
+            } => print_json(
+                operations::daemon_call(IpcMethod::MemoryPropose {
+                    workspace_id,
+                    actor,
+                    scope,
+                    claim_type,
+                    subject,
+                    content,
+                    confidence,
+                    evidence_uris,
+                    supersedes_id,
+                    source_session_id,
+                    sensitivity,
+                    expires_at_unix_ms,
+                    metadata: parse_json_argument(&metadata, "--metadata")?,
+                })
+                .await?,
+            ),
+            MemoryCommand::List {
+                workspace_id,
+                scope,
+                memory_state,
+                cursor,
+                limit,
+            } => print_json(
+                operations::daemon_call(IpcMethod::MemoryList {
+                    workspace_id,
+                    scope,
+                    memory_state,
+                    cursor,
+                    limit,
+                })
+                .await?,
+            ),
+            MemoryCommand::Validate {
+                claim_id,
+                actor,
+                disposition,
+            } => print_json(
+                operations::daemon_call(IpcMethod::MemoryValidate {
+                    claim_id,
+                    actor,
+                    disposition,
+                })
+                .await?,
+            ),
+            MemoryCommand::Correct {
+                claim_id,
+                actor,
+                content,
+                confidence,
+                evidence_uris,
+                metadata,
+            } => print_json(
+                operations::daemon_call(IpcMethod::MemoryCorrect {
+                    claim_id,
+                    actor,
+                    content,
+                    confidence,
+                    evidence_uris: if evidence_uris.is_empty() {
+                        None
+                    } else {
+                        Some(evidence_uris)
+                    },
+                    metadata: metadata
+                        .as_deref()
+                        .map(|value| parse_json_argument(value, "--metadata"))
+                        .transpose()?,
+                })
+                .await?,
+            ),
+            MemoryCommand::Supersede {
+                claim_id,
+                actor,
+                replacement_id,
+            } => print_json(
+                operations::daemon_call(IpcMethod::MemorySupersede {
+                    claim_id,
+                    actor,
+                    replacement_id,
+                })
+                .await?,
+            ),
+            MemoryCommand::Tombstone {
+                claim_id,
+                actor,
+                reason,
+                yes,
+            } => {
+                if !yes {
+                    bail!("memory tombstone requires --yes");
+                }
+                print_json(
+                    operations::daemon_call(IpcMethod::MemoryTombstone {
+                        claim_id,
+                        actor,
+                        reason,
+                    })
+                    .await?,
+                )
+            }
+            MemoryCommand::Export {
+                workspace_id,
+                scope,
+                cursor,
+                limit,
+            } => print_json(
+                operations::daemon_call(IpcMethod::MemoryExport {
+                    workspace_id,
+                    scope,
+                    cursor,
+                    limit,
+                })
+                .await?,
+            ),
+            MemoryCommand::Import {
+                workspace_id,
+                actor,
+                document,
+            } => {
+                let raw = fs::read_to_string(&document).with_context(|| {
+                    format!("reading memory import document {}", document.display())
+                })?;
+                let document: Value =
+                    serde_json::from_str(&raw).context("memory import document must be JSON")?;
+                print_json(
+                    operations::daemon_call(IpcMethod::MemoryImport {
+                        workspace_id,
+                        actor,
+                        document,
+                    })
+                    .await?,
+                )
             }
         },
         SoleauxCommand::Backup { destination } => {

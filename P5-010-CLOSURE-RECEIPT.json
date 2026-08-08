@@ -1,0 +1,42 @@
+{
+  "capabilities": [
+    "turbo-next-matrix-v1 contract with repository-evidence-only version pins (turborepo 2.10.5, nextjs 16.3.0-preview.6; versionEvidencePolicy repository_lockfile_and_catalog_only_no_network)",
+    "section-aware pnpm workspace top-level parser with the regression falsified in both directions (naive parser restored fails two tests; fix restored passes)",
+    "real-repo self-validation: catalog pins equal matrix pins and load_graph, turbo_version, and index_nextjs all agree with the contract",
+    "shasum-verified byte-identical pnpm-workspace fixture copied from this repository",
+    "honesty flags retained: documentedCliProbed=false, devtoolsIntegration=false; stableMajorsVerifiedFromLockfiles empty with note (no stable Next major invented)"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-07",
+  "implementationPullRequests": [
+    {
+      "headCommit": "72e70b0035e9113966702e903a3bc1a9af2000c9",
+      "mergeCommit": "41dfb78b890ae886e294a094ddb0bf27a08f675c",
+      "pullRequest": 52,
+      "workflowRuns": {
+        "ci": 31227401669,
+        "clientCapabilityMatrix": 31227401729,
+        "native": 31227401718
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-010",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 126
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

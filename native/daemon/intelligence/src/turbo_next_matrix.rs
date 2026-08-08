@@ -3,8 +3,11 @@
 //! Mirrors the client-capability-matrix precedent: the contract is embedded,
 //! schema-checked, and digest-addressable. Every version pin is backed by
 //! evidence inside this repository (catalog pins, lockfile snapshots, and
-//! workspace manifests) — never by a network probe. `documentedCliProbed`
-//! stays `false` until P5-024 lands the documented CLI probe, and
+//! workspace manifests) — never by a network probe. The v1 contract keeps
+//! `documentedCliProbed` at `false` permanently: probing is runtime behavior,
+//! so P5-024 reports it per run through
+//! [`crate::turborepo::probe_documented_cli`], whose report is digest-bound to
+//! this contract and version-gated on [`turbo_documented_cli_pins`].
 //! `devtoolsIntegration` stays `false` until P5-025 lands the DevTools
 //! integration.
 
@@ -108,6 +111,26 @@ pub fn turbo_next_matrix_sha256() -> String {
 pub fn validate_turbo_next_matrix() -> Result<()> {
     let matrix = load_matrix()?;
     validate_matrix(&matrix)
+}
+
+/// Matrix-pinned Turborepo versions eligible for documented-CLI probing.
+///
+/// The P5-024 runtime probe is gated on exactly this set: a binary reporting
+/// any other version is refused in safe mode, never guessed at. The pins carry
+/// repository evidence only (`versionEvidencePolicy`), so the gate never
+/// widens at runtime.
+pub fn turbo_documented_cli_pins() -> Result<Vec<String>> {
+    let matrix = load_matrix()?;
+    validate_matrix(&matrix)?;
+    Ok(matrix
+        .tools
+        .iter()
+        .find(|tool| tool.id == "turborepo")
+        .expect("validation requires the turborepo tool")
+        .versions
+        .iter()
+        .map(|version| version.version.clone())
+        .collect())
 }
 
 fn load_matrix() -> Result<TurboNextMatrix> {
@@ -352,6 +375,15 @@ mod tests {
         assert_eq!(tool(&matrix, "nextjs").versions[0].major, 16);
     }
 
+    /// The documented-CLI version gate exposes exactly the contract's pins.
+    #[test]
+    fn documented_cli_pins_are_the_validated_matrix_versions() {
+        assert_eq!(
+            turbo_documented_cli_pins().expect("pins from the valid matrix"),
+            vec!["2.10.5"],
+        );
+    }
+
     /// The self-validating real-repository check: every pin and layout claim
     /// in the matrix must match what this repository's own files, the static
     /// graph, and the static Next.js index actually report — no network.
@@ -435,9 +467,10 @@ mod tests {
         let mut expected_tasks = repository.expected_tasks.clone();
         expected_tasks.sort();
         assert_eq!(tasks, expected_tasks);
-        // The binary probe stays optional evidence: `documentedCliProbed` is
-        // false until P5-024, but when a turbo binary reports a version for
-        // this repository it must match the lockfile pin.
+        // The binary probe stays optional evidence: the v1 contract keeps
+        // `documentedCliProbed` false (P5-024 reports probing per run), but
+        // when a turbo binary reports a version for this repository it must
+        // match the lockfile pin.
         if let Some(reported) = &graph.turbo_version {
             assert_eq!(
                 reported, turbo_pin,

@@ -279,7 +279,8 @@ fn adapter_cursors_and_retention_use_optimistic_revisions_and_tombstones() {
         claim_type: "decision".to_string(),
         subject: "database".to_string(),
         content: "Use one serialized writer".to_string(),
-        memory_state: "validated".to_string(),
+        scope: "team".to_string(),
+        memory_state: MEMORY_STATE_VALIDATED.to_string(),
         confidence: 0.95,
         evidence_uris: vec!["soleaux://audit/fixture".to_string()],
         supersedes_id: None,
@@ -312,6 +313,149 @@ fn adapter_cursors_and_retention_use_optimistic_revisions_and_tombstones() {
             .is_none()
     );
     assert!(store.verify_audit_chain().expect("audit chain"));
+}
+
+fn memory_claim_payload(scope: &str, state: &str, subject: &str) -> MemoryClaimPayload {
+    MemoryClaimPayload {
+        claim_type: "decision".to_string(),
+        subject: subject.to_string(),
+        content: format!("{subject} canonical content"),
+        scope: scope.to_string(),
+        memory_state: state.to_string(),
+        confidence: 0.8,
+        evidence_uris: Vec::new(),
+        supersedes_id: None,
+        source_session_id: None,
+        metadata: json!({}),
+    }
+}
+
+#[test]
+fn memory_states_and_transitions_are_guarded_at_canonical_writes() {
+    for state in [
+        MEMORY_STATE_PROPOSED,
+        MEMORY_STATE_VALIDATED,
+        MEMORY_STATE_ACTIVE,
+        MEMORY_STATE_SUPERSEDED,
+        MEMORY_STATE_TOMBSTONED,
+        MEMORY_STATE_REJECTED,
+    ] {
+        validate_memory_state(state).expect("legal memory state");
+    }
+    assert!(validate_memory_state("drafted").is_err());
+    assert!(validate_memory_scope("global").is_err());
+
+    for (from, to) in [
+        (MEMORY_STATE_PROPOSED, MEMORY_STATE_VALIDATED),
+        (MEMORY_STATE_PROPOSED, MEMORY_STATE_REJECTED),
+        (MEMORY_STATE_VALIDATED, MEMORY_STATE_ACTIVE),
+        (MEMORY_STATE_VALIDATED, MEMORY_STATE_REJECTED),
+        (MEMORY_STATE_ACTIVE, MEMORY_STATE_SUPERSEDED),
+        (MEMORY_STATE_ACTIVE, MEMORY_STATE_TOMBSTONED),
+    ] {
+        validate_memory_transition(from, to).expect("legal memory transition");
+    }
+    for (from, to) in [
+        (MEMORY_STATE_PROPOSED, MEMORY_STATE_ACTIVE),
+        (MEMORY_STATE_VALIDATED, MEMORY_STATE_PROPOSED),
+        (MEMORY_STATE_ACTIVE, MEMORY_STATE_REJECTED),
+        (MEMORY_STATE_ACTIVE, MEMORY_STATE_VALIDATED),
+        (MEMORY_STATE_SUPERSEDED, MEMORY_STATE_ACTIVE),
+        (MEMORY_STATE_TOMBSTONED, MEMORY_STATE_ACTIVE),
+        (MEMORY_STATE_REJECTED, MEMORY_STATE_VALIDATED),
+    ] {
+        assert!(
+            validate_memory_transition(from, to).is_err(),
+            "{from} -> {to} must be refused"
+        );
+    }
+
+    let directory = tempdir().expect("tempdir");
+    let store = StateStore::open(directory.path().join("state.sqlite3")).expect("store");
+    let invalid_state = memory_claim_payload("team", "drafted", "invalid-state");
+    assert!(
+        store
+            .put(CanonicalEntityInput::active(invalid_state))
+            .is_err(),
+        "an unknown memory state must be refused at the canonical write"
+    );
+    let invalid_scope = memory_claim_payload("global", MEMORY_STATE_PROPOSED, "invalid-scope");
+    assert!(
+        store
+            .put(CanonicalEntityInput::active(invalid_scope))
+            .is_err(),
+        "an unknown memory scope must be refused at the canonical write"
+    );
+    let mut native = CanonicalEntityInput::active(memory_claim_payload(
+        "team",
+        "drafted",
+        "invalid-native-state",
+    ));
+    native.origin_platform = Some("codex".to_string());
+    native.native_id = Some("native-memory-1".to_string());
+    assert!(
+        store.upsert_native(native).is_err(),
+        "the native upsert path shares the memory-state guard"
+    );
+}
+
+#[test]
+fn memory_claim_pages_filter_scope_and_state_with_stable_cursors() {
+    let directory = tempdir().expect("tempdir");
+    let store = StateStore::open(directory.path().join("state.sqlite3")).expect("store");
+    let workspace_id = Uuid::now_v7();
+    for (scope, state, subject) in [
+        ("team", MEMORY_STATE_ACTIVE, "alpha"),
+        ("team", MEMORY_STATE_ACTIVE, "beta"),
+        ("team", MEMORY_STATE_PROPOSED, "gamma"),
+        ("session", MEMORY_STATE_ACTIVE, "delta"),
+    ] {
+        let mut input = CanonicalEntityInput::active(memory_claim_payload(scope, state, subject));
+        input.state = state.to_string();
+        input.workspace_id = Some(workspace_id);
+        store.put(input).expect("claim");
+    }
+
+    let first = store
+        .memory_claim_page(
+            Some(workspace_id),
+            Some("team"),
+            Some(MEMORY_STATE_ACTIVE),
+            None,
+            1,
+        )
+        .expect("first page");
+    assert_eq!(first.items.len(), 1);
+    assert!(first.truncated);
+    let second = store
+        .memory_claim_page(
+            Some(workspace_id),
+            Some("team"),
+            Some(MEMORY_STATE_ACTIVE),
+            first.next_cursor,
+            8,
+        )
+        .expect("second page");
+    assert_eq!(second.items.len(), 1);
+    assert!(!second.truncated);
+    assert_ne!(first.items[0].id, second.items[0].id);
+
+    let session_scope = store
+        .memory_claim_page(Some(workspace_id), Some("session"), None, None, 8)
+        .expect("session scope");
+    assert_eq!(session_scope.items.len(), 1);
+    assert_eq!(session_scope.items[0].payload.subject, "delta");
+
+    let unfiltered = store
+        .memory_claim_page(Some(workspace_id), None, None, None, 8)
+        .expect("unfiltered");
+    assert_eq!(unfiltered.items.len(), 4);
+    assert!(
+        store
+            .memory_claim_page(Some(workspace_id), Some("global"), None, None, 8)
+            .is_err(),
+        "an unknown scope filter must be refused"
+    );
 }
 
 #[test]

@@ -2,7 +2,7 @@ use crate::admission::AdmissionReceipt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use soleaux_state::{
-    ClientAccessMode, ClientKind, REGISTRY_PAGE_LIMIT_DEFAULT, WorkspaceTrustState,
+    ClientAccessMode, ClientKind, REGISTRY_PAGE_LIMIT_DEFAULT, Sensitivity, WorkspaceTrustState,
 };
 use uuid::Uuid;
 
@@ -210,6 +210,80 @@ pub enum IpcMethod {
         cursor: Option<Uuid>,
         #[serde(default = "default_registry_limit")]
         limit: usize,
+    },
+    MemoryPropose {
+        workspace_id: Uuid,
+        actor: String,
+        scope: String,
+        claim_type: String,
+        subject: String,
+        content: String,
+        confidence: f64,
+        #[serde(default)]
+        evidence_uris: Vec<String>,
+        #[serde(default)]
+        supersedes_id: Option<Uuid>,
+        #[serde(default)]
+        source_session_id: Option<Uuid>,
+        #[serde(default)]
+        sensitivity: Sensitivity,
+        #[serde(default)]
+        expires_at_unix_ms: Option<i64>,
+        #[serde(default = "default_object")]
+        metadata: Value,
+    },
+    MemoryList {
+        #[serde(default)]
+        workspace_id: Option<Uuid>,
+        #[serde(default)]
+        scope: Option<String>,
+        #[serde(default)]
+        memory_state: Option<String>,
+        #[serde(default)]
+        cursor: Option<Uuid>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+    },
+    MemoryValidate {
+        claim_id: Uuid,
+        actor: String,
+        disposition: String,
+    },
+    MemoryCorrect {
+        claim_id: Uuid,
+        actor: String,
+        #[serde(default)]
+        content: Option<String>,
+        #[serde(default)]
+        confidence: Option<f64>,
+        #[serde(default)]
+        evidence_uris: Option<Vec<String>>,
+        #[serde(default)]
+        metadata: Option<Value>,
+    },
+    MemorySupersede {
+        claim_id: Uuid,
+        actor: String,
+        replacement_id: Uuid,
+    },
+    MemoryTombstone {
+        claim_id: Uuid,
+        actor: String,
+        reason: String,
+    },
+    MemoryExport {
+        workspace_id: Uuid,
+        #[serde(default)]
+        scope: Option<String>,
+        #[serde(default)]
+        cursor: Option<Uuid>,
+        #[serde(default = "default_registry_limit")]
+        limit: usize,
+    },
+    MemoryImport {
+        workspace_id: Uuid,
+        actor: String,
+        document: Value,
     },
     Shutdown,
 }

@@ -406,6 +406,159 @@ async fn session_history_service_supports_lifecycle_turns_and_lineage() {
 
 #[cfg(unix)]
 #[tokio::test]
+async fn memory_lifecycle_operations_flow_over_ipc_behind_the_capability_gate() {
+    use soleaux_vault::{Capability, CapabilityGrant, RiskLevel, SensitivityLevel};
+    use std::collections::BTreeSet;
+
+    let directory = tempdir().expect("tempdir");
+    let paths = fixture_paths(directory.path().to_path_buf());
+    let workspace_path = directory.path().join("workspace");
+    fs::create_dir_all(&workspace_path).expect("workspace");
+
+    let mut server = IpcServer::open(paths.clone()).expect("server");
+    server
+        .capability_policy_mut()
+        .add_grant(CapabilityGrant {
+            id: uuid::Uuid::now_v7(),
+            subject: "granted-reviewer".to_string(),
+            workspace_id: None,
+            capabilities: BTreeSet::from([Capability::WriteMemory]),
+            resource_prefixes: Vec::new(),
+            max_risk: RiskLevel::LocalWrite,
+            max_sensitivity: SensitivityLevel::Secret,
+            expires_at_unix_ms: None,
+            requires_approval: false,
+            delegable: false,
+            parent_grant_id: None,
+            labels: BTreeSet::new(),
+        })
+        .expect("grant");
+    let task = tokio::spawn(server.run());
+    for _ in 0..100 {
+        if paths.endpoint.exists() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert!(
+        paths.endpoint.exists(),
+        "memory IPC endpoint was not created"
+    );
+    let client = IpcClient::new(&paths.endpoint);
+
+    let workspace = client
+        .call(IpcRequest::new(IpcMethod::WorkspaceRegister {
+            path: workspace_path.to_string_lossy().to_string(),
+            display_name: None,
+            trust_state: WorkspaceTrustState::Trusted,
+            metadata: json!({}),
+        }))
+        .await
+        .expect("register workspace")
+        .result
+        .expect("workspace result");
+    let workspace_id: uuid::Uuid =
+        serde_json::from_value(workspace["workspace"]["id"].clone()).expect("workspace id");
+
+    let propose = |actor: &str, content: &str| {
+        IpcRequest::new(IpcMethod::MemoryPropose {
+            workspace_id,
+            actor: actor.to_string(),
+            scope: "team".to_string(),
+            claim_type: "decision".to_string(),
+            subject: "database".to_string(),
+            content: content.to_string(),
+            confidence: 0.9,
+            evidence_uris: vec!["soleaux://audit/fixture".to_string()],
+            supersedes_id: None,
+            source_session_id: None,
+            sensitivity: soleaux_state::Sensitivity::Internal,
+            expires_at_unix_ms: None,
+            metadata: json!({}),
+        })
+    };
+
+    let denied = client
+        .call(propose("ungranted-actor", "Use one serialized writer"))
+        .await
+        .expect_err("ungranted memory propose must be denied");
+    let denied = format!("{denied:#}");
+    assert!(denied.contains("memory_operation_failed"));
+    assert!(denied.contains("memory capability denied"));
+
+    let proposed = client
+        .call(propose("granted-reviewer", "Use one serialized writer"))
+        .await
+        .expect("granted memory propose")
+        .result
+        .expect("propose result");
+    assert_eq!(proposed["claim"]["payload"]["memoryState"], "proposed");
+    let claim_id: uuid::Uuid =
+        serde_json::from_value(proposed["claim"]["id"].clone()).expect("claim id");
+
+    let denied = client
+        .call(IpcRequest::new(IpcMethod::MemoryValidate {
+            claim_id,
+            actor: "ungranted-actor".to_string(),
+            disposition: "validated".to_string(),
+        }))
+        .await
+        .expect_err("ungranted memory validate must be denied");
+    assert!(format!("{denied:#}").contains("memory capability denied"));
+
+    for disposition in ["validated", "active"] {
+        let advanced = client
+            .call(IpcRequest::new(IpcMethod::MemoryValidate {
+                claim_id,
+                actor: "granted-reviewer".to_string(),
+                disposition: disposition.to_string(),
+            }))
+            .await
+            .expect("granted memory validate")
+            .result
+            .expect("validate result");
+        assert_eq!(advanced["claim"]["payload"]["memoryState"], disposition);
+    }
+
+    let listed = client
+        .call(IpcRequest::new(IpcMethod::MemoryList {
+            workspace_id: Some(workspace_id),
+            scope: Some("team".to_string()),
+            memory_state: Some("active".to_string()),
+            cursor: None,
+            limit: 8,
+        }))
+        .await
+        .expect("memory list")
+        .result
+        .expect("list result");
+    assert_eq!(listed["claims"].as_array().expect("claims").len(), 1);
+    assert_eq!(listed["claims"][0]["id"], json!(claim_id));
+
+    let exported = client
+        .call(IpcRequest::new(IpcMethod::MemoryExport {
+            workspace_id,
+            scope: None,
+            cursor: None,
+            limit: 8,
+        }))
+        .await
+        .expect("memory export")
+        .result
+        .expect("export result");
+    assert_eq!(exported["schemaVersion"], "soleaux.memory-export/v1");
+    assert_eq!(exported["count"], 1);
+
+    let shutdown = client
+        .call(IpcRequest::new(IpcMethod::Shutdown))
+        .await
+        .expect("shutdown");
+    assert_eq!(shutdown.result.expect("shutdown result")["shutdown"], true);
+    task.await.expect("server task").expect("server exit");
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn workspace_registry_converges_concurrent_client_types_and_survives_restart() {
     let directory = tempdir().expect("tempdir");
     let paths = fixture_paths(directory.path().to_path_buf());

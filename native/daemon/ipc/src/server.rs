@@ -59,6 +59,12 @@ impl IpcServer {
         &self.capability_policy
     }
 
+    /// Grant-issuance seam for reviewed capability grants (P5-020) and tests.
+    /// The engine stays deny-by-default until a grant is installed here.
+    pub fn capability_policy_mut(&mut self) -> &mut PolicyEngine {
+        &mut self.capability_policy
+    }
+
     pub fn vault_key_store(&self) -> &Arc<dyn KeyStore> {
         &self.vault_key_store
     }
@@ -312,6 +318,126 @@ impl IpcServer {
                 cursor,
                 limit,
             } => crate::session::list_messages(&self.state, *turn_id, *cursor, *limit),
+            IpcMethod::MemoryPropose {
+                workspace_id,
+                actor,
+                scope,
+                claim_type,
+                subject,
+                content,
+                confidence,
+                evidence_uris,
+                supersedes_id,
+                source_session_id,
+                sensitivity,
+                expires_at_unix_ms,
+                metadata,
+            } => crate::memory::propose_claim(
+                &self.state,
+                &self.capability_policy,
+                *workspace_id,
+                actor,
+                crate::memory::MemoryProposal {
+                    scope: scope.clone(),
+                    claim_type: claim_type.clone(),
+                    subject: subject.clone(),
+                    content: content.clone(),
+                    confidence: *confidence,
+                    evidence_uris: evidence_uris.clone(),
+                    supersedes_id: *supersedes_id,
+                    source_session_id: *source_session_id,
+                    sensitivity: *sensitivity,
+                    expires_at_unix_ms: *expires_at_unix_ms,
+                    metadata: metadata.clone(),
+                },
+            ),
+            IpcMethod::MemoryList {
+                workspace_id,
+                scope,
+                memory_state,
+                cursor,
+                limit,
+            } => crate::memory::list_claims(
+                &self.state,
+                *workspace_id,
+                scope.as_deref(),
+                memory_state.as_deref(),
+                *cursor,
+                *limit,
+            ),
+            IpcMethod::MemoryValidate {
+                claim_id,
+                actor,
+                disposition,
+            } => crate::memory::validate_claim(
+                &self.state,
+                &self.capability_policy,
+                *claim_id,
+                actor,
+                disposition,
+            ),
+            IpcMethod::MemoryCorrect {
+                claim_id,
+                actor,
+                content,
+                confidence,
+                evidence_uris,
+                metadata,
+            } => crate::memory::correct_claim(
+                &self.state,
+                &self.capability_policy,
+                *claim_id,
+                actor,
+                content.clone(),
+                *confidence,
+                evidence_uris.clone(),
+                metadata.clone(),
+            ),
+            IpcMethod::MemorySupersede {
+                claim_id,
+                actor,
+                replacement_id,
+            } => crate::memory::supersede_claim(
+                &self.state,
+                &self.capability_policy,
+                *claim_id,
+                actor,
+                *replacement_id,
+            ),
+            IpcMethod::MemoryTombstone {
+                claim_id,
+                actor,
+                reason,
+            } => crate::memory::tombstone_claim(
+                &self.state,
+                &self.capability_policy,
+                *claim_id,
+                actor,
+                reason,
+            ),
+            IpcMethod::MemoryExport {
+                workspace_id,
+                scope,
+                cursor,
+                limit,
+            } => crate::memory::export_claims(
+                &self.state,
+                *workspace_id,
+                scope.as_deref(),
+                *cursor,
+                *limit,
+            ),
+            IpcMethod::MemoryImport {
+                workspace_id,
+                actor,
+                document,
+            } => crate::memory::import_claims(
+                &self.state,
+                &self.capability_policy,
+                *workspace_id,
+                actor,
+                document,
+            ),
             IpcMethod::Shutdown => Ok(json!({"shutdown":true})),
         };
         match result {
@@ -409,6 +535,14 @@ fn error_code(method: &IpcMethod) -> &'static str {
         | IpcMethod::TurnList { .. }
         | IpcMethod::MessageAppend { .. }
         | IpcMethod::MessageList { .. } => "session_operation_failed",
+        IpcMethod::MemoryPropose { .. }
+        | IpcMethod::MemoryList { .. }
+        | IpcMethod::MemoryValidate { .. }
+        | IpcMethod::MemoryCorrect { .. }
+        | IpcMethod::MemorySupersede { .. }
+        | IpcMethod::MemoryTombstone { .. }
+        | IpcMethod::MemoryExport { .. }
+        | IpcMethod::MemoryImport { .. } => "memory_operation_failed",
         IpcMethod::Ping | IpcMethod::Status | IpcMethod::Shutdown => "daemon_operation_failed",
     }
 }

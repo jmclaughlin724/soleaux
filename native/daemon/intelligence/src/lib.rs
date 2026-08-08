@@ -12,6 +12,7 @@ pub mod governance;
 pub mod index;
 pub mod lsp;
 pub mod nextjs;
+pub mod nextjs_oxc;
 pub mod python_write;
 mod query_packs;
 pub mod shell_policy;
