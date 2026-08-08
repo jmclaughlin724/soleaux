@@ -171,7 +171,7 @@ P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The 
 - [x] **P5-008** Materializer compatibility compiler, diff/backup/atomic apply/rollback, echo guards, and load verification. Evidence: [`P5-008-CLOSURE-RECEIPT.json`](P5-008-CLOSURE-RECEIPT.json).
 - [ ] **P5-009** Real LSP matrix: TypeScript/VTSLS, BasedPyright, Bash, Rust, Go, SourceKit, clangd, Kotlin, JDT, Vue, Svelte, Astro, MDX, YAML/JSON/HTML/CSS.
 - [x] **P5-010** Turborepo and Next.js compatibility matrices on real repositories/versions. Evidence: [`P5-010-CLOSURE-RECEIPT.json`](P5-010-CLOSURE-RECEIPT.json).
-- [ ] **P5-011** Attach and validate `anilize`.
+- [x] **P5-011** Attach and validate `anilize`. Evidence: [`docs/operations/P5-011-ANILIZE-VALIDATION.json`](docs/operations/P5-011-ANILIZE-VALIDATION.json).
 - [ ] **P5-012** Validate two additional approved design partners.
 - [ ] **P5-013** Write Phase 5 beta receipt and independent verification.
 

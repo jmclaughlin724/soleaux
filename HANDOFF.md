@@ -43,7 +43,7 @@ Seed the session task tracker first with the `load-tasks` skill; it reconstructs
 2. **P5-009 through P5-013** — close the LSP matrix at v2, design-partner validation, and the Phase 5 beta receipt.
 3. **P5-014 through P5-020** — complete deep adapters, memory lifecycle, signed handoffs, and durable runs/subagents.
 4. **P5-021 through P5-029** — complete intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.
-5. Validate `anilize` and two additional approved design partners.
+5. `anilize` is validated (evidence: [`docs/operations/P5-011-ANILIZE-VALIDATION.json`](docs/operations/P5-011-ANILIZE-VALIDATION.json)); validate two additional approved design partners (owner-sourced approvals).
 6. Close Phase 5 only with an exact beta receipt and independent verification.
 
 Phase 3 remains deferred. Reactivate it only when an efficacy claim is requested, and freeze all three arms before the first live call.

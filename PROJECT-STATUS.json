@@ -181,7 +181,8 @@
         "P5-007",
         "P5-008",
         "P5-010",
-        "P5-021"
+        "P5-021",
+        "P5-011"
       ],
       "currentTask": "P5-009",
       "name": "Adapters, lifecycle, intelligence depth, and extensibility",
