@@ -1,0 +1,20 @@
+[package]
+name = "soleaux-adapter-codex"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+soleaux-state = { path = "../../state" }
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
+tempfile.workspace = true
