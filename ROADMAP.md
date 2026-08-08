@@ -89,7 +89,7 @@ Evidence:
 
 ## Phase 5 — current
 
-P5-001 through P5-006 are closed. The next open task is **P5-W1**, then P5-007, per the acceptance detail, waves, and dependency graph in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md).
+P5-001 through P5-008 (with pre-task P5-W1), P5-010, and P5-021 are closed. The next open task is **P5-009**, which closes at matrix v2 after P5-023; the adapter, memory, and depth lanes run in parallel per the acceptance detail, waves, and dependency graph in [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md).
 
 ### Platform adapters
 

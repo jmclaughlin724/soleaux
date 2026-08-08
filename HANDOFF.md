@@ -39,11 +39,11 @@ Phase 4 is complete. Do not reimplement P4-001 through P4-026. The merged native
 
 Seed the session task tracker first with the `load-tasks` skill; it reconstructs every open task and dependency from [`docs/plans/PHASE5-DEPENDENCIES.json`](docs/plans/PHASE5-DEPENDENCIES.json) and is safe to re-run.
 
-1. **P5-008** — the materializer compatibility compiler; P5-W1 and P5-007 are closed (evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json), [`P5-007-CLOSURE-RECEIPT.json`](P5-007-CLOSURE-RECEIPT.json)). The P5-V1 admission receipt verifier is now unblocked at the adapter-wave head. Waves and lanes: [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md).
-2. **P5-008 through P5-013** — complete materializers, the real LSP/Turborepo/Next.js matrices, design-partner validation, and the Phase 5 beta receipt.
+1. **P5-009** — the LSP matrix closes at v2 after P5-023. P5-008, P5-010, and P5-021 are closed (evidence: [`P5-008-CLOSURE-RECEIPT.json`](P5-008-CLOSURE-RECEIPT.json), [`P5-010-CLOSURE-RECEIPT.json`](P5-010-CLOSURE-RECEIPT.json), [`P5-021-CLOSURE-RECEIPT.json`](P5-021-CLOSURE-RECEIPT.json)); the P5-V1 verifier milestone is merged (PR #54) with the separately reviewed per-client lifecycle oracle landing at adapter enablement. Waves and lanes: [`docs/plans/PHASE5-IMPLEMENTATION-PLAN.md`](docs/plans/PHASE5-IMPLEMENTATION-PLAN.md).
+2. **P5-009 through P5-013** — close the LSP matrix at v2, design-partner validation, and the Phase 5 beta receipt.
 3. **P5-014 through P5-020** — complete deep adapters, memory lifecycle, signed handoffs, and durable runs/subagents.
 4. **P5-021 through P5-029** — complete intelligence depth, provider interfaces, SDKs, deterministic CI, editor integration, and optional hybrid search.
-5. Validate `anilize` and two additional approved design partners.
+5. `anilize` is validated (evidence: [`docs/operations/P5-011-ANILIZE-VALIDATION.json`](docs/operations/P5-011-ANILIZE-VALIDATION.json)); validate two additional approved design partners (owner-sourced approvals).
 6. Close Phase 5 only with an exact beta receipt and independent verification.
 
 Phase 3 remains deferred. Reactivate it only when an efficacy claim is requested, and freeze all three arms before the first live call.
@@ -59,4 +59,4 @@ Phase 3 remains deferred. Reactivate it only when an efficacy claim is requested
 - unknown client/provider/LSP versions enter safe or read-only mode;
 - preserve exact evidence and branch-consolidation reports.
 
-Use the stop format in `AGENTS.md` only when a hard contract or evidence condition is actually violated. P5-001 through P5-007 and P5-W1 are closed and must not be reimplemented. Continue with P5-008, following the implementation plan's waves and declared parallel lanes.
+Use the stop format in `AGENTS.md` only when a hard contract or evidence condition is actually violated. P5-001 through P5-008 — including the P5-007 session service — plus P5-010, P5-021, and P5-W1 are closed and must not be reimplemented. Continue with P5-009 and the active adapter, memory, and depth lanes, following the implementation plan's waves and declared parallel lanes.

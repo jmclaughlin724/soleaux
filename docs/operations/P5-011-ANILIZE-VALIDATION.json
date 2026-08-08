@@ -1,0 +1,66 @@
+{
+  "binariesBuiltFromMain": "5d96813c1209f79065ba0f36387f1623affce5ba",
+  "date": "2026-08-07",
+  "environment": {
+    "daemon": "soleauxd ipc run as a session-scoped process with SOLEAUX_HOME and SOLEAUX_RUNTIME_DIR overrides; no persistent service manifest installed",
+    "platform": "macOS arm64",
+    "repositoryClone": "shallow (depth 1)"
+  },
+  "invariantsObserved": {
+    "contextDigest": "3bbb53e84b0624f2a1de26bad7f2031b6a7cf0f7e892262d584347bd54b6003f",
+    "productionClaimAllowed": false,
+    "profileDigest": "89a2b783c4bd9c0ae834a5894dceb2c4abcaa8050dd0f57ed967a9c57e3a60fc",
+    "publicToolCeiling": 12,
+    "toolsExactOrder": [
+      "context.compile",
+      "code.search",
+      "memory.search",
+      "get_symbols",
+      "registry.list",
+      "registry.read",
+      "repo_info",
+      "navigate",
+      "inspect",
+      "preview",
+      "edit",
+      "restart_lsp"
+    ],
+    "workspaceTrustState": "read_only"
+  },
+  "partner": "anilize",
+  "repository": "jmclaughlin724/anilize",
+  "repositoryCommit": "2b7a0fab88dbc202f75b5e443725c825f7dc4fa2",
+  "schemaVersion": "soleaux.partner-validation-record/v1",
+  "soleauxVersion": "0.4.0-dev.5",
+  "status": "pass",
+  "steps": [
+    {
+      "outcome": "registration refused with fail-closed rollback; attachment files restored when the per-user service was not running",
+      "step": "attach without daemon (negative path)"
+    },
+    {
+      "outcome": "workspace registered in the canonical registry (revision 1, state registered, trustState read_only) with both locked digests recorded",
+      "step": "attach --yes with the daemon running"
+    },
+    {
+      "outcome": "native_daemon true; exactly twelve active tools in canonical order; no substitutions; production_claim_allowed false",
+      "step": "doctor"
+    },
+    {
+      "outcome": "status ok; workspace_id ae01bf36-12f4-4156-4a6b-8d5cf4b54b25; truncated false; no warnings",
+      "step": "index"
+    },
+    {
+      "outcome": "status ok on the anilize workspace; bounded response with truncated=true reported truthfully",
+      "step": "context.compile via serve stdio JSON-RPC"
+    },
+    {
+      "outcome": "status ok on apps/admin/app/[locale]/(authenticated)/ai/benchmarks/page.tsx; full symbol envelope returned",
+      "step": "get_symbols via serve stdio JSON-RPC"
+    },
+    {
+      "outcome": "status ok; coverage complete via engine lsp:typescript; no gaps, no warnings",
+      "step": "navigate definition via serve stdio JSON-RPC"
+    }
+  ]
+}
