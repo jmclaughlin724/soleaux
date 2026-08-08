@@ -1079,28 +1079,45 @@ impl SupervisorInner {
             };
             let now = Instant::now();
             let previous = inner.samples.get(&server_id).map(|entry| *entry.value());
-            let cpu_percent = previous.map(|sample| {
-                let wall = now.duration_since(sample.at).as_secs_f64().max(0.001);
-                ((cpu_seconds - sample.cpu_seconds).max(0.0) / wall) * 100.0
+            // `ps -o time=` reports whole seconds on Linux, so a sub-second
+            // sweep usually sees a zero delta. Hold the previous sample until
+            // the counter ticks or a full second elapses; every cpu_percent is
+            // then measured over a window the counter can resolve, and strike
+            // counting stays coherent at any sweep cadence.
+            let measurable = previous.is_none_or(|sample| {
+                cpu_seconds > sample.cpu_seconds
+                    || now.duration_since(sample.at) >= Duration::from_secs(1)
             });
+            let cpu_percent = if measurable {
+                previous.map(|sample| {
+                    let wall = now.duration_since(sample.at).as_secs_f64().max(0.001);
+                    ((cpu_seconds - sample.cpu_seconds).max(0.0) / wall) * 100.0
+                })
+            } else {
+                None
+            };
             let over_cpu = cpu_percent
                 .map(|percent| percent > process.spec.cpu_limit_percent)
                 .unwrap_or(false);
             let cpu_strikes = if over_cpu {
                 previous.map_or(1, |sample| sample.cpu_strikes + 1)
-            } else {
+            } else if measurable {
                 0
+            } else {
+                previous.map_or(0, |sample| sample.cpu_strikes)
             };
-            inner.samples.insert(
-                server_id.clone(),
-                ResourceSample {
-                    rss_bytes,
-                    cpu_seconds,
-                    cpu_percent,
-                    cpu_strikes,
-                    at: now,
-                },
-            );
+            if measurable {
+                inner.samples.insert(
+                    server_id.clone(),
+                    ResourceSample {
+                        rss_bytes,
+                        cpu_seconds,
+                        cpu_percent,
+                        cpu_strikes,
+                        at: now,
+                    },
+                );
+            }
             let violation = if rss_bytes > process.spec.rss_limit_bytes {
                 Some(format!(
                     "rss {} bytes exceeded the {} byte limit",
