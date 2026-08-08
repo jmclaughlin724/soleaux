@@ -180,12 +180,12 @@ P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The 
 - [ ] **P5-V1** Daemon-trusted admission receipt verifier and reviewed lifecycle oracle for external client write admission.
 - [ ] **P5-014** Claude SDK execution host, external SessionStore, hooks, permissions, compaction, and restart reconciliation.
 - [ ] **P5-015** Claude Desktop user-facing import/export and supported local connector workflows; hosted CRUD remains a non-goal.
-- [ ] **P5-016** Codex generated app-server client, approvals, steering, compaction, archive, cursors, reconnect, and safe mode.
-- [ ] **P5-017** OpenCode generated client, persistent SSE cursor/reconciliation, permissions, fork/abort/summarize/revert, and plugin compatibility.
+- [x] **P5-016** Codex generated app-server client, approvals, steering, compaction, archive, cursors, reconnect, and safe mode. Evidence: [`P5-016-CLOSURE-RECEIPT.json`](P5-016-CLOSURE-RECEIPT.json).
+- [x] **P5-017** OpenCode generated client, persistent SSE cursor/reconciliation, permissions, fork/abort/summarize/revert, and plugin compatibility. Evidence: [`P5-017-CLOSURE-RECEIPT.json`](P5-017-CLOSURE-RECEIPT.json).
 
 #### Memory, handoffs, and orchestration
 
-- [ ] **P5-018** Memory lifecycle: Proposed→Validated→Active→Superseded/Tombstoned/Rejected, scopes, confidence, sensitivity, expiry, conflicts, provenance, import/export, and compaction survival.
+- [x] **P5-018** Memory lifecycle: Proposed→Validated→Active→Superseded/Tombstoned/Rejected, scopes, confidence, sensitivity, expiry, conflicts, provenance, import/export, and compaction survival. Evidence: [`P5-018-CLOSURE-RECEIPT.json`](P5-018-CLOSURE-RECEIPT.json).
 - [ ] **P5-019** Signed handoff manifest with objective, decisions, tasks, Git branch/commit, dirty patch, files, artifacts, exclusions, permissions, and target-native lineage.
 - [ ] **P5-020** Durable run/subagent orchestration with approvals, budgets, worktree leases, capability attenuation, recovery, cancellation, and aggregation.
 
@@ -193,9 +193,9 @@ P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The 
 
 - [x] **P5-021** Complete Oxc extraction and Tree-sitter query/injection/incremental watcher/damaged-file corpus. Evidence: [`P5-021-CLOSURE-RECEIPT.json`](P5-021-CLOSURE-RECEIPT.json).
 - [ ] **P5-022** Add LibCST Python writes and `mvdan.cc/sh` semantics, optional ShellCheck, sandbox, process tree, and diagnostics.
-- [ ] **P5-023** Complete LSP multi-root/versioning, push/pull diagnostics, workspace edits, events, request-aware caches, and resource controls.
-- [ ] **P5-024** Turbo static graph plus version-probed documented CLI; optional LSP only after compatibility probe.
-- [ ] **P5-025** Next Oxc static routes/actions/boundaries plus capability-driven DevTools `init`, index, advertised calls, and multi-app merge.
+- [x] **P5-023** Complete LSP multi-root/versioning, push/pull diagnostics, workspace edits, events, request-aware caches, and resource controls. Evidence: [`P5-023-CLOSURE-RECEIPT.json`](P5-023-CLOSURE-RECEIPT.json).
+- [x] **P5-024** Turbo static graph plus version-probed documented CLI; optional LSP only after compatibility probe. Evidence: [`P5-024-CLOSURE-RECEIPT.json`](P5-024-CLOSURE-RECEIPT.json).
+- [x] **P5-025** Next Oxc static routes/actions/boundaries plus capability-driven DevTools `init`, index, advertised calls, and multi-app merge. Evidence: [`P5-025-CLOSURE-RECEIPT.json`](P5-025-CLOSURE-RECEIPT.json).
 - [ ] **P5-026** Versioned provider/plugin interfaces for parsers, workspace graphs, routes, context sources, materializers, and gateway backends.
 - [ ] **P5-027** Stable Rust API and generated Python/TypeScript daemon SDKs; complete deterministic `soleaux ci`.
 - [ ] **P5-028** Editor extension MVP and capability-gated webhook/SIEM export.

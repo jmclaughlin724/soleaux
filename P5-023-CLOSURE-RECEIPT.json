@@ -1,0 +1,44 @@
+{
+  "capabilities": [
+    "multi-root and versioned documents: sync_document/change_document with monotonic version tracking replacing the open-once API",
+    "push and pull diagnostics, request cancellation, and completion events",
+    "workspace-edit application parsed into per-document batches; resource operations are refused rather than half-applied",
+    "request-parameter-aware cache keys: the supervisor derives the final key from the caller's content scope plus method, canonicalized parameters, and document identity",
+    "crash-loop quarantine and enforced RSS/CPU/concurrency/idle limits (previously declared-only); CPU enforcement measures over counter-resolvable windows so whole-second ps time granularity cannot starve the strike counter",
+    "reconnect/recovery; P4-025 truthfulness preserved (methods advertised and called only after initialized capability confirmation)",
+    "mcp semantic service migrated to the new supervisor API: open_target returns the synced document version consumed by version-bound queries"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-08",
+  "implementationPullRequests": [
+    {
+      "headCommit": "331278f0c6bc41beb23db15697fc917f237772dd",
+      "mergeCommit": "460359d8dbcc431b5f222c251a395b919547e263",
+      "pullRequest": 62,
+      "workflowRuns": {
+        "ci": 31240511212,
+        "clientCapabilityMatrix": 31240511218,
+        "native": 31240511219
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-023",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 228
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

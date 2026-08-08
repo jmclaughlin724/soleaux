@@ -1,0 +1,42 @@
+{
+  "capabilities": [
+    "vendored OpenAPI 3.1 specification pinned to opencode 1.18.14 with recorded digest and a committed regeneration script; the build never touches the network",
+    "typed client derived from the vendored spec: sessions, permissions, fork/abort/summarize/revert, plugin compatibility",
+    "persistent SSE cursor reconciliation over the canonical AdapterCursor persistence against the documented /event stream (first event server.connected)",
+    "safe-mode read-only posture for unpinned or unknown OpenCode versions; external write admission still requires a daemon-verified admission receipt regardless of adapter mode",
+    "standalone soleaux-adapter-opencode workspace crate; no existing crate changed beyond the workspace member list"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-08",
+  "implementationPullRequests": [
+    {
+      "headCommit": "2680e17d92390f236267353a65565baadd4a1ff8",
+      "mergeCommit": "94d7e4364b964ec2e3a0e65e4c3cc5e13cc1b95b",
+      "pullRequest": 59,
+      "workflowRuns": {
+        "ci": 31239270329,
+        "clientCapabilityMatrix": 31239270323,
+        "native": 31239270328
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-017",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 197
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "capabilities": [
+    "version-probed documented Turbo CLI: ls, dry-run, boundaries, and affected probes run only against matrix-pinned versions, read-only and offline (skip-infer, no update notifier, telemetry disabled)",
+    "degradation as data: absent binary reports probedAvailable=false with reason; unknown versions refuse in safe mode with no documented command executed; documentedCliProbed=true only when all four probes execute and parse",
+    "per-run reporting digest-bound to the matrix via matrixSha256; the turbo-next-matrix-v1 contract stays byte-identical with documentedCliProbed=false permanently",
+    "command shapes verified against the real pinned turbo 2.10.5 binary; real-repository probe agrees with the static graph for all nine packages",
+    "Turbo LSP omitted with recorded reason: turbo 2.10.5 exposes no LSP entry point, so no truthful compatibility probe exists; every report carries lspProbed=false"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-08",
+  "implementationPullRequests": [
+    {
+      "headCommit": "e7cc4ef469bb4e0a4c4ae4e2d7ec4db774353230",
+      "mergeCommit": "31022718ef021f2a866a1c4e962035bbe9defa20",
+      "pullRequest": 58,
+      "workflowRuns": {
+        "ci": 31234356710,
+        "clientCapabilityMatrix": 31234356694,
+        "native": 31234356662
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-024",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 174
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}
