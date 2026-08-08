@@ -2013,6 +2013,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "soleaux-adapter-claude-desktop"
+version = "0.4.0-dev.5"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "soleaux-ipc",
+ "soleaux-state",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "soleaux-adapter-codex"
 version = "0.4.0-dev.5"
 dependencies = [
