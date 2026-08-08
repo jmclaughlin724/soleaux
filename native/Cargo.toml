@@ -45,6 +45,7 @@ hex = "0.4"
 http = "=1.4.2"
 ignore = "=0.4.31"
 libc = "0.2"
+libcst = { version = "=1.8.6", default-features = false }
 moka = { version = "=0.12.15", features = ["future"] }
 notify = "=8.2.0"
 oxc_allocator = "=0.142.0"
