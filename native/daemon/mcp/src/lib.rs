@@ -12,6 +12,7 @@ pub mod gateway;
 pub mod http;
 pub mod materializer;
 pub mod memory;
+pub mod nextjs_devtools;
 pub mod profile;
 pub mod provisioning;
 pub mod registry;
@@ -476,7 +477,7 @@ impl PublicMcpServer {
             "restart_lsp" => self.call_restart_lsp(arguments, started).await,
             OPTIONAL_POSTGRES => self.call_postgres(arguments, started),
             OPTIONAL_TURBOREPO => self.call_turborepo(arguments, started),
-            OPTIONAL_NEXTJS => self.call_nextjs(started),
+            OPTIONAL_NEXTJS => self.call_nextjs(arguments, started),
             _ => bail!("tool is not active in the binding Soleaux public profile: {name}"),
         }
     }
@@ -1087,17 +1088,55 @@ impl PublicMcpServer {
         ))
     }
 
-    fn call_nextjs(&self, started: Instant) -> Result<ToolEnvelopeV2> {
-        let route_index = index_nextjs(self.root())?;
+    fn call_nextjs(&self, arguments: &Value, started: Instant) -> Result<ToolEnvelopeV2> {
+        let include_runtime = arguments
+            .get("include_runtime")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let app_root_filter = arguments
+            .get("app_root")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let mut route_index = index_nextjs(self.root())?;
+        if let Some(filter) = &app_root_filter {
+            route_index
+                .applications
+                .retain(|application| application == filter);
+            route_index.routes.retain(|route| &route.app_root == filter);
+            route_index
+                .server_actions
+                .retain(|action| &action.app_root == filter);
+            route_index
+                .boundaries
+                .retain(|boundary| &boundary.app_root == filter);
+            route_index
+                .version_gates
+                .retain(|gate| &gate.app_root == filter);
+            route_index
+                .cross_app_routes
+                .retain(|entry| entry.apps.iter().any(|app| app == filter));
+        }
+        // The bounded public tool never spawns the backend: the runtime block
+        // carries the spawn-free capability probe and its recorded reason.
+        // Attachment happens only through the explicit gateway flow
+        // (`nextjs_devtools::attach_runtime_evidence`).
+        let runtime = if include_runtime {
+            let capability = nextjs_devtools::probe_devtools(self.root(), &route_index);
+            json!({
+                "attached": route_index.runtime_evidence_attached,
+                "capability_driven": true,
+                "universal_get_routes_assumed": false,
+                "probe": capability,
+                "attachment_policy": "explicit-gateway-invocation-only",
+            })
+        } else {
+            Value::Null
+        };
         let data = json!({
             "applications": route_index.applications,
             "routes": route_index.routes,
             "server_actions": route_index.server_actions,
-            "runtime": {
-                "attached": route_index.runtime_evidence_attached,
-                "capability_driven": true,
-                "universal_get_routes_assumed": false,
-            },
+            "runtime": runtime,
             "provider": route_index.provider,
         });
         let mut metadata =
@@ -3331,6 +3370,61 @@ mod tests {
         assert_eq!(names.len(), 12);
         assert_eq!(names[11], OPTIONAL_POSTGRES);
         assert!(!names.contains(&"restart_lsp".to_string()));
+    }
+
+    #[tokio::test]
+    async fn next_get_routes_reports_the_spawn_free_probe_and_honors_include_runtime() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("app/api/items")).expect("dirs");
+        fs::write(temp.path().join("next.config.mjs"), "export default {};").expect("config");
+        fs::write(
+            temp.path().join("app/api/items/route.ts"),
+            "export async function GET() { return new Response(); }",
+        )
+        .expect("handler");
+        fs::write(
+            temp.path().join("app/page.tsx"),
+            "export default function Page() { return null; }",
+        )
+        .expect("page");
+        let server = PublicMcpServer::with_store(temp.path(), temp.path().join("index.sqlite3"))
+            .expect("server")
+            .substitute_tool("restart_lsp", OPTIONAL_NEXTJS)
+            .expect("substitution");
+        server.prepare().await.expect("prepare");
+        let envelope = server
+            .call_async(OPTIONAL_NEXTJS, &json!({}))
+            .await
+            .expect("next routes");
+        assert_eq!(envelope.status, "ok");
+        let runtime = envelope.data.get("runtime").expect("runtime block");
+        assert_eq!(runtime.get("attached"), Some(&json!(false)));
+        assert_eq!(runtime.get("capability_driven"), Some(&json!(true)));
+        let probe = runtime.get("probe").expect("probe");
+        assert_eq!(probe.get("registered"), Some(&json!(false)));
+        assert!(
+            probe
+                .get("reason")
+                .and_then(Value::as_str)
+                .is_some_and(|reason| reason.contains("not registered")),
+            "the degradation reason must be recorded: {probe}"
+        );
+        let routes = envelope
+            .data
+            .get("routes")
+            .and_then(Value::as_array)
+            .expect("routes");
+        assert!(routes.iter().any(|route| {
+            route.get("kind") == Some(&json!("route_handler"))
+                && route.get("methods") == Some(&json!(["GET"]))
+                && route.get("extractionEngine") == Some(&json!("oxc-ast"))
+        }));
+
+        let without_runtime = server
+            .call_async(OPTIONAL_NEXTJS, &json!({"include_runtime": false}))
+            .await
+            .expect("next routes without runtime");
+        assert_eq!(without_runtime.data.get("runtime"), Some(&Value::Null));
     }
 
     #[tokio::test]
