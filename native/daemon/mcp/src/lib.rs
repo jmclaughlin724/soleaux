@@ -43,7 +43,8 @@ use soleaux_intelligence::{
 };
 use soleaux_redaction::redact_text;
 use soleaux_state::{
-    CanonicalRecord, REGISTRY_PAGE_LIMIT_MAX, SessionPayload, StateStore, WorkspacePayload,
+    CanonicalRecord, MEMORY_SCOPES, MEMORY_STATE_ACTIVE, REGISTRY_PAGE_LIMIT_MAX, SessionPayload,
+    StateStore, WorkspacePayload,
 };
 use soleaux_storage::{IndexedFileRecord, Store, SymbolHit, SymbolRecord};
 use std::{
@@ -658,6 +659,9 @@ impl PublicMcpServer {
         if scopes.is_empty() || scopes.iter().any(|scope| scope == "session") {
             page.data["canonicalSessions"] = self.canonical_sessions_section(query);
         }
+        // P5-018 entity-backed mode: active canonical memory claims join the
+        // same locked filesystem scopes as a separately labeled section.
+        page.data["canonicalClaims"] = self.canonical_claims_section(query, &scopes);
         let mut metadata = SuccessMetadata::repository("memory.search", "soleaux-native-memory");
         metadata.trust = if page.attached {
             "retrieved_code_data"
@@ -1328,6 +1332,109 @@ impl PublicMcpServer {
             match page.next_cursor {
                 Some(next) => cursor = Some(next),
                 None => break,
+            }
+        }
+        json!({
+            "attached": true,
+            "workspaceRegistered": true,
+            "hits": hits,
+            "truncated": truncated,
+        })
+    }
+
+    /// Bounded entity-backed memory hits: active canonical claims whose scope
+    /// is one of the requested locked scopes and whose type, subject, or
+    /// content matches the query. Attach-only-if-exists, like every canonical
+    /// read on this server.
+    fn canonical_claims_section(&self, query: &str, scopes: &[String]) -> Value {
+        const HIT_LIMIT: usize = 24;
+        const SCAN_PAGE_LIMIT: usize = 3;
+        let Some(state) = self.canonical_state.as_ref() else {
+            return json!({
+                "attached": false,
+                "workspaceRegistered": false,
+                "hits": [],
+                "truncated": false,
+            });
+        };
+        let Some(workspace) = self.canonical_workspace_record() else {
+            return json!({
+                "attached": true,
+                "workspaceRegistered": false,
+                "hits": [],
+                "truncated": false,
+            });
+        };
+        let selected: Vec<&str> = if scopes.is_empty() {
+            MEMORY_SCOPES.to_vec()
+        } else {
+            MEMORY_SCOPES
+                .iter()
+                .copied()
+                .filter(|scope| scopes.iter().any(|requested| requested == scope))
+                .collect()
+        };
+        let needle = query.trim().to_ascii_lowercase();
+        let mut hits = Vec::new();
+        let mut truncated = false;
+        'scopes: for scope in selected {
+            let mut cursor = None;
+            for page_index in 0..SCAN_PAGE_LIMIT {
+                let page = match state.memory_claim_page(
+                    Some(workspace.id),
+                    Some(scope),
+                    Some(MEMORY_STATE_ACTIVE),
+                    cursor,
+                    REGISTRY_PAGE_LIMIT_MAX,
+                ) {
+                    Ok(page) => page,
+                    Err(_) => {
+                        return json!({
+                            "attached": true,
+                            "workspaceRegistered": true,
+                            "hits": [],
+                            "truncated": false,
+                            "unavailable": true,
+                        });
+                    }
+                };
+                for record in &page.items {
+                    let payload = &record.payload;
+                    let haystack = format!(
+                        "{} {} {}",
+                        payload.claim_type, payload.subject, payload.content
+                    )
+                    .to_ascii_lowercase();
+                    if !haystack.contains(&needle) {
+                        continue;
+                    }
+                    if hits.len() >= HIT_LIMIT {
+                        truncated = true;
+                        break 'scopes;
+                    }
+                    hits.push(json!({
+                        "claimId": record.id,
+                        "scope": payload.scope,
+                        "claimType": payload.claim_type,
+                        "subject": payload.subject,
+                        "content": payload.content,
+                        "memoryState": payload.memory_state,
+                        "confidence": payload.confidence,
+                        "sourceSessionId": payload.source_session_id,
+                    }));
+                }
+                if !page.truncated {
+                    break;
+                }
+                match page.next_cursor {
+                    Some(next) => {
+                        if page_index + 1 == SCAN_PAGE_LIMIT {
+                            truncated = true;
+                        }
+                        cursor = Some(next);
+                    }
+                    None => break,
+                }
             }
         }
         json!({
@@ -2660,6 +2767,107 @@ mod tests {
             .expect("detached memory search");
         let value = serde_json::to_value(&envelope).expect("detached envelope");
         assert_eq!(value["data"]["canonicalSessions"]["attached"], false);
+    }
+
+    #[tokio::test]
+    async fn canonical_claims_join_memory_search_through_the_locked_scopes() {
+        use soleaux_state::{
+            CanonicalEntityInput, MEMORY_STATE_PROPOSED, MemoryClaimPayload, WorkspacePayload,
+            WorkspaceTrustState,
+        };
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = fs::canonicalize(temp.path()).expect("root");
+        let state_path = temp.path().join("canonical.sqlite3");
+        {
+            let state = StateStore::open(&state_path).expect("state");
+            let workspace_id = Uuid::now_v7();
+            let mut workspace = CanonicalEntityInput::active(WorkspacePayload {
+                canonical_path: root.to_string_lossy().to_string(),
+                path_hash: blake3::hash(root.to_string_lossy().as_bytes())
+                    .to_hex()
+                    .to_string(),
+                display_name: "Fixture".to_string(),
+                trust_state: WorkspaceTrustState::Trusted,
+                profile_digest: profile::PROFILE_MANIFEST_SHA256.to_string(),
+                context_digest: profile::CONTEXT_SCHEMA_SHA256.to_string(),
+                public_tool_ceiling: 12,
+                production_claim_allowed: false,
+                metadata: json!({}),
+            });
+            workspace.id = Some(workspace_id);
+            state.put(workspace).expect("workspace");
+
+            for (scope, state_value, subject) in [
+                ("team", MEMORY_STATE_ACTIVE, "alpha decision"),
+                ("team", MEMORY_STATE_PROPOSED, "alpha proposal"),
+                ("session", MEMORY_STATE_ACTIVE, "alpha session note"),
+            ] {
+                let mut claim = CanonicalEntityInput::active(MemoryClaimPayload {
+                    claim_type: "decision".to_string(),
+                    subject: subject.to_string(),
+                    content: format!("{subject} content"),
+                    scope: scope.to_string(),
+                    memory_state: state_value.to_string(),
+                    confidence: 0.9,
+                    evidence_uris: Vec::new(),
+                    supersedes_id: None,
+                    source_session_id: None,
+                    metadata: json!({}),
+                });
+                claim.state = state_value.to_string();
+                claim.workspace_id = Some(workspace_id);
+                state.put(claim).expect("claim");
+            }
+        }
+
+        let server = PublicMcpServer::with_store(&root, temp.path().join("index.sqlite3"))
+            .expect("server")
+            .with_canonical_state(&state_path)
+            .expect("attach");
+
+        let envelope = server
+            .call_async(
+                "memory.search",
+                &json!({"query": "alpha", "scopes": ["team"]}),
+            )
+            .await
+            .expect("memory search");
+        let value = serde_json::to_value(&envelope).expect("envelope");
+        let section = &value["data"]["canonicalClaims"];
+        assert_eq!(section["attached"], true);
+        assert_eq!(section["workspaceRegistered"], true);
+        let hits = section["hits"].as_array().expect("hits");
+        assert_eq!(
+            hits.len(),
+            1,
+            "only active claims in the requested scope may surface"
+        );
+        assert_eq!(hits[0]["subject"], "alpha decision");
+        assert_eq!(hits[0]["scope"], "team");
+        assert_eq!(hits[0]["memoryState"], "active");
+
+        let envelope = server
+            .call_async("memory.search", &json!({"query": "alpha"}))
+            .await
+            .expect("all scope search");
+        let value = serde_json::to_value(&envelope).expect("envelope");
+        let hits = value["data"]["canonicalClaims"]["hits"]
+            .as_array()
+            .expect("hits");
+        assert_eq!(hits.len(), 2, "the default scope set joins every scope");
+
+        let detached = PublicMcpServer::with_store(&root, temp.path().join("index2.sqlite3"))
+            .expect("detached server");
+        let envelope = detached
+            .call_async(
+                "memory.search",
+                &json!({"query": "alpha", "scopes": ["team"]}),
+            )
+            .await
+            .expect("detached memory search");
+        let value = serde_json::to_value(&envelope).expect("detached envelope");
+        assert_eq!(value["data"]["canonicalClaims"]["attached"], false);
     }
 
     #[test]

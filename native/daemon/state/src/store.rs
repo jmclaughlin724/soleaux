@@ -481,6 +481,40 @@ impl StateStore {
         })
     }
 
+    pub fn memory_claim_page(
+        &self,
+        workspace_id: Option<Uuid>,
+        scope: Option<&str>,
+        memory_state: Option<&str>,
+        cursor: Option<Uuid>,
+        limit: usize,
+    ) -> Result<MemoryClaimPage> {
+        if let Some(scope) = scope {
+            validate_memory_scope(scope)?;
+        }
+        if let Some(memory_state) = memory_state {
+            validate_memory_state(memory_state)?;
+        }
+        let connection = self.reader()?;
+        let page = database::memory_claim_page(
+            &connection,
+            workspace_id,
+            scope,
+            memory_state,
+            cursor,
+            limit,
+        )?;
+        Ok(MemoryClaimPage {
+            items: page
+                .items
+                .into_iter()
+                .map(typed_record)
+                .collect::<Result<Vec<_>>>()?,
+            next_cursor: page.next_cursor,
+            truncated: page.truncated,
+        })
+    }
+
     pub fn child_page<T: CanonicalPayload>(
         &self,
         parent_id: Uuid,
