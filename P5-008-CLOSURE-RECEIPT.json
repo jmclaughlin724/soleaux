@@ -1,0 +1,44 @@
+{
+  "capabilities": [
+    "materializer compatibility compiler: per-platform compatibility and degradation reports with guidance-vs-enforcement labeling (enforcement surfaces documented, never written)",
+    "bounded diffs, preimage backups with manifest, atomic all-or-nothing apply with preimage revalidation",
+    "automatic and explicit fail-closed rollback, including late-write-failure rollback",
+    "object/revision/origin/idempotency metadata carried in managed markers and MaterializationPayload",
+    "echo prevention proven end-to-end: materialized files never re-enter the registry scan, managed regions stripped, malformed markers fail closed",
+    "native load verification with rollback on digest mismatch",
+    "canonical records persist only via canonical_state(); detached servers report recordsPersisted=false truthfully"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-07",
+  "implementationPullRequests": [
+    {
+      "headCommit": "9dbf9fa25ca69ce241547be793c618eaa28ae53c",
+      "mergeCommit": "dd154ac5e88e1106458ddeacb4d76f2b3ddd73a5",
+      "pullRequest": 53,
+      "workflowRuns": {
+        "ci": 31227547333,
+        "clientCapabilityMatrix": 31227547315,
+        "native": 31227547373
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-008",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 133
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}

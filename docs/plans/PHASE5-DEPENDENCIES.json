@@ -1,41 +1,311 @@
 {
   "groups": [
-    { "blockedBy": [], "id": "G0", "planSection": "Phases 6–8", "taskRange": "external-evidence receipt schema + P7-010 readiness definition", "title": "G0: external-evidence receipt schema + P7-010 readiness definition" },
-    { "blockedBy": ["P5-013", "P5-020", "P5-026"], "id": "PHASE6", "planSection": "Phases 6–8", "taskRange": "P6-001..P6-016", "title": "Phase 6 group: desktop, mobile, remote control, installers (P6-001..016)" },
-    { "blockedBy": ["PHASE6"], "id": "PHASE7-HARDENING", "planSection": "Phases 6–8", "taskRange": "P7-001..P7-003, P7-007..P7-012", "title": "Phase 7 hardening group (P7-001..003, 007..012)" },
-    { "blockedBy": ["G0", "PHASE6"], "id": "PHASE7-EXTERNAL", "planSection": "Phases 6–8", "taskRange": "P7-004..P7-006, P7-013", "title": "Phase 7 external gates (P7-004..006, 013) — owner-sourced" },
-    { "blockedBy": ["PHASE7-HARDENING", "PHASE7-EXTERNAL"], "id": "PHASE8", "note": "P8-006 additionally requires P3-EXECUTION for any efficacy claim.", "planSection": "Phases 6–8", "taskRange": "P8-001..P8-008", "title": "Phase 8 group: RC, signing, stores, staged rollout, GA (P8-001..008)" },
-    { "blockedBy": [], "id": "P3-PREREQS", "planSection": "Deferred Phase 3 lane", "taskRange": "measurement-schema three-arm fix, checker unpin, reactivation inputs", "title": "P3 prerequisites: schema fix, checker unpin, reactivation inputs" },
-    { "blockedBy": ["P3-PREREQS"], "id": "P3-EXECUTION", "planSection": "Deferred Phase 3 lane", "taskRange": "P3-005..P3-025", "title": "P3 execution: frozen three-arm claims experiment (P3-005..025)" }
+    {
+      "blockedBy": [],
+      "id": "G0",
+      "planSection": "Phases 6\u20138",
+      "taskRange": "external-evidence receipt schema + P7-010 readiness definition",
+      "title": "G0: external-evidence receipt schema + P7-010 readiness definition"
+    },
+    {
+      "blockedBy": [
+        "P5-013",
+        "P5-020",
+        "P5-026"
+      ],
+      "id": "PHASE6",
+      "planSection": "Phases 6\u20138",
+      "taskRange": "P6-001..P6-016",
+      "title": "Phase 6 group: desktop, mobile, remote control, installers (P6-001..016)"
+    },
+    {
+      "blockedBy": [
+        "PHASE6"
+      ],
+      "id": "PHASE7-HARDENING",
+      "planSection": "Phases 6\u20138",
+      "taskRange": "P7-001..P7-003, P7-007..P7-012",
+      "title": "Phase 7 hardening group (P7-001..003, 007..012)"
+    },
+    {
+      "blockedBy": [
+        "G0",
+        "PHASE6"
+      ],
+      "id": "PHASE7-EXTERNAL",
+      "planSection": "Phases 6\u20138",
+      "taskRange": "P7-004..P7-006, P7-013",
+      "title": "Phase 7 external gates (P7-004..006, 013) \u2014 owner-sourced"
+    },
+    {
+      "blockedBy": [
+        "PHASE7-HARDENING",
+        "PHASE7-EXTERNAL"
+      ],
+      "id": "PHASE8",
+      "note": "P8-006 additionally requires P3-EXECUTION for any efficacy claim.",
+      "planSection": "Phases 6\u20138",
+      "taskRange": "P8-001..P8-008",
+      "title": "Phase 8 group: RC, signing, stores, staged rollout, GA (P8-001..008)"
+    },
+    {
+      "blockedBy": [],
+      "id": "P3-PREREQS",
+      "planSection": "Deferred Phase 3 lane",
+      "taskRange": "measurement-schema three-arm fix, checker unpin, reactivation inputs",
+      "title": "P3 prerequisites: schema fix, checker unpin, reactivation inputs"
+    },
+    {
+      "blockedBy": [
+        "P3-PREREQS"
+      ],
+      "id": "P3-EXECUTION",
+      "planSection": "Deferred Phase 3 lane",
+      "taskRange": "P3-005..P3-025",
+      "title": "P3 execution: frozen three-arm claims experiment (P3-005..025)"
+    }
   ],
-  "nextOpen": "P5-008",
+  "nextOpen": "P5-009",
   "nodes": [
-    { "blockedBy": [], "id": "P5-W1", "lane": "lifecycle", "receipt": "P5-W1-CLOSURE-RECEIPT.json", "wave": 1 },
-    { "blockedBy": ["P5-W1"], "id": "P5-007", "lane": "lifecycle", "receipt": "P5-007-CLOSURE-RECEIPT.json", "wave": 1 },
-    { "blockedBy": [], "id": "P5-008", "lane": "materializer", "receipt": "P5-008-CLOSURE-RECEIPT.json", "wave": 1 },
-    { "blockedBy": [], "checkbox": "P5-009", "id": "P5-009a", "lane": "lsp", "receipt": "P5-009A-MATRIX-V1-RECEIPT.json", "wave": 1 },
-    { "blockedBy": [], "id": "P5-010", "lane": "build-tools", "receipt": "P5-010-CLOSURE-RECEIPT.json", "wave": 1 },
-    { "blockedBy": [], "id": "P5-021", "lane": "parsers", "receipt": "P5-021-CLOSURE-RECEIPT.json", "wave": 1 },
-    { "blockedBy": [], "id": "P5-022", "lane": "parsers", "receipt": "P5-022-CLOSURE-RECEIPT.json", "wave": 1 },
-    { "blockedBy": ["P5-007", "P5-008", "P5-009a", "P5-010"], "id": "P5-011", "lane": "lifecycle", "receipt": "P5-011-CLOSURE-RECEIPT.json", "wave": 2 },
-    { "blockedBy": ["P5-011"], "id": "P5-012", "lane": "lifecycle", "receipt": "P5-012-CLOSURE-RECEIPT.json", "wave": 2 },
-    { "blockedBy": ["P5-011", "P5-012"], "id": "P5-013", "lane": "lifecycle", "receipt": "PHASE5-CLOSURE-RECEIPT.json", "wave": 2 },
-    { "blockedBy": ["P5-W1", "P5-007"], "id": "P5-V1", "lane": "lifecycle", "receipt": "P5-V1-CLOSURE-RECEIPT.json", "wave": 3 },
-    { "blockedBy": ["P5-V1"], "id": "P5-014", "lane": "lifecycle", "receipt": "P5-014-CLOSURE-RECEIPT.json", "wave": 3 },
-    { "blockedBy": ["P5-007"], "id": "P5-015", "lane": "lifecycle", "receipt": "P5-015-CLOSURE-RECEIPT.json", "wave": 3 },
-    { "blockedBy": ["P5-V1"], "id": "P5-016", "lane": "lifecycle", "receipt": "P5-016-CLOSURE-RECEIPT.json", "wave": 3 },
-    { "blockedBy": ["P5-V1"], "id": "P5-017", "lane": "lifecycle", "receipt": "P5-017-CLOSURE-RECEIPT.json", "wave": 3 },
-    { "blockedBy": ["P5-W1", "P5-007"], "id": "P5-018", "lane": "lifecycle", "receipt": "P5-018-CLOSURE-RECEIPT.json", "wave": 4 },
-    { "blockedBy": ["P5-007", "P5-014"], "id": "P5-019", "lane": "lifecycle", "receipt": "P5-019-CLOSURE-RECEIPT.json", "wave": 4 },
-    { "blockedBy": ["P5-W1", "P5-007", "P5-014"], "id": "P5-020", "lane": "lifecycle", "receipt": "P5-020-CLOSURE-RECEIPT.json", "wave": 4 },
-    { "blockedBy": ["P5-009a"], "id": "P5-023", "lane": "lsp", "receipt": "P5-023-CLOSURE-RECEIPT.json", "wave": 5 },
-    { "blockedBy": ["P5-023"], "checkbox": "P5-009", "id": "P5-009b", "lane": "lsp", "receipt": "P5-009-CLOSURE-RECEIPT.json", "wave": 5 },
-    { "blockedBy": ["P5-010"], "id": "P5-024", "lane": "build-tools", "receipt": "P5-024-CLOSURE-RECEIPT.json", "wave": 5 },
-    { "blockedBy": ["P5-010", "P5-021"], "id": "P5-025", "lane": "build-tools", "receipt": "P5-025-CLOSURE-RECEIPT.json", "wave": 5 },
-    { "blockedBy": ["P5-008", "P5-021", "P5-022", "P5-024", "P5-025"], "id": "P5-026", "lane": "extensibility", "receipt": "P5-026-CLOSURE-RECEIPT.json", "wave": 6 },
-    { "blockedBy": ["P5-026"], "id": "P5-027", "lane": "extensibility", "receipt": "P5-027-CLOSURE-RECEIPT.json", "wave": 6 },
-    { "blockedBy": ["P5-027"], "id": "P5-028", "lane": "extensibility", "receipt": "P5-028-CLOSURE-RECEIPT.json", "wave": 6 },
-    { "blockedBy": ["P5-018"], "id": "P5-029", "lane": "extensibility", "optional": true, "receipt": "P5-029-CLOSURE-RECEIPT.json", "wave": 6 }
+    {
+      "blockedBy": [],
+      "id": "P5-W1",
+      "lane": "lifecycle",
+      "receipt": "P5-W1-CLOSURE-RECEIPT.json",
+      "wave": 1
+    },
+    {
+      "blockedBy": [
+        "P5-W1"
+      ],
+      "id": "P5-007",
+      "lane": "lifecycle",
+      "receipt": "P5-007-CLOSURE-RECEIPT.json",
+      "wave": 1
+    },
+    {
+      "blockedBy": [],
+      "id": "P5-008",
+      "lane": "materializer",
+      "receipt": "P5-008-CLOSURE-RECEIPT.json",
+      "wave": 1
+    },
+    {
+      "blockedBy": [],
+      "checkbox": "P5-009",
+      "id": "P5-009a",
+      "lane": "lsp",
+      "receipt": "P5-009A-MATRIX-V1-RECEIPT.json",
+      "wave": 1
+    },
+    {
+      "blockedBy": [],
+      "id": "P5-010",
+      "lane": "build-tools",
+      "receipt": "P5-010-CLOSURE-RECEIPT.json",
+      "wave": 1
+    },
+    {
+      "blockedBy": [],
+      "id": "P5-021",
+      "lane": "parsers",
+      "receipt": "P5-021-CLOSURE-RECEIPT.json",
+      "wave": 1
+    },
+    {
+      "blockedBy": [],
+      "id": "P5-022",
+      "lane": "parsers",
+      "receipt": "P5-022-CLOSURE-RECEIPT.json",
+      "wave": 1
+    },
+    {
+      "blockedBy": [
+        "P5-007",
+        "P5-008",
+        "P5-009a",
+        "P5-010"
+      ],
+      "id": "P5-011",
+      "lane": "lifecycle",
+      "receipt": "P5-011-CLOSURE-RECEIPT.json",
+      "wave": 2
+    },
+    {
+      "blockedBy": [
+        "P5-011"
+      ],
+      "id": "P5-012",
+      "lane": "lifecycle",
+      "receipt": "P5-012-CLOSURE-RECEIPT.json",
+      "wave": 2
+    },
+    {
+      "blockedBy": [
+        "P5-011",
+        "P5-012"
+      ],
+      "id": "P5-013",
+      "lane": "lifecycle",
+      "receipt": "PHASE5-CLOSURE-RECEIPT.json",
+      "wave": 2
+    },
+    {
+      "blockedBy": [
+        "P5-W1",
+        "P5-007"
+      ],
+      "id": "P5-V1",
+      "lane": "lifecycle",
+      "receipt": "P5-V1-CLOSURE-RECEIPT.json",
+      "wave": 3
+    },
+    {
+      "blockedBy": [
+        "P5-V1"
+      ],
+      "id": "P5-014",
+      "lane": "lifecycle",
+      "receipt": "P5-014-CLOSURE-RECEIPT.json",
+      "wave": 3
+    },
+    {
+      "blockedBy": [
+        "P5-007"
+      ],
+      "id": "P5-015",
+      "lane": "lifecycle",
+      "receipt": "P5-015-CLOSURE-RECEIPT.json",
+      "wave": 3
+    },
+    {
+      "blockedBy": [
+        "P5-V1"
+      ],
+      "id": "P5-016",
+      "lane": "lifecycle",
+      "receipt": "P5-016-CLOSURE-RECEIPT.json",
+      "wave": 3
+    },
+    {
+      "blockedBy": [
+        "P5-V1"
+      ],
+      "id": "P5-017",
+      "lane": "lifecycle",
+      "receipt": "P5-017-CLOSURE-RECEIPT.json",
+      "wave": 3
+    },
+    {
+      "blockedBy": [
+        "P5-W1",
+        "P5-007"
+      ],
+      "id": "P5-018",
+      "lane": "lifecycle",
+      "receipt": "P5-018-CLOSURE-RECEIPT.json",
+      "wave": 4
+    },
+    {
+      "blockedBy": [
+        "P5-007",
+        "P5-014"
+      ],
+      "id": "P5-019",
+      "lane": "lifecycle",
+      "receipt": "P5-019-CLOSURE-RECEIPT.json",
+      "wave": 4
+    },
+    {
+      "blockedBy": [
+        "P5-W1",
+        "P5-007",
+        "P5-014"
+      ],
+      "id": "P5-020",
+      "lane": "lifecycle",
+      "receipt": "P5-020-CLOSURE-RECEIPT.json",
+      "wave": 4
+    },
+    {
+      "blockedBy": [
+        "P5-009a"
+      ],
+      "id": "P5-023",
+      "lane": "lsp",
+      "receipt": "P5-023-CLOSURE-RECEIPT.json",
+      "wave": 5
+    },
+    {
+      "blockedBy": [
+        "P5-023"
+      ],
+      "checkbox": "P5-009",
+      "id": "P5-009b",
+      "lane": "lsp",
+      "receipt": "P5-009-CLOSURE-RECEIPT.json",
+      "wave": 5
+    },
+    {
+      "blockedBy": [
+        "P5-010"
+      ],
+      "id": "P5-024",
+      "lane": "build-tools",
+      "receipt": "P5-024-CLOSURE-RECEIPT.json",
+      "wave": 5
+    },
+    {
+      "blockedBy": [
+        "P5-010",
+        "P5-021"
+      ],
+      "id": "P5-025",
+      "lane": "build-tools",
+      "receipt": "P5-025-CLOSURE-RECEIPT.json",
+      "wave": 5
+    },
+    {
+      "blockedBy": [
+        "P5-008",
+        "P5-021",
+        "P5-022",
+        "P5-024",
+        "P5-025"
+      ],
+      "id": "P5-026",
+      "lane": "extensibility",
+      "receipt": "P5-026-CLOSURE-RECEIPT.json",
+      "wave": 6
+    },
+    {
+      "blockedBy": [
+        "P5-026"
+      ],
+      "id": "P5-027",
+      "lane": "extensibility",
+      "receipt": "P5-027-CLOSURE-RECEIPT.json",
+      "wave": 6
+    },
+    {
+      "blockedBy": [
+        "P5-027"
+      ],
+      "id": "P5-028",
+      "lane": "extensibility",
+      "receipt": "P5-028-CLOSURE-RECEIPT.json",
+      "wave": 6
+    },
+    {
+      "blockedBy": [
+        "P5-018"
+      ],
+      "id": "P5-029",
+      "lane": "extensibility",
+      "optional": true,
+      "receipt": "P5-029-CLOSURE-RECEIPT.json",
+      "wave": 6
+    }
   ],
   "plan": "docs/plans/PHASE5-IMPLEMENTATION-PLAN.md",
   "schemaVersion": "soleaux.plan-dependency-graph/v1"

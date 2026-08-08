@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   "apps/cli",
   "daemon/adapters/codex",
+  "daemon/adapters/opencode",
   "daemon/engine",
   "daemon/intelligence",
   "daemon/ipc",
@@ -18,6 +19,7 @@ exclude = [
 default-members = [
   "apps/cli",
   "daemon/adapters/codex",
+  "daemon/adapters/opencode",
   "daemon/engine",
   "daemon/intelligence",
   "daemon/ipc",

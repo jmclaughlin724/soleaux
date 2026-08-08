@@ -7,6 +7,7 @@
 mod admission;
 mod client;
 mod compatibility;
+mod memory;
 mod paths;
 mod protocol;
 mod registry;

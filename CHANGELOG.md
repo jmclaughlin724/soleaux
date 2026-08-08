@@ -60,6 +60,16 @@ The project is licensed under MIT.
 - Fixed the Phase 3 measurement schema's arm enum from the superseded two-arm design to the frozen three arms (`control_no_soleaux`, `historical_python`, `native_treatment`), so control-arm run records can validate.
 - Relaxed the consistency checker's Phase 3 pins to the closed set {deferred, frozen-ready}, making owner reactivation possible without editing the enforcement script; every other value still fails.
 
+### Phase 5 — foundations wave closed: P5-008, P5-010, P5-021; P5-009/P5-V1 milestones — 2026-08-07
+
+- Merged PR #51 (P5-009 milestone A): the seventeen-family language-server table with truthful degradation and the `lsp-capability-matrix-v1` contract; the P5-009 checkbox closes at matrix v2 after P5-023.
+- Merged PR #52 (P5-010): the `turbo-next-matrix-v1` contract with repository-evidence-only version pins, the section-aware pnpm workspace parser with the regression falsified in both directions, and real-repository self-validation. Evidence: [`P5-010-CLOSURE-RECEIPT.json`](P5-010-CLOSURE-RECEIPT.json).
+- Merged PR #53 (P5-008): the materializer compatibility compiler with per-platform compatibility/degradation reports, bounded diffs, preimage backups, atomic apply, fail-closed rollback, echo prevention, and native load verification. Evidence: [`P5-008-CLOSURE-RECEIPT.json`](P5-008-CLOSURE-RECEIPT.json).
+- Merged PR #54 (P5-V1 verifier milestone): daemon-trusted admission receipts with keyed-BLAKE3 MACs, fail-closed keystore handling, and the state-layer admission marker; external ReadWrite binds now require a verified receipt. The separately reviewed per-client lifecycle oracle lands with adapter enablement, so the P5-V1 checkbox stays open and `mutationEligible` stays empty.
+- Merged PR #55 (P5-021): real Oxc 0.142.0 AST extraction with typed import/export envelope fields, five embedded tree-sitter query packs with ts/tsx tagged-template injections, the damaged-file corpus, and the Ruff exclusion for deliberately damaged fixtures. Evidence: [`P5-021-CLOSURE-RECEIPT.json`](P5-021-CLOSURE-RECEIPT.json).
+- Closed P5-011: attached and validated `jmclaughlin724/anilize` at `2b7a0fab88dbc202f75b5e443725c825f7dc4fa2` end-to-end — canonical-registry attach with fail-closed negative path, doctor at exactly twelve tools, index, `context.compile` with truthful truncation, `get_symbols`, and complete-coverage LSP-backed `navigate`. Evidence: [`docs/operations/P5-011-ANILIZE-VALIDATION.json`](docs/operations/P5-011-ANILIZE-VALIDATION.json).
+- Recorded honestly: PR #50 was merged while its python check was red — a sequencing error; the failure was subsequently adjudicated a pre-existing process-test flake by the identical tree passing the full suite locally twice and main run `31227451859` concluding with `python=success`.
+
 ### Phase 5 — activated
 
 - Activated P5-001 through P5-029 for live client matrices, canonical lifecycle, materializers, memory/handoffs/runs, intelligence depth, SDK/provider interfaces, editor integration, optional hybrid search, real repositories, and an exact beta receipt.
