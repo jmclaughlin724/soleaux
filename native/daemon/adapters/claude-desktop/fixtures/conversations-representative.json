@@ -1,0 +1,83 @@
+[
+  {
+    "uuid": "9c5f2b1e-6f0a-4c3d-8e21-5a4b7c9d0e1f",
+    "name": "Plan the release checklist",
+    "summary": "unknown-field: newer exports may add fields; the parser must tolerate them",
+    "created_at": "2026-07-30T14:02:11.512337Z",
+    "updated_at": "2026-07-30T14:09:48.220981Z",
+    "account": {
+      "uuid": "1b7d9e30-2c4f-4a6b-9d8e-0f1a2b3c4d5e"
+    },
+    "chat_messages": [
+      {
+        "uuid": "e3a1c9d7-0b2f-4e6a-8c1d-3f5b7a9c0e2d",
+        "text": "Draft a release checklist from the attached notes.",
+        "content": [
+          {
+            "start_timestamp": "2026-07-30T14:02:11.512337Z",
+            "stop_timestamp": "2026-07-30T14:02:11.512337Z",
+            "type": "text",
+            "text": "Draft a release checklist from the attached notes.",
+            "citations": []
+          }
+        ],
+        "sender": "human",
+        "created_at": "2026-07-30T14:02:11.512337Z",
+        "updated_at": "2026-07-30T14:02:11.512337Z",
+        "attachments": [
+          {
+            "file_name": "notes.md",
+            "file_size": 2048,
+            "file_type": "text/markdown",
+            "extracted_content": "- gate\n- receipts\n- version"
+          }
+        ],
+        "files": [],
+        "reaction": null
+      },
+      {
+        "uuid": "f4b2d0e8-1c3a-4f7b-9d2e-4a6c8b0d1f3e",
+        "text": "Here is a three-item checklist covering the gate, receipts, and version pin.",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "unknown block kinds must be preserved verbatim",
+            "summaries": []
+          },
+          {
+            "type": "text",
+            "text": "Here is a three-item checklist covering the gate, receipts, and version pin.",
+            "citations": []
+          }
+        ],
+        "sender": "assistant",
+        "created_at": "2026-07-30T14:03:05.004210Z",
+        "updated_at": "2026-07-30T14:03:05.004210Z",
+        "attachments": [],
+        "files": []
+      },
+      {
+        "uuid": "a5c3e1f9-2d4b-4a8c-0e3f-5b7d9c1e2a4f",
+        "content": [
+          {
+            "type": "text",
+            "text": "Thanks — ship it.",
+            "citations": []
+          }
+        ],
+        "sender": "human",
+        "created_at": "2026-07-30T14:09:48.220981Z",
+        "updated_at": "2026-07-30T14:09:48.220981Z",
+        "attachments": [],
+        "files": []
+      }
+    ]
+  },
+  {
+    "uuid": "0d1e2f3a-4b5c-4d6e-8f7a-9b0c1d2e3f4a",
+    "name": "",
+    "created_at": "2026-08-01T08:15:00.000000Z",
+    "updated_at": "2026-08-01T08:15:00.000000Z",
+    "chat_messages": []
+  }
+]
