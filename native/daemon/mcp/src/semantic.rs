@@ -12,10 +12,15 @@ use std::{
     fs,
     path::Path,
     sync::Arc,
+    time::Duration,
 };
 use tokio::sync::RwLock;
 use url::Url;
 use uuid::Uuid;
+
+/// How long a diagnostics inspection waits for `publishDiagnostics` when the
+/// server does not advertise pull diagnostics before degrading truthfully.
+const PUSH_DIAGNOSTICS_WAIT: Duration = Duration::from_millis(400);
 
 #[derive(Clone)]
 pub struct SemanticService {
@@ -88,7 +93,7 @@ impl SemanticService {
                 },
             );
         }
-        let (uri, file, text) = self.open_target(&server_id, &target.path).await?;
+        let (uri, file, version) = self.open_target(&server_id, &target.path).await?;
         let params = match operation {
             "references" => json!({
                 "textDocument":{"uri":uri},
@@ -106,8 +111,8 @@ impl SemanticService {
                 method,
                 params,
                 &file.content_hash,
-                &target.path,
-                Some(1),
+                &uri,
+                Some(version),
             )
             .await?;
         let response = if matches!(operation, "incoming_calls" | "outgoing_calls") {
@@ -128,8 +133,8 @@ impl SemanticService {
                         second_method,
                         json!({"item":item}),
                         &file.content_hash,
-                        &target.path,
-                        Some(1),
+                        &uri,
+                        Some(version),
                     )
                     .await?
                 }
@@ -143,7 +148,7 @@ impl SemanticService {
             response,
             self.index.root(),
             Some(&server_id),
-            Some(1),
+            Some(version),
         )?;
         let cache_status = if data.get("pending").and_then(Value::as_bool) == Some(true) {
             "pending"
@@ -159,7 +164,6 @@ impl SemanticService {
             Vec::new(),
             None,
         );
-        let _ = text;
         Ok(SemanticResponse {
             data,
             cache_status: cache_status.to_string(),
@@ -192,7 +196,8 @@ impl SemanticService {
                 SemanticUnavailability::NoNativeServer,
             );
         };
-        if !self.lsp.supports(&server_id, method).await? {
+        let supports_pull = self.lsp.supports(&server_id, method).await?;
+        if !supports_pull && operation != "diagnostics" {
             return self.unavailable_inspection(
                 operation,
                 semantic_mode,
@@ -203,7 +208,51 @@ impl SemanticService {
                 },
             );
         }
-        let (uri, file, _text) = self.open_target(&server_id, path).await?;
+        let (uri, file, version) = self.open_target(&server_id, path).await?;
+        if !supports_pull {
+            // The server offers no pull diagnostics; opening the document may
+            // still have triggered a push. Served push diagnostics are real
+            // server results and are labeled as push-sourced; only when
+            // nothing arrives does the operation degrade truthfully.
+            if let Some(push) = self
+                .lsp
+                .wait_for_push_diagnostics(&server_id, &uri, PUSH_DIAGNOSTICS_WAIT)
+                .await
+            {
+                return Ok(SemanticResponse {
+                    data: json!({
+                        "operation": operation,
+                        "pending": false,
+                        "request_id": Value::Null,
+                        "cached": Value::Null,
+                        "items": push.items,
+                        "server_id": server_id.clone(),
+                        "document_version": push.version.unwrap_or(version),
+                        "soft_deadline_ms": 800,
+                    }),
+                    cache_status: "push".to_string(),
+                    coverage: coverage(
+                        true,
+                        vec![path.to_string()],
+                        vec![path.to_string()],
+                        Vec::new(),
+                        vec![format!("lsp:{server_id}:push")],
+                        Vec::new(),
+                        None,
+                    ),
+                    warnings: Vec::new(),
+                });
+            }
+            return self.unavailable_inspection(
+                operation,
+                semantic_mode,
+                path,
+                SemanticUnavailability::MissingCapability {
+                    server_id: &server_id,
+                    capability: capability_property(method).unwrap_or(method),
+                },
+            );
+        }
         let line_zero = line.saturating_sub(1);
         let column_zero = column.saturating_sub(1);
         let params = match operation {
@@ -226,11 +275,11 @@ impl SemanticService {
                 method,
                 params,
                 &file.content_hash,
-                path,
-                Some(1),
+                &uri,
+                Some(version),
             )
             .await?;
-        let data = normalize_inspection(operation, result, Some(&server_id), Some(1));
+        let data = normalize_inspection(operation, result, Some(&server_id), Some(version));
         let cache_status = if data.get("pending").and_then(Value::as_bool) == Some(true) {
             "pending"
         } else {
@@ -420,7 +469,7 @@ impl SemanticService {
                 server_id: server_id.to_string(),
                 method: method.to_string(),
                 params,
-                cache_key: format!("{content_hash}:{path}:{method}"),
+                cache_scope: format!("{content_hash}:{path}"),
                 document_uri: None,
                 document_version: version,
             })
@@ -431,7 +480,7 @@ impl SemanticService {
         &self,
         server_id: &str,
         relative: &str,
-    ) -> Result<(String, soleaux_storage::IndexedFileRecord, String)> {
+    ) -> Result<(String, soleaux_storage::IndexedFileRecord, i64)> {
         if !self.index.validate_indexed_file(relative)? {
             bail!("semantic target changed since it was indexed: {relative}");
         }
@@ -446,10 +495,11 @@ impl SemanticService {
         let text = fs::read_to_string(&absolute)
             .with_context(|| format!("reading semantic document {}", absolute.display()))?;
         let language_id = language_key(&file.language);
-        self.lsp
-            .open_document(server_id, &uri, language_id, 1, &text)
+        let version = self
+            .lsp
+            .sync_document(server_id, &uri, language_id, &text)
             .await?;
-        Ok((uri, file, text))
+        Ok((uri, file, version))
     }
 
     async fn server_for_path(&self, relative: &str) -> Result<Option<String>> {
@@ -943,6 +993,8 @@ while True:
                 idle_timeout_ms: 60_000,
                 rss_limit_bytes: 512 * 1024 * 1024,
                 maximum_open_documents: 16,
+                cpu_limit_percent: 400.0,
+                maximum_concurrent_requests: 8,
             })
             .await
             .expect("stub language server");
