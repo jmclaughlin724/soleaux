@@ -168,9 +168,9 @@ P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The 
 #### Canonical lifecycle, materializers, and real repositories
 
 - [x] **P5-007** Canonical session/history service and same-platform resume/fork/archive. Evidence: [`P5-007-CLOSURE-RECEIPT.json`](P5-007-CLOSURE-RECEIPT.json).
-- [ ] **P5-008** Materializer compatibility compiler, diff/backup/atomic apply/rollback, echo guards, and load verification.
+- [x] **P5-008** Materializer compatibility compiler, diff/backup/atomic apply/rollback, echo guards, and load verification. Evidence: [`P5-008-CLOSURE-RECEIPT.json`](P5-008-CLOSURE-RECEIPT.json).
 - [ ] **P5-009** Real LSP matrix: TypeScript/VTSLS, BasedPyright, Bash, Rust, Go, SourceKit, clangd, Kotlin, JDT, Vue, Svelte, Astro, MDX, YAML/JSON/HTML/CSS.
-- [ ] **P5-010** Turborepo and Next.js compatibility matrices on real repositories/versions.
+- [x] **P5-010** Turborepo and Next.js compatibility matrices on real repositories/versions. Evidence: [`P5-010-CLOSURE-RECEIPT.json`](P5-010-CLOSURE-RECEIPT.json).
 - [ ] **P5-011** Attach and validate `anilize`.
 - [ ] **P5-012** Validate two additional approved design partners.
 - [ ] **P5-013** Write Phase 5 beta receipt and independent verification.
@@ -191,7 +191,7 @@ P5-W1 evidence: [`P5-W1-CLOSURE-RECEIPT.json`](P5-W1-CLOSURE-RECEIPT.json). The 
 
 #### Intelligence and extensibility depth
 
-- [ ] **P5-021** Complete Oxc extraction and Tree-sitter query/injection/incremental watcher/damaged-file corpus.
+- [x] **P5-021** Complete Oxc extraction and Tree-sitter query/injection/incremental watcher/damaged-file corpus. Evidence: [`P5-021-CLOSURE-RECEIPT.json`](P5-021-CLOSURE-RECEIPT.json).
 - [ ] **P5-022** Add LibCST Python writes and `mvdan.cc/sh` semantics, optional ShellCheck, sandbox, process tree, and diagnostics.
 - [ ] **P5-023** Complete LSP multi-root/versioning, push/pull diagnostics, workspace edits, events, request-aware caches, and resource controls.
 - [ ] **P5-024** Turbo static graph plus version-probed documented CLI; optional LSP only after compatibility probe.

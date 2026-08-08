@@ -82,24 +82,6 @@
     "status": "closed",
     "workflowRunId": 31026328918
   },
-  "phase5Evidence": {
-    "artifactId": 8955671128,
-    "artifactSha256": "7cee5ddd84571718119447322fcf88a9ca2161c556b9af1a93ea4794ebd39dc8",
-    "completedTask": "P5-001",
-    "currentTask": "P5-008",
-    "exactServiceWorkflowRunId": 31071496501,
-    "finalValidationWorkflowRunId": 31070227364,
-    "mergeCommit": "f231b86f581b7f3d5d081ed4b8d235a72758342a",
-    "parallelWorkflowRunId": 31068987326,
-    "postMergeCiWorkflowRunId": 31072279038,
-    "postMergeDocumentationWorkflowRunId": 31072279070,
-    "productSourceCommit": "1744424444d08d6ee380dc40c948db86a626ee04",
-    "publicationWorkflowRunId": 31071131814,
-    "pullRequest": 36,
-    "pullRequestHeadCommit": "6ffd0f8af9ff44b0dcb5392f3e52963e309c1cc5",
-    "receipt": "P5-001-CLOSURE-RECEIPT.json",
-    "status": "in_progress"
-  },
   "phase5ClientMatrixEvidence": {
     "completedTasks": [
       "P5-002",
@@ -124,6 +106,24 @@
       "documentationConsistency": 31209110700,
       "native": 31209110734
     }
+  },
+  "phase5Evidence": {
+    "artifactId": 8955671128,
+    "artifactSha256": "7cee5ddd84571718119447322fcf88a9ca2161c556b9af1a93ea4794ebd39dc8",
+    "completedTask": "P5-001",
+    "currentTask": "P5-008",
+    "exactServiceWorkflowRunId": 31071496501,
+    "finalValidationWorkflowRunId": 31070227364,
+    "mergeCommit": "f231b86f581b7f3d5d081ed4b8d235a72758342a",
+    "parallelWorkflowRunId": 31068987326,
+    "postMergeCiWorkflowRunId": 31072279038,
+    "postMergeDocumentationWorkflowRunId": 31072279070,
+    "productSourceCommit": "1744424444d08d6ee380dc40c948db86a626ee04",
+    "publicationWorkflowRunId": 31071131814,
+    "pullRequest": 36,
+    "pullRequestHeadCommit": "6ffd0f8af9ff44b0dcb5392f3e52963e309c1cc5",
+    "receipt": "P5-001-CLOSURE-RECEIPT.json",
+    "status": "in_progress"
   },
   "phases": [
     {
@@ -178,16 +178,22 @@
         "P5-005",
         "P5-006",
         "P5-W1",
-        "P5-007"
+        "P5-007",
+        "P5-008",
+        "P5-010",
+        "P5-021"
       ],
-      "currentTask": "P5-008",
+      "currentTask": "P5-009",
       "name": "Adapters, lifecycle, intelligence depth, and extensibility",
       "number": 5,
       "receipts": [
         "P5-001-CLOSURE-RECEIPT.json",
         "P5-002-P5-006-CLOSURE-RECEIPT.json",
         "P5-W1-CLOSURE-RECEIPT.json",
-        "P5-007-CLOSURE-RECEIPT.json"
+        "P5-007-CLOSURE-RECEIPT.json",
+        "P5-008-CLOSURE-RECEIPT.json",
+        "P5-010-CLOSURE-RECEIPT.json",
+        "P5-021-CLOSURE-RECEIPT.json"
       ],
       "status": "in_progress"
     },

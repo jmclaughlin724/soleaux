@@ -1,0 +1,43 @@
+{
+  "capabilities": [
+    "real Oxc 0.142.0 AST extraction: symbols with exact zero-based utf8-byte spans in the existing kind vocabulary; imports/exports flattened from the parser ModuleRecord into typed additive envelope fields; JSX component names and React hook usage; real program summary with panicked flag; diagnostics carry byte spans",
+    "Oxc panic on damaged input falls back to the tree-sitter query pack so structure degrades instead of vanishing",
+    "five embedded tree-sitter query packs replace the fixed node-kind list: structural kinds plus definition and call-reference captures for ts/tsx/python/bash and a tagged-template injection query for ts/tsx",
+    "query-pack content folded into the grammar-hash cache identity; deterministic budget truncation (references 2048, structural 16384, module edges 4096) with warning diagnostics",
+    "damaged-file corpus proves bounded envelopes, spanned diagnostics, non-panicking degradation, and incremental edits on damaged input",
+    "engine versions pinned unchanged (oxc =0.142.0, tree-sitter =0.26.11); oxc_ast_visit is the only new lock entry; symbol store keeps container-based semantics"
+  ],
+  "conclusion": "success",
+  "date": "2026-08-07",
+  "implementationPullRequests": [
+    {
+      "headCommit": "6c9b17b1e8a2763f6478e9c130e249fb11ce245d",
+      "mergeCommit": "5d96813c1209f79065ba0f36387f1623affce5ba",
+      "pullRequest": 55,
+      "workflowRuns": {
+        "ci": 31228464986,
+        "clientCapabilityMatrix": 31228464962,
+        "native": 31228464940
+      }
+    }
+  ],
+  "nextTask": "P5-009",
+  "productionClaimAllowed": false,
+  "publicToolCeiling": 12,
+  "schemaVersion": "soleaux.phase5-task-receipt/v1",
+  "status": "closed",
+  "task": "P5-021",
+  "tests": {
+    "binaryInterfaceChecks": "pass",
+    "cargoAudit": "pass",
+    "cargoCheck": "pass",
+    "cargoTest": {
+      "failed": 0,
+      "passed": 142
+    },
+    "clippyWarningsDenied": "pass",
+    "mcpSmokes": "pass",
+    "releaseBuild": "pass",
+    "rustfmt": "pass"
+  }
+}
